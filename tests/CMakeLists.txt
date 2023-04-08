@@ -5,11 +5,13 @@ add_executable(simplidfs-tests.exe)
 target_sources(simplidfs-tests.exe
 	PRIVATE
 	tests_main.cpp
+	filesystem_tests.cpp
 	
 )
 
 target_link_libraries(simplidfs-tests.exe
 	PRIVATE
+	${Filesystem}
 	gtest_main
 	gmock_main
 )

@@ -15,6 +15,7 @@ FetchContent_Declare(
 	SOURCE_DIR ../dependencies/googletest
 	)
 
+file(GLOB Filesystem "src/filesystem.h" "src/filesystem.cpp")
 
 enable_testing()
 add_subdirectory(tests)
