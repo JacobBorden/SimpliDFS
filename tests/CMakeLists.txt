@@ -10,7 +10,8 @@ target_sources(simplidfs-tests.exe
 
 target_link_libraries(simplidfs-tests.exe
 	PRIVATE
-
+	gtest_main
+	gmock_main
 )
 
 target_include_directories(simplidfs-tests.exe
