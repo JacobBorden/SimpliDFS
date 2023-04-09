@@ -16,6 +16,7 @@ FetchContent_Declare(
 	)
 
 file(GLOB Filesystem "src/filesystem.h" "src/filesystem.cpp")
+file(GLOB Message "src/message.h" "src/message.cpp")
 
 enable_testing()
 add_subdirectory(tests)

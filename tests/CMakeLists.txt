@@ -12,6 +12,7 @@ target_sources(simplidfs-tests.exe
 target_link_libraries(simplidfs-tests.exe
 	PRIVATE
 	${Filesystem}
+	${Message}
 	gtest_main
 	gmock_main
 )
