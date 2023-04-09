@@ -1,7 +1,7 @@
 #include "message.h"
 #include <sstream>
 
-std::string SerializeMessage(const Message _pMessage)
+std::string SerializeMessage(const Message& _pMessage)
 {
 	std::stringstream ss;
 	ss << static_cast<int>(_pMessage._Type) << "|"

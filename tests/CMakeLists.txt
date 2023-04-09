@@ -6,7 +6,7 @@ target_sources(simplidfs-tests.exe
 	PRIVATE
 	tests_main.cpp
 	filesystem_tests.cpp
-	
+	message_tests.cpp	
 )
 
 target_link_libraries(simplidfs-tests.exe
