@@ -1,26 +1,28 @@
 cmake_minimum_required(VERSION 3.10)
 
-add_executable(simplidfs-tests.exe)
-
-target_sources(simplidfs-tests.exe
-	PRIVATE
-	tests_main.cpp
-	filesystem_tests.cpp
-	message_tests.cpp	
+# Add executable for tests
+add_executable(SimpliDFSTests
+    tests_main.cpp
+    filesystem_tests.cpp
+    message_tests.cpp
+    ../src/filesystem.cpp
+    ../src/message.cpp
 )
 
-target_link_libraries(simplidfs-tests.exe
-	PRIVATE
-	${Filesystem}
-	${Message}
-	gtest_main
-	gmock_main
+# Link GoogleTest, threading library, and other dependencies
+target_link_libraries(SimpliDFSTests
+    PRIVATE
+    gtest_main
+    gmock_main
+    Threads::Threads
 )
 
-target_include_directories(simplidfs-tests.exe
-	PRIVATE
-	${PROJECT_SOURCE_DIR}/src	
+# Include directories for the headers
+target_include_directories(SimpliDFSTests
+    PRIVATE
+    ${PROJECT_SOURCE_DIR}/src
 )
 
-include(CTest)
-add_test(NAME simplidfs-tests.exe COMMAND simplidfs-tests.exe)
+# Register tests with CTest
+include(GoogleTest)
+gtest_discover_tests(SimpliDFSTests)

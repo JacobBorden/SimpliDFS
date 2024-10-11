@@ -1,1 +1,74 @@
-build/compile_commands.json
+[
+{
+  "directory": "/home/jacob/code/SimpliDFS",
+  "command": "/bin/clang++    -o CMakeFiles/SimpliDFS.dir/src/filesystem.cpp.o -c /home/jacob/code/SimpliDFS/src/filesystem.cpp",
+  "file": "/home/jacob/code/SimpliDFS/src/filesystem.cpp",
+  "output": "CMakeFiles/SimpliDFS.dir/src/filesystem.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS",
+  "command": "/bin/clang++    -o CMakeFiles/SimpliDFS.dir/src/message.cpp.o -c /home/jacob/code/SimpliDFS/src/message.cpp",
+  "file": "/home/jacob/code/SimpliDFS/src/message.cpp",
+  "output": "CMakeFiles/SimpliDFS.dir/src/message.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS",
+  "command": "/bin/clang++  -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest  -o CMakeFiles/SimpliDFSTests.dir/tests/filesystem_tests.cpp.o -c /home/jacob/code/SimpliDFS/tests/filesystem_tests.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/filesystem_tests.cpp",
+  "output": "CMakeFiles/SimpliDFSTests.dir/tests/filesystem_tests.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS",
+  "command": "/bin/clang++  -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest  -o CMakeFiles/SimpliDFSTests.dir/tests/message_tests.cpp.o -c /home/jacob/code/SimpliDFS/tests/message_tests.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/message_tests.cpp",
+  "output": "CMakeFiles/SimpliDFSTests.dir/tests/message_tests.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS",
+  "command": "/bin/clang++  -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest  -o CMakeFiles/SimpliDFSTests.dir/tests/tests_main.cpp.o -c /home/jacob/code/SimpliDFS/tests/tests_main.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/tests_main.cpp",
+  "output": "CMakeFiles/SimpliDFSTests.dir/tests/tests_main.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/_deps/googletest-build/googlemock",
+  "command": "/bin/clang++  -I/home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/include -I/home/jacob/code/SimpliDFS/dependencies/googletest/googlemock -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -Wall -Wshadow -Wconversion -Wundef -DGTEST_HAS_PTHREAD=1 -fexceptions -W -Wpointer-arith -Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wunused-parameter -Wcast-align -Winline -Wredundant-decls -Wchar-subscripts -o CMakeFiles/gmock.dir/src/gmock-all.cc.o -c /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/src/gmock-all.cc",
+  "file": "/home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/src/gmock-all.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/_deps/googletest-build/googlemock",
+  "command": "/bin/clang++  -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -Wall -Wshadow -Wconversion -Wundef -DGTEST_HAS_PTHREAD=1 -fexceptions -W -Wpointer-arith -Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wunused-parameter -Wcast-align -Winline -Wredundant-decls -Wchar-subscripts -o CMakeFiles/gmock_main.dir/src/gmock_main.cc.o -c /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/src/gmock_main.cc",
+  "file": "/home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/src/gmock_main.cc",
+  "output": "_deps/googletest-build/googlemock/CMakeFiles/gmock_main.dir/src/gmock_main.cc.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/_deps/googletest-build/googletest",
+  "command": "/bin/clang++  -I/home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -I/home/jacob/code/SimpliDFS/dependencies/googletest/googletest -Wall -Wshadow -Wconversion -Wundef -DGTEST_HAS_PTHREAD=1 -fexceptions -W -Wpointer-arith -Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wunused-parameter -Wcast-align -Winline -Wredundant-decls -Wchar-subscripts -o CMakeFiles/gtest.dir/src/gtest-all.cc.o -c /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/src/gtest-all.cc",
+  "file": "/home/jacob/code/SimpliDFS/dependencies/googletest/googletest/src/gtest-all.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/_deps/googletest-build/googletest",
+  "command": "/bin/clang++  -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -Wall -Wshadow -Wconversion -Wundef -DGTEST_HAS_PTHREAD=1 -fexceptions -W -Wpointer-arith -Wreturn-type -Wcast-qual -Wwrite-strings -Wswitch -Wunused-parameter -Wcast-align -Winline -Wredundant-decls -Wchar-subscripts -o CMakeFiles/gtest_main.dir/src/gtest_main.cc.o -c /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/src/gtest_main.cc",
+  "file": "/home/jacob/code/SimpliDFS/dependencies/googletest/googletest/src/gtest_main.cc",
+  "output": "_deps/googletest-build/googletest/CMakeFiles/gtest_main.dir/src/gtest_main.cc.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/tests",
+  "command": "/bin/clang++  -I/home/jacob/code/SimpliDFS/src -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock  -o CMakeFiles/simplidfs-tests.exe.dir/tests_main.cpp.o -c /home/jacob/code/SimpliDFS/tests/tests_main.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/tests_main.cpp",
+  "output": "tests/CMakeFiles/simplidfs-tests.exe.dir/tests_main.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/tests",
+  "command": "/bin/clang++  -I/home/jacob/code/SimpliDFS/src -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock  -o CMakeFiles/simplidfs-tests.exe.dir/filesystem_tests.cpp.o -c /home/jacob/code/SimpliDFS/tests/filesystem_tests.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/filesystem_tests.cpp",
+  "output": "tests/CMakeFiles/simplidfs-tests.exe.dir/filesystem_tests.cpp.o"
+},
+{
+  "directory": "/home/jacob/code/SimpliDFS/tests",
+  "command": "/bin/clang++  -I/home/jacob/code/SimpliDFS/src -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googletest -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock/include -isystem /home/jacob/code/SimpliDFS/dependencies/googletest/googlemock  -o CMakeFiles/simplidfs-tests.exe.dir/message_tests.cpp.o -c /home/jacob/code/SimpliDFS/tests/message_tests.cpp",
+  "file": "/home/jacob/code/SimpliDFS/tests/message_tests.cpp",
+  "output": "tests/CMakeFiles/simplidfs-tests.exe.dir/message_tests.cpp.o"
+}
+]

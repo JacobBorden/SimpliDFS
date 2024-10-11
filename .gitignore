@@ -1,3 +1,12 @@
 build/*
 bin/*
-
+_deps/*
+CMakeCache.txt
+DartConfiguration.tcl
+CMakeFiles/*
+*.cmake
+Makefile
+tests/CMakeFiles/*
+dependencies/googletest
+compile_commands.json
+dependencies/googletest
