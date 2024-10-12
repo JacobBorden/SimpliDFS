@@ -50,7 +50,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
    ```
 3. Run the tests:
    ```sh
-   ./simplidfs-tests.exe
+   ./SimpliDFSTests
    ```
 
 ## Contributing
@@ -58,8 +58,3 @@ Feel free to contribute to the project by opening issues, submitting pull reques
 
 ## License
 This project is licensed under the MIT License.
-
-## Acknowledgements
-- Google Test for unit testing.
-- [NetworkingLibrary](https://github.com/JacobBorden/NetworkingLibrary) for node communication.
-
