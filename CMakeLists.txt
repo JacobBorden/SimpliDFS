@@ -28,6 +28,8 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(networking)
+# Find the Networking Library
+add_subdirectory(${CMAKE_BINARY_DIR}/dependencies/networking)
 
 file(GLOB Filesystem "src/filesystem.h" "src/filesystem.cpp")
 file(GLOB Message "src/message.h" "src/message.cpp")
@@ -40,6 +42,8 @@ add_executable(SimpliDFS src/main.cpp ${Filesystem} ${Message}) # Include your m
 target_link_libraries(SimpliDFS Threads::Threads)
 
 add_executable(metaserver ${MetaServer} ${Filesystem} ${Message})
+
+target_include_directories(metaserver PRIVATE ${CMAKE_BINARY_DIR}/dependencies/networking/src/server)
 
 # Link threading library
 target_link_libraries(metaserver Threads::Threads networking)

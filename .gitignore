@@ -10,3 +10,4 @@ tests/CMakeFiles/*
 dependencies/googletest
 compile_commands.json
 dependencies/googletest
+.vscode/*
