@@ -50,7 +50,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
    ```
 3. Run the tests:
    ```sh
-   ./SimpliDFSTests
+   ./test/SimpliDFSTests
    ```
 
 ## Contributing

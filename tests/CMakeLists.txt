@@ -8,7 +8,6 @@ add_executable(SimpliDFSTests
 	metaserver_tests.cpp
     ../src/filesystem.cpp
     ../src/message.cpp
-	../src/metaserver.cpp
 )
 
 # Link GoogleTest, threading library, and other dependencies
