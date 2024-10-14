@@ -21,6 +21,24 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
     Message request = DeserializeMessage(&server.Receive(_pClient)[0]);
     switch (request._Type)
     {
+    case MessageType::CreateFile:
+    {
+        std::vector<std::string> nodes;
+        metadataManager.addFile(request._Filename, nodes);
+        break;
+    }
+
+    case MessageType::ReadFile:
+    {
+        std::vector<std::string> nodes = metadataManager.getFileNodes(request._Filename);
+        break;
+    }
+
+    case MessageType::WriteFile:
+    {
+        std::vector<std::string> nodes = metadataManager.getFileNodes(request._Filename);
+        break;
+    }
     }
 }
 
