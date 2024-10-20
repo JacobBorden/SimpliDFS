@@ -8,9 +8,11 @@ enum class MessageType{
 	CreateFile,
 	WriteFile,
 	ReadFile,
+	RemoveFile,
 	FileCreated,
 	FileWritten,
-	FileRead
+	FileRead,
+	FileRemoved
 };
 
 struct Message{

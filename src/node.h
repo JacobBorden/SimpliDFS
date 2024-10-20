@@ -42,16 +42,16 @@ public:
                 case MessageType::WriteFile: {
                     bool success = fileSystem.writeFile(message._Filename, message._Content);
                     if (success) {
-                        server.Send("File " + message._Filename + " written successfully.", client);
+                        server.Send(("File " + message._Filename + " written successfully.").c_str(), client);
                     } else {
-                        server.Send("Error: Unable to write file " + message._Filename + ".", client);
+                        server.Send(("Error: Unable to write file " + message._Filename + ".").c_str(), client);
                     }
                     break;
                 }
                 case MessageType::ReadFile: {
                     std::string content = fileSystem.readFile(message._Filename);
                     if (!content.empty()) {
-                        server.Send(&content[0], client);
+                        server.Send(content.c_str(), client);
                     } else {
                         server.Send("Error: File not found.", client);
                     }
@@ -60,7 +60,7 @@ public:
                 case MessageType::RemoveFile: {
                     bool success = fileSystem.writeFile(message._Filename, ""); // Assuming this removes the content
                     if (success) {
-                        server.Send("File " + message._Filename + " removed successfully.", client);
+                        server.Send(("File " + message._Filename + " removed successfully.").c_str(), client);
                     } else {
                         server.Send("Error: File not found.", client);
                     }
@@ -78,9 +78,9 @@ public:
 
     void sendMessageToMetadataManager(const std::string& metadataManagerAddress, int metadataManagerPort, const Message& message) {
         try {
-            Networking::Client client(&metadataManagerAddress[0], metadataManagerPort);
-            std::string serializedMessage = &SerializeMessage(message)[0];
-            client.Send(&serializedMessage[0]);
+            Networking::Client client(metadataManagerAddress.c_str(), metadataManagerPort);
+            std::string serializedMessage = SerializeMessage(message);
+            client.Send(serializedMessage.c_str());
             std::string response = &client.Receive()[0];
             std::cout << "Response from MetadataManager: " << response << std::endl;
         } catch (const std::exception& e) {
