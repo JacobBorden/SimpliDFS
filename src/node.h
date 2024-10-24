@@ -22,7 +22,7 @@ public:
         // Start the node's server in a separate thread to listen to requests
         std::thread serverThread(&Node::listenForRequests, this);
         serverThread.detach();
-        std::cout << "Node " << nodeName << " started on port " << server.getPort() << std::endl;
+        std::cout << "Node " << nodeName << " started on port " << server.GetPort() << std::endl;
     }
 
     void listenForRequests() {

@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(networking)
 file(GLOB Filesystem "src/filesystem.h" "src/filesystem.cpp")
 file(GLOB Message "src/message.h" "src/message.cpp")
 file(GLOB MetaServer "src/metaserver.h" "src/metaserver.cpp")
+file(GLOB NODE "src/node.h" "src/node.cpp")
 
 # Define the main executable
 add_executable(SimpliDFS src/main.cpp ${Filesystem} ${Message}) # Include your main.cpp file
@@ -46,6 +47,14 @@ target_include_directories(metaserver PRIVATE ${CMAKE_BINARY_DIR}/dependencies/n
 
 # Link threading library
 target_link_libraries(metaserver Threads::Threads SERVER CLIENT)
+
+
+add_executable(node ${Node} ${MetaServer} ${Filesystem} ${Message})
+target_include_directories(node PRIVATE ${CMAKE_BINARY_DIR}/dependencies/networking/src/server)
+target_include_directories(node PRIVATE ${CMAKE_BINARY_DIR}/dependencies/networking/src/client)
+
+# Link threading library
+target_link_libraries(node Threads::Threads SERVER CLIENT)
 
 # Add Google Test subdirectory and enable testing
 enable_testing()
