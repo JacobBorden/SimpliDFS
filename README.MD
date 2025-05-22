@@ -8,27 +8,49 @@ SimpliDFS is a distributed file system project designed to manage files across m
 - Manages file metadata using `MetadataManager`.
 - Tracks file distribution and node associations.
 - Thread-safe methods to add, retrieve, and remove metadata.
+- Manages a registry of active storage nodes.
+- Persists metadata (file locations, node registry) to disk to ensure durability across metaserver restarts.
 
 ### 2. File System Operations
 - Implements basic file operations: `createFile()`, `writeFile()`, and `readFile()`.
+- Supports file deletion, propagating changes to relevant nodes.
 - Integrated with `MetadataManager` to keep metadata in sync with file operations.
 
 ### 3. Message Handling
 - Uses a `Message` structure and `MessageType` enum to facilitate communication.
-- `SerializeMessage()` and `DeserializeMessage()` are used to prepare messages for node communication.
+- `SerializeMessage()` and `DeserializeMessage()` are now static methods of the `Message` class.
 - Metadata operations now notify nodes of updates.
 
+### 4. Node Management
+- Nodes can register with the metaserver.
+- A heartbeat mechanism allows nodes to report their status and helps the metaserver detect failures.
+
+### 5. Fault Tolerance (Conceptual)
+- Implements a replication strategy during file creation to distribute multiple copies of files across available live nodes.
+- Includes logic to detect node failures (via heartbeats) and identify files needing re-replication.
+- Note: Actual network communication for data transfer (including initial replication and re-replication) is currently stubbed due to an inaccessible networking library.
+
 ## Current Progress
-- The core functionality for metadata and file system operations has been implemented.
-- Basic message handling is integrated for metadata updates.
+Significant progress has been made on core distributed file system logic:
+- Robust metadata management with persistence.
+- Node registration and liveness tracking (heartbeats).
+- Fault tolerance framework including file replication strategy and detection of node failures for future re-replication.
+- File deletion support.
+- Initial code refactoring (messaging system) and comprehensive Doxygen documentation for key components.
+- Network communication between nodes and the metaserver is currently stubbed.
 
 ## TODO List
-- **Networking Integration**: Integrate [NetworkingLibrary](https://github.com/JacobBorden/NetworkingLibrary) to facilitate communication between nodes.
-- **Node Management**: Implement node registration and heartbeat mechanisms.
-- **Fault Tolerance**: Add replication of file chunks and handle node failures.
-- **Metadata Persistence**: Develop a persistence layer for metadata.
-- **Extended Operations**: Add support for file deletion and concurrency testing.
-- **Testing and Documentation**: Expand unit tests and improve documentation.
+- **Networking Integration**: Integrate a networking library to enable communication between nodes (currently stubbed; original [NetworkingLibrary](https://github.com/JacobBorden/NetworkingLibrary) was inaccessible).
+- **Node Management**: Core logic implemented (registration/heartbeat complete). Further enhancements for dynamic node property updates could be considered.
+- **Fault Tolerance**: Core logic implemented (replication strategy, failure detection complete; re-replication data transfer stubbed). Full end-to-end testing with a live networking layer is pending.
+- **Metadata Persistence**: Complete.
+- **Extended Operations**:
+    - File deletion: Complete.
+    - Concurrency testing: Conduct rigorous concurrency testing (initial review and test ideas documented).
+- **Testing and Documentation**:
+    - Expand unit tests for all major components.
+    - Doxygen documentation: Initial comprehensive documentation for core modules complete.
+- **File Encryption**: Implement file encryption for data at rest.
 
 ## Getting Started
 ### Prerequisites
