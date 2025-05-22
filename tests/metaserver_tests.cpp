@@ -13,9 +13,16 @@ TEST_F(MetadataManagerTest, AddFile) {
     std::string filename = "testfile.txt";
     std::vector<std::string> nodes = {"Node1", "Node2"};
     
+    // Register nodes to make them available and alive
+    metadataManager.registerNode("Node1", "localhost", 1001);
+    metadataManager.registerNode("Node2", "localhost", 1002);
+
     ASSERT_NO_THROW(metadataManager.addFile(filename, nodes));
 
-    auto storedNodes = metadataManager.getFileNodes(filename);
+    std::vector<std::string> storedNodes; 
+    ASSERT_NO_THROW({
+       storedNodes = metadataManager.getFileNodes(filename);
+    });
     EXPECT_EQ(storedNodes, nodes);
 }
 
@@ -23,12 +30,18 @@ TEST_F(MetadataManagerTest, AddFile) {
 TEST_F(MetadataManagerTest, GetFileNodes) {
     std::string filename = "testfile2.txt";
     std::vector<std::string> nodes = {"Node3", "Node4"};
-    metadataManager.addFile(filename, nodes);
 
+    // Register nodes
+    metadataManager.registerNode("Node3", "localhost", 1003);
+    metadataManager.registerNode("Node4", "localhost", 1004);
+
+    metadataManager.addFile(filename, nodes); 
+
+    std::vector<std::string> retrievedNodes;
     ASSERT_NO_THROW({
-        auto retrievedNodes = metadataManager.getFileNodes(filename);
-        EXPECT_EQ(retrievedNodes, nodes);
+        retrievedNodes = metadataManager.getFileNodes(filename);
     });
+    EXPECT_EQ(retrievedNodes, nodes);
 }
 
 // Test retrieving nodes for a non-existent file
@@ -57,6 +70,9 @@ TEST_F(MetadataManagerTest, RemoveNonExistentFile) {
 TEST_F(MetadataManagerTest, PrintMetadata) {
     std::string filename = "testfile4.txt";
     std::vector<std::string> nodes = {"Node7", "Node8"};
+    // Register nodes before adding file that uses them
+    metadataManager.registerNode("Node7", "localhost", 1007);
+    metadataManager.registerNode("Node8", "localhost", 1008);
     metadataManager.addFile(filename, nodes);
 
     ASSERT_NO_THROW(metadataManager.printMetadata());
