@@ -29,3 +29,12 @@ std::string FileSystem::readFile(const std::string& _pFilename)
 		return "";
 	return _Files[_pFilename];
 }
+
+bool FileSystem::deleteFile(const std::string& _pFilename) {
+    std::unique_lock<std::mutex> lock(_Mutex);
+    if (_Files.count(_pFilename)) {
+        _Files.erase(_pFilename);
+        return true; // Successfully deleted
+    }
+    return false; // File did not exist
+}

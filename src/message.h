@@ -3,7 +3,9 @@
 #define _SIMPLIDFS_MESSAGE_H
 
 #include <string>
-#include <stdexcept> // Required for Deserialize exception handling
+#include <vector>   // Not strictly needed for these specific implementations, but good for general message handling
+#include <sstream>  // For std::ostringstream, std::istringstream
+#include <stdexcept> // For std::runtime_error, std::invalid_argument, std::out_of_range
 
 /**
  * @brief Defines the types of messages that can be exchanged within the SimpliDFS system.
@@ -67,7 +69,7 @@ struct Message{
      * For RegisterNode, this is the port the registering node is listening on.
      * For other types where a specific port is relevant (e.g., distinguishing services on a node).
      */
-	int _NodePort;          
+	int _NodePort = 0; // Default initialize
 
 public: 
     /**
@@ -77,18 +79,87 @@ public:
      * @return A string representing the serialized message.
      * @note Fields are separated by '|'. Empty fields will result in consecutive delimiters.
      */
-    static std::string Serialize(const Message& msg);
+    inline static std::string Serialize(const Message& msg) {
+        std::ostringstream oss;
+        oss << static_cast<int>(msg._Type) << '|'
+            << msg._Filename << '|'
+            << msg._Content << '|'
+            << msg._NodeAddress << '|'
+            << msg._NodePort;
+        return oss.str();
+    }
 
     /**
      * @brief Deserializes a string into a Message object.
      * Parses a string formatted as Type|Filename|Content|NodeAddress|NodePort.
      * @param data The string data to deserialize.
      * @return A Message object.
-     * @throw std::runtime_error if parsing fails for critical fields like MessageType or numeric NodePort.
-     * @note Robustness for missing optional fields (like Filename for some types) is handled by
-     *       allowing empty strings for those fields. Callers should validate fields based on MessageType.
+     * @throw std::runtime_error if parsing fails for critical fields like MessageType or numeric NodePort,
+     *        or if the data string is fundamentally malformed.
+     * @note Fields are parsed sequentially. If a field is missing but expected, subsequent parsing
+     *       may fail or yield incorrect results. Empty optional fields are handled.
      */
-    static Message Deserialize(const std::string& data);
+    inline static Message Deserialize(const std::string& data) {
+        std::istringstream iss(data);
+        std::string token;
+        Message msg{}; // Value-initialize (NodePort = 0, strings empty)
+        int msg_type_int;
+
+        // Type
+        if (!std::getline(iss, token, '|')) {
+            throw std::runtime_error("Deserialize error: Message stream empty or type missing. Data: '" + data + "'");
+        }
+        try {
+            msg_type_int = std::stoi(token);
+            msg._Type = static_cast<MessageType>(msg_type_int);
+        } catch (const std::invalid_argument& ia) {
+            throw std::runtime_error("Deserialize error: Invalid message type format '" + token + "'. " + std::string(ia.what()));
+        } catch (const std::out_of_range& oor) {
+            throw std::runtime_error("Deserialize error: Message type value out of range '" + token + "'. " + std::string(oor.what()));
+        }
+
+        // Filename
+        if (!std::getline(iss, token, '|')) {
+            // This is an error if more fields are expected or if filename is mandatory for this type
+            // For simplicity, we allow it to be empty if it's the last field.
+            // However, since Content, NodeAddress, NodePort follow, this indicates a malformed message if it truly ends here.
+             if (iss.eof()) throw std::runtime_error("Deserialize error: Message stream ended prematurely after type. Expected Filename. Data: '" + data + "'");
+        }
+        msg._Filename = token;
+        
+        // Content
+        token.clear(); 
+        if (!std::getline(iss, token, '|')) {
+             if (iss.eof()) throw std::runtime_error("Deserialize error: Message stream ended prematurely after Filename. Expected Content. Data: '" + data + "'");
+        }
+        msg._Content = token;
+
+        // NodeAddress
+        token.clear();
+        if (!std::getline(iss, token, '|')) {
+            if (iss.eof()) throw std::runtime_error("Deserialize error: Message stream ended prematurely after Content. Expected NodeAddress. Data: '" + data + "'");
+        }
+        msg._NodeAddress = token;
+
+        // NodePort (last field)
+        token.clear();
+        if (std::getline(iss, token)) { // Read the rest for NodePort
+            if (!token.empty()) {
+                try {
+                    msg._NodePort = std::stoi(token);
+                } catch (const std::invalid_argument& ia) {
+                    throw std::runtime_error("Deserialize error: Invalid NodePort format '" + token + "'. " + std::string(ia.what()));
+                } catch (const std::out_of_range& oor) {
+                    throw std::runtime_error("Deserialize error: NodePort value out of range '" + token + "'. " + std::string(oor.what()));
+                }
+            }
+            // If token is empty, msg._NodePort remains 0 (from value-initialization), which is fine.
+        } else {
+            // This case means stream ended after the last delimiter for NodeAddress. NodePort is considered empty/default.
+            // msg._NodePort remains 0.
+        }
+        return msg;
+    }
 };
 
-#endif
+#endif // _SIMPLIDFS_MESSAGE_H

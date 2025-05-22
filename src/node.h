@@ -14,8 +14,7 @@
 #include <string>
 #include "filesystem.h"
 #include "message.h"
-#include "client.h" // Networking client from the NetworkingLibrary
-#include "server.h" // Networking server for listening to requests
+#include "networking_stubs.h" // Replaced client.h and server.h with stubs
 #include <thread>
 #include <chrono> // Required for std::chrono
 
@@ -126,15 +125,12 @@ public:
                     }
                     break;
                 }
-                case MessageType::RemoveFile: {
-                    bool success = fileSystem.writeFile(message._Filename, ""); // Assuming this removes the content
-                    if (success) {
-                        server.Send(("File " + message._Filename + " removed successfully.").c_str(), client);
-                    } else {
-                        server.Send("Error: File not found.", client);
-                    }
-                    break;
-                }
+                // Note: The case for MessageType::RemoveFile has been removed. 
+                // It was using fileSystem.writeFile with empty content, which is not a true delete.
+                // MessageType::DeleteFile is handled below and uses fileSystem.deleteFile.
+                // If MessageType::RemoveFile is a distinct, valid message type that should exist,
+                // it needs to be re-added to the MessageType enum in message.h.
+                // For now, assuming it was superseded by DeleteFile.
                 case MessageType::ReplicateFileCommand: {
                     std::string filenameToReplicate = message._Filename;
                     std::string targetNodeAddress = message._NodeAddress;
