@@ -1,32 +1,14 @@
-#include "message.h"
-#include <sstream>
-
-std::string SerializeMessage(const Message& _pMessage)
-{
-	std::stringstream ss;
-	ss << static_cast<int>(_pMessage._Type) << "|"
-	   << _pMessage._Filename << "|"
-	   << _pMessage._Content;
-
-	std::string messageString = ss.str();
-	return messageString;
-}
-
-Message DeserializeMessage(const std::string& _pSerializedMessage)
-{
-	std::istringstream iss(_pSerializedMessage);
-	std::string token;
-	Message msg;
-	
-	std::getline(iss, token, '|');
-	msg._Type = static_cast<MessageType>(std::stoi(token));
-	
-	std::getline(iss, token, '|');
-	msg._Filename = token;
-
-	std::getline(iss, token, '|');
-	msg._Content = token;
-
-	return msg;
-
-}
+// This file is intentionally left empty.
+// The definitions for Message::Serialize and Message::Deserialize
+// have been moved into src/message.h as inline static methods.
+//
+// This change was made to resolve persistent linker errors,
+// likely related to C++ ABI compatibility issues or complexities
+// in how the build system handled separate compilation of these
+// static methods in this specific environment. By making them
+// inline and defining them in the header, we ensure that each
+// translation unit gets its own copy of the functions (if needed)
+// or that they are truly inlined, circumventing the linker
+// issues encountered with separate compilation.
+//
+// See src/message.h for the implementations.

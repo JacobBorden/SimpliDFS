@@ -10,7 +10,7 @@
 #include "message.h" // Including message for node communication
 #include <sstream>
 #include "metaserver.h"
-#include "server.h"
+#include "networking_stubs.h" // Replaced server.h with stubs
 #include <thread>
 
 // Define persistence file paths and separators
