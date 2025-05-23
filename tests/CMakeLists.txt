@@ -6,8 +6,11 @@ add_executable(SimpliDFSTests
     filesystem_tests.cpp
     message_tests.cpp
 	metaserver_tests.cpp
+    networking_tests.cpp  # Added new test file
     ../src/filesystem.cpp
     ../src/message.cpp
+    ../src/client.cpp     # Added client source
+    ../src/server.cpp     # Added server source
 )
 
 # Link GoogleTest, threading library, and other dependencies

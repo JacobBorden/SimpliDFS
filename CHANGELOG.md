@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Unit tests for the core networking library functionalities (`Networking::Client`, `Networking::Server`).
+
+### Changed
+- Integrated an internal networking library (providing `Networking::Client` and `Networking::Server` classes) directly into the project source (`src/client.cpp`, `src/client.h`, `src/server.cpp`, `src/server.h`).
+- Removed the old `networking_stubs.h` and updated `metaserver` and `node` components to use the new library.
+- Replaced all stubbed network operations with calls to the integrated networking library.
+
+### Fixed
+- N/A
+
+### Removed
+- `src/networking_stubs.h` and its references.
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
