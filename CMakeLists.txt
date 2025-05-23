@@ -59,7 +59,7 @@ target_link_libraries(SimpliDFS
 )
 
 # Define the metaserver executable
-add_executable(metaserver src/metaserver.cpp src/filesystem.cpp) 
+add_executable(metaserver src/metaserver.cpp src/filesystem.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp) 
 target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(metaserver 
     PRIVATE
@@ -68,7 +68,7 @@ target_link_libraries(metaserver
 )
 
 # Define the node executable
-add_executable(node src/node.cpp src/filesystem.cpp) 
+add_executable(node src/node.cpp src/filesystem.cpp src/client.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp) 
 target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(node 
     PRIVATE

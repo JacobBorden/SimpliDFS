@@ -11,6 +11,8 @@ add_executable(SimpliDFSTests
     ../src/message.cpp
     ../src/client.cpp     # Added client source
     ../src/server.cpp     # Added server source
+    ../src/logger.cpp     # Added logger source
+    ../src/errorcodes.cpp # Added errorcodes source
 )
 
 # Link GoogleTest, threading library, and other dependencies

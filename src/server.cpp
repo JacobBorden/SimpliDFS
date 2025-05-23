@@ -916,5 +916,5 @@ void Networking::Server::LogToConsole(const std::string& _pMessage)
 
 int Networking::Server::GetPort()
 {
-	return serverInfo.sin_port;
+	return ntohs(serverInfo.sin_port);
 }
