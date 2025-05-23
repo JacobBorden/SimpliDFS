@@ -65,7 +65,8 @@ bool Networking::Client::CreateClientTCPSocket(PCSTR _pHost, int _pPort)
 	Networking::Client::SetProtocol(IPPROTO_TCP);
 
 	// Get the address info for the specified host and port
-	int errorCode = getaddrinfo((PCSTR)_pHost, (PCSTR)getservbyport(_pPort, NULL)->s_name,(const addrinfo*) &addressInfo,&hostAddressInfo );
+	std::string portStr = std::to_string(_pPort);
+	int errorCode = getaddrinfo((PCSTR)_pHost, portStr.c_str(),(const addrinfo*) &addressInfo,&hostAddressInfo );
 
 // If there was an error, throw an exception
 	if(errorCode)
@@ -107,7 +108,8 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
 	Networking::Client::SetProtocol(IPPROTO_UDP);
 
 	// Get the address info for the specified host and port
-	int errorCode = getaddrinfo(_pHost, (PCSTR)getservbyport(_pPort, NULL)->s_name,(const addrinfo*) &addressInfo,&hostAddressInfo );
+	std::string portStr = std::to_string(_pPort);
+	int errorCode = getaddrinfo(_pHost, portStr.c_str(),(const addrinfo*) &addressInfo,&hostAddressInfo );
 
 // If there was an error, throw an exception
 	if(errorCode)
@@ -142,7 +144,8 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
 
 bool Networking::Client::CreateClientSocket(PCSTR _pHost, int _pPort)
 {
-	int errorCode = getaddrinfo(_pHost, (PCSTR)getservbyport(_pPort, NULL)->s_name,(const addrinfo*) &addressInfo,&hostAddressInfo );
+	std::string portStr = std::to_string(_pPort);
+	int errorCode = getaddrinfo(_pHost, portStr.c_str(),(const addrinfo*) &addressInfo,&hostAddressInfo );
 
 	if(errorCode)
 	{
