@@ -33,10 +33,11 @@
 
 ## TODO List
 
-### 1. Networking Integration (Blocked/Stubbed)
-- **Integrate Networking Library**: Integrate a networking library (original [NetworkingLibrary](https://github.com/JacobBorden/NetworkingLibrary) was inaccessible) to enable actual communication between nodes. Currently, all network operations are stubbed as logged actions.
-  - Implement message sending and receiving capabilities for distributed coordination.
-  - Replace placeholders for message sending in `MetadataManager` and `Node` with real network operations.
+### 1. Networking Integration
+- **Networking Integration**: Completed.
+  - The internal networking library (`src/client.h`, `src/server.h`) has been integrated.
+  - Message sending and receiving capabilities are now implemented using this library for distributed coordination.
+  - Placeholders for message sending in `MetadataManager` and `Node` have been replaced with real network operations.
 
 ### 2. Node Management
 - **Node Registration**: Complete.
@@ -62,7 +63,6 @@
 - **File Encryption**: Implement file encryption for data at rest.
 
 ## Next Steps
-- Address the blocked Networking Integration by finding a suitable, accessible library or implementing basic networking capabilities.
 - Implement the actual data transfer mechanisms for file replication and re-replication.
 - Develop comprehensive unit tests for all implemented features.
 - Begin work on file encryption.

@@ -12,9 +12,12 @@
 
 #include <iostream>
 #include <string>
+#include <vector> // Required for std::vector
 #include "filesystem.h"
 #include "message.h"
-#include "networking_stubs.h" // Replaced client.h and server.h with stubs
+#include "server.h"
+#include "client.h"
+#include "networkexception.h"
 #include <thread>
 #include <chrono> // Required for std::chrono
 
@@ -102,8 +105,12 @@ public:
      */
     void handleClient(Networking::ClientConnection client) {
         try {
-            // Assuming server.Receive returns a type convertible to std::string or a char*
-            std::string request_str = &server.Receive(client)[0];
+            std::vector<char> request_vector = server.Receive(client);
+            if (request_vector.empty()) {
+                std::cerr << "Node " << nodeName << " received empty data." << std::endl;
+                return;
+            }
+            std::string request_str(request_vector.begin(), request_vector.end());
             Message message = Message::Deserialize(request_str);
 
             switch (message._Type) {
@@ -203,9 +210,20 @@ public:
             Networking::Client client(metadataManagerAddress.c_str(), metadataManagerPort);
             std::string serializedMessage = Message::Serialize(message);
             client.Send(serializedMessage.c_str());
-            std::string response = &client.Receive()[0]; // Assuming Receive returns char*
+            std::vector<char> response_vector = client.Receive();
+            if (response_vector.empty()) {
+                std::cout << "Node " << nodeName << " received empty response from MetadataManager." << std::endl;
+                // Handle empty response, maybe log or retry
+            }
+            // Only construct string if not empty, or handle empty string case
+            std::string response = "";
+            if (!response_vector.empty()){
+                response = std::string(response_vector.begin(), response_vector.end());
+            }
             std::cout << "Response from MetadataManager: " << response << std::endl;
-        } catch (const std::exception& e) { // Catching potential exceptions from Networking::Client
+        } catch (const Networking::NetworkException& ne) {
+             std::cerr << "Network error sending message to MetadataManager: " << ne.what() << std::endl;
+        } catch (const std::exception& e) { // Catching other potential exceptions
             std::cerr << "Error sending message to MetadataManager: " << e.what() << std::endl;
         }
     }

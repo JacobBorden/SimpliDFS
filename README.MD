@@ -28,7 +28,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
 ### 5. Fault Tolerance (Conceptual)
 - Implements a replication strategy during file creation to distribute multiple copies of files across available live nodes.
 - Includes logic to detect node failures (via heartbeats) and identify files needing re-replication.
-- Note: Actual network communication for data transfer (including initial replication and re-replication) is currently stubbed due to an inaccessible networking library.
+- Note: Actual network communication for data transfer (including initial replication and re-replication) now utilizes the integrated networking library.
 
 ## Current Progress
 Significant progress has been made on core distributed file system logic:
@@ -37,10 +37,10 @@ Significant progress has been made on core distributed file system logic:
 - Fault tolerance framework including file replication strategy and detection of node failures for future re-replication.
 - File deletion support.
 - Initial code refactoring (messaging system) and comprehensive Doxygen documentation for key components.
-- Network communication between nodes and the metaserver is currently stubbed.
+- Network communication between nodes and the metaserver is handled by the integrated networking library.
 
 ## TODO List
-- **Networking Integration**: Integrate a networking library to enable communication between nodes (currently stubbed; original [NetworkingLibrary](https://github.com/JacobBorden/NetworkingLibrary) was inaccessible).
+- **Networking Integration**: Completed. The networking library is now integrated directly into the project source (`src/client.h`, `src/server.h`) and is used by metaserver and node components.
 - **Node Management**: Core logic implemented (registration/heartbeat complete). Further enhancements for dynamic node property updates could be considered.
 - **Fault Tolerance**: Core logic implemented (replication strategy, failure detection complete; re-replication data transfer stubbed). Full end-to-end testing with a live networking layer is pending.
 - **Metadata Persistence**: Complete.

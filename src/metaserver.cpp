@@ -10,8 +10,10 @@
 #include "message.h" // Including message for node communication
 #include <sstream>
 #include "metaserver.h"
-#include "networking_stubs.h" // Replaced server.h with stubs
+#include "server.h"
+#include "networkexception.h"
 #include <thread>
+#include <string> // Required for std::string constructor from vector iterators
 
 // Define persistence file paths and separators
 // These were already added to metaserver.h in the previous step as global constants.
@@ -27,16 +29,18 @@ MetadataManager metadataManager;
 
 void HandleClientConnection(Networking::ClientConnection _pClient)
 {
-    // Assuming server.Receive returns a type convertible to std::string or a char* that needs null termination.
-    // If server.Receive(_pClient) returns std::vector<char>, then:
-    // std::vector<char> raw_data = server.Receive(_pClient);
-    // std::string data_str(raw_data.begin(), raw_data.end());
-    // Message request = Message::Deserialize(data_str);
-    // For now, let's assume it's a null-terminated char* as implied by &...[0]
-    std::string received_data_str = &server.Receive(_pClient)[0];
-    Message request = Message::Deserialize(received_data_str);
-    bool shouldSave = false;
-    switch (request._Type)
+    try {
+        std::vector<char> received_vector = server.Receive(_pClient);
+        if (received_vector.empty()) {
+            // Handle empty receive, maybe client disconnected or sent no data
+            std::cerr << "Received empty data from client." << std::endl;
+            // Depending on server logic, might want to close connection or return
+            return; 
+        }
+        std::string received_data_str(received_vector.begin(), received_vector.end());
+        Message request = Message::Deserialize(received_data_str);
+        bool shouldSave = false;
+        switch (request._Type)
     {
     case MessageType::CreateFile:
     {
@@ -63,7 +67,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
         metadataManager.registerNode(request._Filename, request._NodeAddress, request._NodePort);
         shouldSave = true;
         // Send a confirmation response back to the node
-        // server.Send("Node registered successfully", _pClient); // Actual send call
+        server.Send("Node registered successfully", _pClient); // Actual send call
         std::cout << "Sent registration confirmation to node " << request._Filename << std::endl; // Placeholder
         break;
     }
@@ -78,7 +82,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
     case MessageType::DeleteFile: {
         std::cout << "[METASERVER] Received DeleteFile request for " << request._Filename << std::endl;
         metadataManager.removeFile(request._Filename); // This will trigger notifications
-        // STUB: server.Send("Delete command processed.", _pClient);
+        server.Send("Delete command processed.", _pClient);
         std::cout << "[METASERVER_STUB] Sent DeleteFile command processed confirmation." << std::endl;
         shouldSave = true; // Ensure metadata is saved
         break;
@@ -89,6 +93,13 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
     if (shouldSave) {
         // Using global constants defined in metaserver.h for paths
         metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
+    }
+    } catch (const Networking::NetworkException& ne) {
+        std::cerr << "Network error in HandleClientConnection: " << ne.what() << std::endl;
+        // server.DisconnectClient(_pClient); // Or similar cleanup
+    } catch (const std::runtime_error& re) {
+        std::cerr << "Runtime error (e.g., deserialization) in HandleClientConnection: " << re.what() << std::endl;
+        server.Send("Error: Malformed message.", _pClient); // Optional: inform client
     }
 }
 
