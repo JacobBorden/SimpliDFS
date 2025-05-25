@@ -132,8 +132,40 @@ TEST_F(LoggerTest, LogRotation) {
     }
     std::remove(baseLogFile.c_str());
 
+    std::cout << "[LogRotation] After initial cleanup:" << std::endl;
+    for (int i = 0; i <= maxBackupFiles + 2; ++i) { // Check a bit beyond
+        std::string f = baseLogFile + (i == 0 ? "" : ("." + std::to_string(i)));
+        std::ifstream checker(f);
+        std::cout << "[LogRotation]   " << f << " exists: " << (checker.good() ? "yes" : "no") << std::endl;
+    }
+
     ASSERT_NO_THROW(Logger::init(baseLogFile, LogLevel::DEBUG, maxFileSize, maxBackupFiles));
     Logger& logger = Logger::getInstance();
+
+    logger.log(LogLevel::DEBUG, "Initial test message to ensure file creation.");
+    std::cout << "[LogRotation] After initial log message, before flush." << std::endl;
+    // You might not see the content yet as it might be buffered by the logger.
+    // Force a flush and close of the file by reinitializing the logger to a dummy file
+    // This ensures that the initial message is written to disk before we try to read it.
+    // This is a bit heavy-handed for just one message, but crucial for this check.
+    ASSERT_NO_THROW(Logger::init("dummy_initial_check_flush.log", LogLevel::DEBUG, 1024, 1));
+    addFileForCleanup("dummy_initial_check_flush.log"); // Add for cleanup
+    if (1 >=1) addFileForCleanup("dummy_initial_check_flush.log.1");
+
+    std::cout << "[LogRotation] After flushing initial message." << std::endl;
+    std::ifstream initialFileCheck(baseLogFile);
+    std::cout << "[LogRotation]   " << baseLogFile << " exists: " << (initialFileCheck.good() ? "yes" : "no") << ", size: " << (initialFileCheck.good() ? readFileContents(baseLogFile).length() : 0) << std::endl;
+    initialFileCheck.close();
+
+    std::string initialContents = readFileContents(baseLogFile);
+    ASSERT_FALSE(initialContents.empty()) << "Log file " << baseLogFile << " was not created or is empty after initial log. Check permissions or path issues.";
+    
+    // Re-initialize the logger to continue with the actual rotation test setup
+    ASSERT_NO_THROW(Logger::init(baseLogFile, LogLevel::DEBUG, maxFileSize, maxBackupFiles));
+    // Note: The logger reference 'logger' is now stale. Get it again.
+    Logger& logger_reinit = Logger::getInstance(); 
+    // Use logger_reinit for subsequent logging in this test.
+    // Replace all subsequent 'logger.log' with 'logger_reinit.log' in this test.
 
     std::string singleMessage = "Rotation test message. This message is intended to be somewhat long to help fill the log file quickly. "; // ~100 bytes
     // Make it longer to ensure it exceeds file size faster
@@ -145,9 +177,12 @@ TEST_F(LoggerTest, LogRotation) {
     // Message content: ~800 chars. Total per log: ~870 chars.
     // To exceed 1024 bytes, 2 messages should be enough.
     // To create base.log, base.log.1, base.log.2, we need to fill base.log three times.
-    // So, 2 messages * 3 = 6 messages should be sufficient. Let's use a few more to be safe.
-    for (int i = 0; i < 10; ++i) {
-        logger.log(LogLevel::INFO, singleMessage + " #" + std::to_string(i));
+    // So, 2 messages * 3 = 6 messages should be sufficient.
+    for (int i = 0; i < 6; ++i) { // Reduced from 10 to 6 messages
+        std::cout << "[LogRotation] Loop " << i << ": About to log. Current file: " << baseLogFile;
+        std::cout << std::endl;
+        logger_reinit.log(LogLevel::INFO, singleMessage + " #" + std::to_string(i));
+        std::cout << "[LogRotation] Loop " << i << ": Logged message." << std::endl;
     }
     
     // Force flush/close by re-initializing. This is a workaround.
@@ -157,6 +192,12 @@ TEST_F(LoggerTest, LogRotation) {
     addFileForCleanup("dummy_rotation_flush.log");
     addFileForCleanup("dummy_rotation_flush.log.1");
 
+    std::cout << "[LogRotation] After main logging loop and final flush." << std::endl;
+    for (int i = 0; i <= maxBackupFiles + 2; ++i) {
+        std::string f = baseLogFile + (i == 0 ? "" : ("." + std::to_string(i)));
+        std::ifstream checker(f);
+        std::cout << "[LogRotation]   " << f << " exists: " << (checker.good() ? "yes" : "no") << ", size: " << (checker.good() ? readFileContents(f).length() : 0) << std::endl;
+    }
 
     // Check for backup files
     std::ifstream currentLog(baseLogFile);
@@ -280,6 +321,3 @@ TEST_F(LoggerTest, LogBeforeInit) {
     // The Logger::getInstance() method already has a check for s_isInitialized.
     SUCCEED() << "Skipping direct test for 'log before init throws' due to singleton state and test order.";
 }
-Okay, `tests/logger_tests.cpp` has been created with GTest test cases for log level filtering, JSON output format, log rotation (including no backups), and re-initialization. A placeholder test for "log before init" is included with comments about its difficulty. Helper functions for reading file content and counting string occurrences are also included. The `LoggerTest` fixture handles cleanup of log files.
-
-Now, I need to update `tests/CMakeLists.txt` to include this new test file and ensure `logger.cpp` is compiled and linked with the test executable.

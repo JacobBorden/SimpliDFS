@@ -6,22 +6,38 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include "logger.h" // Add this include
+#include <cstdio>   // For std::remove
+#include <string>   // For std::to_string in TearDown
 
 // Basic test fixture for networking tests if needed, or just use TEST directly.
 class NetworkingTest : public ::testing::Test {
 protected:
     // Optional: Set up resources shared by tests in this fixture
     void SetUp() override {
-        // e.g., start a server instance if many tests need it
+        try {
+            Logger::init("networking_tests.log", LogLevel::DEBUG);
+        } catch (const std::exception& e) {
+            // Handle or log if SetUp itself fails critically
+        }
     }
 
     // Optional: Clean up shared resources
     void TearDown() override {
-        // e.g., stop server instance
+        try {
+            Logger::init("dummy_net_cleanup.log", LogLevel::DEBUG);
+            std::remove("dummy_net_cleanup.log"); 
+            std::remove("dummy_net_cleanup.log.1"); // Clean up potential rotated dummy log
+        } catch (const std::runtime_error& e) { /* ignore */ }
+        
+        std::remove("networking_tests.log");
+        for (int i = 1; i <= 5; ++i) {
+            std::remove(("networking_tests.log." + std::to_string(i)).c_str());
+        }
     }
 };
 
-TEST(NetworkingTest, ServerInitialization) {
+TEST_F(NetworkingTest, ServerInitialization) { // Changed to TEST_F
     Networking::Server server(12345);
     ASSERT_TRUE(server.InitServer()); // Assuming InitServer is the main initialization step
     ASSERT_TRUE(server.ServerIsRunning()); // Or a similar check
@@ -29,7 +45,7 @@ TEST(NetworkingTest, ServerInitialization) {
     server.Shutdown(); // Ensure server is properly closed
 }
 
-TEST(NetworkingTest, ClientInitializationAndConnection) {
+TEST_F(NetworkingTest, ClientInitializationAndConnection) { // Changed to TEST_F
     Networking::Server server(12346);
     ASSERT_TRUE(server.InitServer());
     std::thread serverThread([&]() {
@@ -51,13 +67,13 @@ TEST(NetworkingTest, ClientInitializationAndConnection) {
     server.Shutdown();
 }
 
-TEST(NetworkingTest, ClientCannotConnectToNonListeningServer) {
+TEST_F(NetworkingTest, ClientCannotConnectToNonListeningServer) { // Changed to TEST_F
     // Attempt to connect to a port where no server is listening
     Networking::Client client("127.0.0.1", 12340); // Some unlikely port
     ASSERT_FALSE(client.IsConnected()); 
 }
 
-TEST(NetworkingTest, SendAndReceiveClientToServer) {
+TEST_F(NetworkingTest, SendAndReceiveClientToServer) { // Changed to TEST_F
     const int testPort = 12347;
     Networking::Server server(testPort);
     ASSERT_TRUE(server.InitServer());
@@ -85,7 +101,7 @@ TEST(NetworkingTest, SendAndReceiveClientToServer) {
     ASSERT_EQ(receivedMessage, testMessage);
 }
 
-TEST(NetworkingTest, SendAndReceiveServerToClient) {
+TEST_F(NetworkingTest, SendAndReceiveServerToClient) { // Changed to TEST_F
     const int testPort = 12348;
     Networking::Server server(testPort);
     ASSERT_TRUE(server.InitServer());
@@ -115,7 +131,7 @@ TEST(NetworkingTest, SendAndReceiveServerToClient) {
     ASSERT_EQ(receivedMessage, testMessage);
 }
 
-TEST(NetworkingTest, MultipleClientsConnect) {
+TEST_F(NetworkingTest, MultipleClientsConnect) { // Changed to TEST_F
     const int testPort = 12349;
     Networking::Server server(testPort);
     ASSERT_TRUE(server.InitServer());

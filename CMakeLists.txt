@@ -50,7 +50,7 @@ add_library(SimpliDFS_Message INTERFACE)
 target_include_directories(SimpliDFS_Message INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
 # Define the main executable (SimpliDFS - likely for testing or a simple client)
-add_executable(SimpliDFS src/main.cpp src/filesystem.cpp) 
+add_executable(SimpliDFS src/main.cpp src/filesystem.cpp src/logger.cpp src/errorcodes.cpp) 
 target_include_directories(SimpliDFS PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(SimpliDFS 
     PRIVATE

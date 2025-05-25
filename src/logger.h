@@ -31,9 +31,10 @@ public:
     void logToConsole(LogLevel level, const std::string& message);
 
 private:
-    Logger(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal); // Constructor
+    Logger(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal); // Private Constructor
+public: // Public Destructor
     ~Logger();
-
+private:
     std::string getTimestamp();
     std::string levelToString(LogLevel level);
 
@@ -44,11 +45,7 @@ private:
     int maxBackupFiles;
 
     // Static members for init and getInstance
-    static std::string s_filePath;
-    static LogLevel s_initialLevel;
-    static long long s_maxSize;
-    static int s_backups;
-    static bool s_isInitialized;
+    static Logger* s_instance; // Changed from s_isInitialized and other static config members
 };
 
 #endif
