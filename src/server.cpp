@@ -1,8 +1,11 @@
 #include "server.h"
+#include "logger.h" // Ensure logger is included for Logger::getInstance()
+#include <string>   // For std::string conversion if needed (e.g. ex.what())
 
-Networking::Server::Server(int _pPortNumber, ServerType _pServerType,const std::string& _pLogFile) : logger(_pLogFile)
+Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed _pLogFile and logger initialization
 {
 	serverType = _pServerType;
+    Logger::getInstance().log(LogLevel::INFO, "Server instance created. Port: " + std::to_string(_pPortNumber) + ", Type: " + std::to_string(_pServerType));
 	Networking::Server::InitServer();
 	Networking::Server::CreateServerSocket(_pPortNumber, _pServerType);
 
@@ -27,7 +30,7 @@ bool Networking::Server::InitServer()
 	}
 	catch(Networking::NetworkException &ex)
 	{
-		logger.log(<ex.what());
+		Logger::getInstance().log(LogLevel::FATAL, "InitServer failed: " + std::string(ex.what()));
 		std::exit(EXIT_FAILURE);
 	}
 
@@ -89,41 +92,43 @@ void Networking::Server::CreateSocket()
 		switch (ex.GetErrorCode())
 		{
 		case EACCES:
-			logger.log(ex.what());
+			Logger::getInstance().log(LogLevel::FATAL, "CreateSocket failed (EACCES): " + std::string(ex.what()));
 			std::exit(EXIT_FAILURE);
 
 		case EAFNOSUPPORT:
-			logger.log(ex.what());
+			Logger::getInstance().log(LogLevel::FATAL, "CreateSocket failed (EAFNOSUPPORT): " + std::string(ex.what()));
 			std::exit(EXIT_FAILURE);
 
 		case EADDRINUSE:
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "CreateSocket failed (EADDRINUSE), retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				CreateSocket();
 			}
 
 			else
 			{
-				logger.log(ex.what());
+				Logger::getInstance().log(LogLevel::FATAL, "CreateSocket failed (EADDRINUSE) after max retries: " + std::string(ex.what()));
 				std::exit(EXIT_FAILURE);
 			}
 		case EINTR:
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "CreateSocket failed (EINTR), retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				CreateSocket();
 			}
 
 			else
 			{
-				logger.log(ex.what());
+				Logger::getInstance().log(LogLevel::FATAL, "CreateSocket failed (EINTR) after max retries: " + std::string(ex.what()));
 				std::exit(EXIT_FAILURE);
 			}
 		default:
-			logger.log(ex.what());
+			Logger::getInstance().log(LogLevel::FATAL, "CreateSocket failed (default case): " + std::string(ex.what()));
 			std::exit(EXIT_FAILURE);
 		}
 	}
@@ -152,29 +157,31 @@ void Networking::Server::BindSocket()
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "BindSocket failed (EADDRINUSE), retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				BindSocket();
 			}
 			else
 			{
-				logger.log(ex.what());
+				Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (EADDRINUSE) after max retries: " + std::string(ex.what()));
 				std::exit(EXIT_FAILURE);
 			}
 		case EADDRNOTAVAIL:
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "BindSocket failed (EADDRNOTAVAIL), retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				BindSocket();
 			}
 			else
 			{
-				logger.log(ex.what());
+				Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (EADDRNOTAVAIL) after max retries: " + std::string(ex.what()));
 				std::exit(EXIT_FAILURE);
 			}
 
 		default:
-			logger.log(ex.what());
+			Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (default case): " + std::string(ex.what()));
 			std::exit(EXIT_FAILURE);
 		}
 
@@ -207,11 +214,11 @@ void Networking::Server::ListenOnSocket()
 				ListenOnSocket();
 			}
 			else{
-				logger.log(ex.what());
+				Logger::getInstance().log(LogLevel::FATAL, "ListenOnSocket failed (EADDRINUSE) after max retries: " + std::string(ex.what()));
 				std::exit(EXIT_FAILURE);
 			}
 		default:
-			logger.log(ex.what());
+			Logger::getInstance().log(LogLevel::FATAL, "ListenOnSocket failed (default case): " + std::string(ex.what()));
 			std::exit(EXIT_FAILURE);
 		}
 	}
@@ -260,7 +267,7 @@ Networking::ClientConnection Networking::Server::Accept()
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				Accept();
 			}
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "Accept failed (WSAEINTR) after max retries or during retry: " + std::string(ex.what()));
 			return Networking::ClientConnection();
 
 			#else
@@ -269,24 +276,25 @@ Networking::ClientConnection Networking::Server::Accept()
 			if(retries <  MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "Accept failed (EINTR), retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				Accept();
 			}
 
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "Accept failed (EINTR) after max retries or during retry: " + std::string(ex.what()));
 			return Networking::ClientConnection();
 
 			#endif
 
 		default:
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "Accept failed (default case): " + std::string(ex.what()));
 			return Networking::ClientConnection();
 		}
 	}
 
 // Add the client connection to the list of clients
 	clients.push_back(client);
-	logger.log("New connection from " + GetClientIPAddress(client));
+    Logger::getInstance().log(LogLevel::INFO, "New connection from " + GetClientIPAddress(client) + " on socket " + std::to_string(client.clientSocket));
 	return client;
 }
 
@@ -342,7 +350,7 @@ int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _p
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EAGAIN) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 				DisconnectClient(_pClient);
 				break;
 			}
@@ -351,12 +359,13 @@ int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _p
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINTR) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				Send(_pSendBuffer, _pClient);
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINTR) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 				DisconnectClient(_pClient);
 				break;
 			}
@@ -365,18 +374,19 @@ int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _p
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINPROGRESS) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				Send(_pSendBuffer, _pClient);
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINPROGRESS) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 				DisconnectClient(_pClient);
 				break;
 			}
 
 		default:
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "Send failed (default case) to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 			DisconnectClient(_pClient);
 			break;
 
@@ -446,7 +456,7 @@ int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "SendTo failed (EAGAIN) after max retries to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 				break;
 			}
 
@@ -454,12 +464,13 @@ int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "SendTo failed (EINTR) to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				SendTo(_pBuffer, _pAddress, _pPort);
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "SendTo failed (EINTR) after max retries to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 				break;
 			}
 
@@ -467,17 +478,18 @@ int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "SendTo failed (EINPROGRESS) to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
 				SendTo(_pBuffer, _pAddress, _pPort);
 			}
 			else
 			{
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "SendTo failed (EINPROGRESS) after max retries to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 				break;
 			}
 
 		default:
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "SendTo failed (default case) to " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 			break;
 
 		}
@@ -596,8 +608,8 @@ void Networking::Server::SendFile(const std::string& _pFilePath, Networking::Cli
 	std::vector<char> fileData((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
 	// Send the file data to the server
-	Send(&fileData[0], client);
-	logger.log("Sent " + _pFilePath + " to " + GetClientIPAddress(client));
+	Send(&fileData[0], client); // Assuming Send already logs its own errors/retries
+    Logger::getInstance().log(LogLevel::INFO, "Sent file " + _pFilePath + " to client " + GetClientIPAddress(client));
 }
 
 
@@ -645,24 +657,25 @@ std::vector <char> Networking::Server::Receive(Networking::ClientConnection clie
 			else{
 				retries =0;
 				DisconnectClient(client);
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "Receive failed (EAGAIN) after max retries from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
 				break;
 			}
 		case EINTR:
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "Receive failed (EINTR) from client " + GetClientIPAddress(client) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				Receive(client);
 			}
 			else{
 				retries =0;
 				DisconnectClient(client);
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "Receive failed (EINTR) after max retries from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
 				break;
 			}
 		default:
 			DisconnectClient(client);
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "Receive failed (default case) from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
 			break;
 		}
 	}
@@ -742,22 +755,23 @@ std::vector<char> Networking::Server::ReceiveFrom(PCSTR _pAddress, int _pPort)
 			}
 			else{
 				retries =0;
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "ReceiveFrom failed (EAGAIN) after max retries from " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 				break;
 			}
 		case EINTR:
 			if(retries < MAX_RETRIES)
 			{
 				retries++;
+                Logger::getInstance().log(LogLevel::WARN, "ReceiveFrom failed (EINTR) from " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
 				ReceiveFrom(_pAddress, _pPort);
 			}
 			else{
 				retries =0;
-				logger.log(ex.what());
+                Logger::getInstance().log(LogLevel::ERROR, "ReceiveFrom failed (EINTR) after max retries from " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 				break;
 			}
 		default:
-			logger.log(ex.what());
+            Logger::getInstance().log(LogLevel::ERROR, "ReceiveFrom failed (default case) from " + std::string(_pAddress) + ":" + std::to_string(_pPort) + ": " + std::string(ex.what()));
 			break;
 		}
 	}
@@ -783,7 +797,7 @@ void Networking::Server::ReceiveFile(const std::string& _pFilePath, Networking::
 
 	// Write the file data to the file
 	file.write(&fileData[0], fileData.size());
-	logger.log("Received " + _pFilePath + " from " + GetClientIPAddress(client));
+    Logger::getInstance().log(LogLevel::INFO, "Received file " + _pFilePath + " from client " + GetClientIPAddress(client));
 }
 
 
@@ -816,9 +830,9 @@ void Networking::Server::DisconnectClient(Networking::ClientConnection _pClient)
 	}
 	catch (Networking::NetworkException &ex)
 	{
-
-		logger.log(ex.what());
+        Logger::getInstance().log(LogLevel::ERROR, "Error during DisconnectClient for " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 	}
+    Logger::getInstance().log(LogLevel::INFO, "Disconnecting client " + GetClientIPAddress(_pClient) + " socket " + std::to_string(_pClient.clientSocket));
 	// Close the socket
 	CLOSESOCKET(_pClient.clientSocket);
 
@@ -862,8 +876,9 @@ void Networking::Server::Shutdown()
 
 	catch (Networking::NetworkException &ex)
 	{
-		logger.log(ex.what());
+        Logger::getInstance().log(LogLevel::ERROR, "Error during server Shutdown: " + std::string(ex.what()));
 	}
+    Logger::getInstance().log(LogLevel::INFO, "Server shutdown initiated.");
 
 	#ifdef _WIN32
 	// Clean up the Windows Sockets DLL
@@ -898,15 +913,7 @@ Networking::ServerType Networking::Server::GetServerType()
 	return serverType;
 }
 
-void Networking::Server::LogToFile(const std::string& _pMessage)
-{
-	logger.log(_pMessage);
-}
-
-void Networking::Server::LogToConsole(const std::string& _pMessage)
-{
-	logger.logToConsole(_pMessage);
-}
+// Removed LogToFile and LogToConsole methods as they are replaced by direct Logger::getInstance() calls
 
 int Networking::Server::GetPort()
 {

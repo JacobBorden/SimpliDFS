@@ -1,4 +1,6 @@
 #include "client.h" // include the header file for the client class
+#include "logger.h" // Include the Logger header
+#include <string>   // Required for std::to_string
 
 // Constructor that initializes the client socket
 Networking::Client::Client()
@@ -6,12 +8,14 @@ Networking::Client::Client()
 	try {
 		// Initialize the client socket
 		Networking::Client::InitClientSocket();
+        Logger::getInstance().log(LogLevel::INFO, "Client initialized.");
 	}
 
 	// Catch any exceptions that are thrown
 	catch(int errorCode) {
 		// Print the error code
-		std::cout<<"Exception thrown. Error Code"<<errorCode;
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction. Error Code: " + std::to_string(errorCode));
+		// std::cout<<"Exception thrown. Error Code"<<errorCode;
 	}
 }
 
@@ -25,11 +29,13 @@ Networking::Client::Client(PCSTR _pHost, int _pPortNumber)
 		Networking::Client::CreateClientTCPSocket(_pHost, _pPortNumber);
 		// Connect to the server
 		Networking::Client::ConnectClientSocket();
+        Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber));
 	}
 	// Catch any exceptions that are thrown
 	catch(int errorCode) {
 		// Print the error code
-		std::cout<<"Exception thrown. Error Code "<<errorCode;
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port. Error Code: " + std::to_string(errorCode));
+		// std::cout<<"Exception thrown. Error Code "<<errorCode;
 	}
 }
 
@@ -270,8 +276,10 @@ void Networking::Client::SendFile(const std::string& _pFilePath)
 	// Check if the file was opened successfully
 	if(!file)
 	{
+        std::string errMsg = "Error: Unable to open file '" + _pFilePath + "'";
+        Logger::getInstance().log(LogLevel::ERROR, errMsg);
 		// Throw an exception if the file could not be opened
-		throw std::runtime_error("Error: Unable to open file '" + _pFilePath + "'");
+		throw std::runtime_error(errMsg);
 	}
 
 	// Read the file data into a buffer
@@ -386,8 +394,10 @@ void Networking::Client::ReceiveFile(const std::string& _pFilePath)
 	// Check if the file was opened successfully
 	if(!file)
 	{
+        std::string errMsg = "Error: Unable to open file '" + _pFilePath + "'";
+        Logger::getInstance().log(LogLevel::ERROR, errMsg);
 		// Throw an exception if the file could not be opened
-		throw std::runtime_error("Error: Unable to open file '" + _pFilePath + "'");
+		throw std::runtime_error(errMsg);
 	}
 
 	// Receive the file data from the server

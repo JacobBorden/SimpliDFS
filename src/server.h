@@ -71,7 +71,7 @@ class Server {
 public:
 
 //Constructor that takes in a port number and a server type
-Server(int _pPortNumber = 8080, ServerType _pServerType = ServerType::IPv4, const std::string& _pLogFile = "server.log");
+Server(int _pPortNumber = 8080, ServerType _pServerType = ServerType::IPv4);
 
 // Destructor
 ~Server();
@@ -139,8 +139,8 @@ void ErrorHandling(NetworkException _pNetEx);
 
 std::string GetClientIPAddress(ClientConnection _pClient);
 ServerType GetServerType();
-void LogToFile(const std::string& _pMessage);
-void LogToConsole(const std::string& _pMessage);
+// void LogToFile(const std::string& _pMessage); // Removed
+// void LogToConsole(const std::string& _pMessage); // Removed
 int GetPort();
 
 private:
@@ -154,7 +154,7 @@ sockaddr_in serverInfo;
 bool serverIsConnected = false;
 ServerType serverType;
 std::vector<Networking::ClientConnection> clients;
-Logger logger;
+// Logger logger; // Removed
 };
 }
 
