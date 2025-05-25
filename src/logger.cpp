@@ -84,6 +84,7 @@ void Logger::log(LogLevel level, const std::string& message){
     // Removed local lambda, will use file-static helper function
 
     if (logFileStream.is_open() && maxFileSize > 0) { // Check maxFileSize > 0
+        if (logFileStream.is_open()) logFileStream.clear(); // Clear any error flags
         if (logFileStream.is_open()) logFileStream.flush(); // Flush before tellp
         if (logFileStream.tellp() >= maxFileSize) {
             this->logFileStream.close(); // Close before rename/remove

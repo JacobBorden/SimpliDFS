@@ -132,10 +132,19 @@ TEST_F(LoggerTest, LogRotation) {
     }
     std::remove(baseLogFile.c_str());
 
+    std::cout << "[LogRotation] After initial cleanup:" << std::endl;
+    for (int i = 0; i <= maxBackupFiles + 2; ++i) { // Check a bit beyond
+        std::string f = baseLogFile + (i == 0 ? "" : ("." + std::to_string(i)));
+        std::ifstream checker(f);
+        std::cout << "[LogRotation]   " << f << " exists: " << (checker.good() ? "yes" : "no") << std::endl;
+    }
+
     ASSERT_NO_THROW(Logger::init(baseLogFile, LogLevel::DEBUG, maxFileSize, maxBackupFiles));
     Logger& logger = Logger::getInstance();
 
     logger.log(LogLevel::DEBUG, "Initial test message to ensure file creation.");
+    std::cout << "[LogRotation] After initial log message, before flush." << std::endl;
+    // You might not see the content yet as it might be buffered by the logger.
     // Force a flush and close of the file by reinitializing the logger to a dummy file
     // This ensures that the initial message is written to disk before we try to read it.
     // This is a bit heavy-handed for just one message, but crucial for this check.
@@ -143,6 +152,10 @@ TEST_F(LoggerTest, LogRotation) {
     addFileForCleanup("dummy_initial_check_flush.log"); // Add for cleanup
     if (1 >=1) addFileForCleanup("dummy_initial_check_flush.log.1");
 
+    std::cout << "[LogRotation] After flushing initial message." << std::endl;
+    std::ifstream initialFileCheck(baseLogFile);
+    std::cout << "[LogRotation]   " << baseLogFile << " exists: " << (initialFileCheck.good() ? "yes" : "no") << ", size: " << (initialFileCheck.good() ? readFileContents(baseLogFile).length() : 0) << std::endl;
+    initialFileCheck.close();
 
     std::string initialContents = readFileContents(baseLogFile);
     ASSERT_FALSE(initialContents.empty()) << "Log file " << baseLogFile << " was not created or is empty after initial log. Check permissions or path issues.";
@@ -164,9 +177,12 @@ TEST_F(LoggerTest, LogRotation) {
     // Message content: ~800 chars. Total per log: ~870 chars.
     // To exceed 1024 bytes, 2 messages should be enough.
     // To create base.log, base.log.1, base.log.2, we need to fill base.log three times.
-    // So, 2 messages * 3 = 6 messages should be sufficient. Let's use a few more to be safe.
-    for (int i = 0; i < 10; ++i) {
+    // So, 2 messages * 3 = 6 messages should be sufficient.
+    for (int i = 0; i < 6; ++i) { // Reduced from 10 to 6 messages
+        std::cout << "[LogRotation] Loop " << i << ": About to log. Current file: " << baseLogFile;
+        std::cout << std::endl;
         logger_reinit.log(LogLevel::INFO, singleMessage + " #" + std::to_string(i));
+        std::cout << "[LogRotation] Loop " << i << ": Logged message." << std::endl;
     }
     
     // Force flush/close by re-initializing. This is a workaround.
@@ -176,6 +192,12 @@ TEST_F(LoggerTest, LogRotation) {
     addFileForCleanup("dummy_rotation_flush.log");
     addFileForCleanup("dummy_rotation_flush.log.1");
 
+    std::cout << "[LogRotation] After main logging loop and final flush." << std::endl;
+    for (int i = 0; i <= maxBackupFiles + 2; ++i) {
+        std::string f = baseLogFile + (i == 0 ? "" : ("." + std::to_string(i)));
+        std::ifstream checker(f);
+        std::cout << "[LogRotation]   " << f << " exists: " << (checker.good() ? "yes" : "no") << ", size: " << (checker.good() ? readFileContents(f).length() : 0) << std::endl;
+    }
 
     // Check for backup files
     std::ifstream currentLog(baseLogFile);
