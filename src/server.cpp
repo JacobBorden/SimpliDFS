@@ -41,30 +41,24 @@ bool Networking::Server::InitServer()
 
 bool Networking::Server::CreateServerSocket(int _pPortNumber,  ServerType _pServerType)
 {
-	// Set the address family based on the server type
-	int addressFamily = _pServerType == ServerType::IPv4 ? AF_INET : AF_INET6;
-	ZeroMemory(&addressInfo, sizeof(addressInfo));
-	SetFamily(addressFamily);
-	SetSocketType(SOCK_STREAM);
-	SetProtocol(IPPROTO_TCP);
+    // Force IPv4 for all server sockets
+    int addressFamily = AF_INET;
+    ZeroMemory(&addressInfo, sizeof(addressInfo));
+    SetFamily(addressFamily);
+    SetSocketType(SOCK_STREAM);
+    SetProtocol(IPPROTO_TCP);
 
+    // Set up the sockaddr_in structure for IPv4 only
+    memset(&serverInfo, 0, sizeof(serverInfo));
+    serverInfo.sin_family = AF_INET;
+    serverInfo.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // 127.0.0.1
+    serverInfo.sin_port = htons(_pPortNumber);
 
-
-// Set up the sockaddr_in structure
-	serverInfo.sin_family = addressInfo.ai_family;
-	serverInfo.sin_addr.s_addr = inet_addr("127.0.0.1");
-	serverInfo.sin_port = htons(_pPortNumber);
-
-	CreateSocket();
-// Bind the server socket to a port
-	BindSocket();
-
-// Start listening for incoming connections
-	ListenOnSocket();
-
-	serverIsConnected = true;
-// The server socket was created successfully
-	return true;
+    CreateSocket();
+    BindSocket();
+    ListenOnSocket();
+    serverIsConnected = true;
+    return true;
 
 
 }

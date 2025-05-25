@@ -55,47 +55,41 @@ bool Networking::Client::InitClientSocket()
 // Create a TCP socket
 bool Networking::Client::CreateClientTCPSocket(PCSTR _pHost, int _pPort)
 {
-	// Clear the address info structure
-	ZeroMemory(&addressInfo, sizeof(addressInfo));
-	// Set the socket family to AF_INET (IPv4)
-	Networking::Client::SetFamily(AF_INET);
-	// Set the socket type to SOCK_STREAM (TCP)
-	Networking::Client::SetSocketType(SOCK_STREAM);
-	// Set the socket protocol to IPPROTO_TCP (TCP)
-	Networking::Client::SetProtocol(IPPROTO_TCP);
+    // Clear the address info structure
+    ZeroMemory(&addressInfo, sizeof(addressInfo));
+    Networking::Client::SetFamily(AF_INET);
+    Networking::Client::SetSocketType(SOCK_STREAM);
+    Networking::Client::SetProtocol(IPPROTO_TCP);
 
-	// Get the address info for the specified host and port
-	std::string portStr = std::to_string(_pPort);
-	int errorCode = getaddrinfo((PCSTR)_pHost, portStr.c_str(),(const addrinfo*) &addressInfo,&hostAddressInfo );
+    // Use hints to force IPv4
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
 
-// If there was an error, throw an exception
-	if(errorCode)
-	{
+    std::string portStr = std::to_string(_pPort);
+    int errorCode = getaddrinfo(_pHost, portStr.c_str(), &hints, &hostAddressInfo);
+
+    if(errorCode)
+    {
     #ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
+        WSACleanup();
     #endif
-		// Throw the error code
-		throw errorCode;
-	}
+        throw errorCode;
+    }
 
-	// Create a socket using the address info
-	connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
+    connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
 
-	// If the socket is invalid, throw an exception
-	if(INVALIDSOCKET(connectionSocket))
-	{
-		// Get the error code
-		int errorCode = GETERROR();
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code
-		throw errorCode;
-	}
-	// Return true if the socket was created successfully
-	return true;
+    if(INVALIDSOCKET(connectionSocket))
+    {
+        int errorCode = GETERROR();
+    #ifdef _WIN32
+        WSACleanup();
+    #endif
+        throw errorCode;
+    }
+    return true;
 }
 
 bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
@@ -172,26 +166,19 @@ bool Networking::Client::CreateClientSocket(PCSTR _pHost, int _pPort)
 // Connect to the server
 bool Networking::Client::ConnectClientSocket()
 {
-	// Connect to the server using the address info
-	int errorCode= connect(connectionSocket, (sockaddr*) &hostAddressInfo->ai_addr, hostAddressInfo->ai_addrlen);
-
-// If there was an error, throw an exception
-	if (errorCode)
-	{
-		// Get the error code
-		errorCode = GETERROR();
-		CLOSESOCKET(connectionSocket);
+    // Connect to the server using the hostAddressInfo from getaddrinfo
+    int errorCode = connect(connectionSocket, hostAddressInfo->ai_addr, hostAddressInfo->ai_addrlen);
+    if (errorCode)
+    {
+        errorCode = GETERROR();
+        CLOSESOCKET(connectionSocket);
     #ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
+        WSACleanup();
     #endif
-		// Throw the error code
-		throw errorCode;
-	}
-
-	clientIsConnected = true;
-// Return true if the connection was successful
-	return true;
+        throw errorCode;
+    }
+    clientIsConnected = true;
+    return true;
 }
 
 void Networking::Client::SetSocketType(int _pSocketType)

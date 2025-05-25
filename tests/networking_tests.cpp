@@ -35,14 +35,19 @@ TEST(NetworkingTest, ClientInitializationAndConnection) {
     std::thread serverThread([&]() {
         server.Accept(); // Accept one connection
     });
-    serverThread.detach(); // Detach as client might connect before accept is called or vice-versa
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give server a moment to start listening
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Increased delay to ensure server is listening
 
     Networking::Client client("127.0.0.1", 12346);
+    int retries = 0;
+    while (!client.IsConnected() && retries < 20) { // More retries
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        client = Networking::Client("127.0.0.1", 12346);
+        retries++;
+    }
     ASSERT_TRUE(client.IsConnected());
     client.Disconnect();
     ASSERT_FALSE(client.IsConnected());
+    if (serverThread.joinable()) serverThread.join();
     server.Shutdown();
 }
 
@@ -68,31 +73,18 @@ TEST(NetworkingTest, SendAndReceiveClientToServer) {
         }
         server.DisconnectClient(clientConn);
     });
-    serverThread.detach();
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); 
+    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Ensure server is listening
 
     Networking::Client client("127.0.0.1", testPort);
     ASSERT_TRUE(client.IsConnected());
     client.Send(testMessage);
-    
     std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Give time for message to be processed
-
     client.Disconnect();
+    if (serverThread.joinable()) serverThread.join(); // Join instead of detach
     server.Shutdown();
-    
-    // Wait for server thread to complete its receive operation
-    // A more robust way would be to use condition variables or futures.
-    // For simplicity in a test, a join or a longer sleep might be used, 
-    // but detached thread makes join impossible directly here.
-    // This check might be flaky if timing is off.
-    // Consider joining serverThread if it's not detached or use promises/futures.
-    // For now, relying on sleep and then checking.
-    if (serverThread.joinable()) serverThread.join(); // Should not happen if detached
-    
     ASSERT_EQ(receivedMessage, testMessage);
 }
-/*
+
 TEST(NetworkingTest, SendAndReceiveServerToClient) {
     const int testPort = 12348;
     Networking::Server server(testPort);
@@ -122,7 +114,7 @@ TEST(NetworkingTest, SendAndReceiveServerToClient) {
     
     ASSERT_EQ(receivedMessage, testMessage);
 }
-*/
+
 TEST(NetworkingTest, MultipleClientsConnect) {
     const int testPort = 12349;
     Networking::Server server(testPort);
@@ -130,25 +122,29 @@ TEST(NetworkingTest, MultipleClientsConnect) {
 
     std::vector<std::thread> clientThreads;
     const int numClients = 5;
+    std::atomic<int> connectedClients{0};
 
     std::thread serverAcceptThread([&]() {
         for (int i = 0; i < numClients; ++i) {
             Networking::ClientConnection c = server.Accept();
-            ASSERT_TRUE(c.clientSocket != 0); 
-            // Optionally, interact with client then disconnect
-             server.DisconnectClient(c);
+            ASSERT_TRUE(c.clientSocket != 0);
+            server.DisconnectClient(c);
+            connectedClients++;
         }
     });
-    serverAcceptThread.detach(); // Detach to allow clients to connect
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give server a moment
+    std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Ensure server is listening
 
     for (int i = 0; i < numClients; ++i) {
-        clientThreads.emplace_back([&]() {
+        clientThreads.emplace_back([testPort]() {
             Networking::Client client("127.0.0.1", testPort);
+            int retries = 0;
+            while (!client.IsConnected() && retries < 10) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                client = Networking::Client("127.0.0.1", testPort);
+                retries++;
+            }
             ASSERT_TRUE(client.IsConnected());
-            // Perform some action or just connect and disconnect
-            std::this_thread::sleep_for(std::chrono::milliseconds(50)); // Simulate some work
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
             client.Disconnect();
             ASSERT_FALSE(client.IsConnected());
         });
@@ -157,13 +153,7 @@ TEST(NetworkingTest, MultipleClientsConnect) {
     for (auto& t : clientThreads) {
         t.join();
     }
-    
-    // Ensure server accept thread also finishes if it wasn't detached or has a clear end condition
-    // If detached, we assume it has processed all clients based on sleeps and client joins
-    // For robustness, use a counter or condition variable.
-    if(serverAcceptThread.joinable()) serverAcceptThread.join(); 
-
+    if (serverAcceptThread.joinable()) serverAcceptThread.join(); // Join instead of detach
     server.Shutdown();
-    // Check server.getClients().size() if available and appropriate, after disconnections it should be 0
-    // For this test, primary check is that all clients connected and disconnected successfully.
+    ASSERT_EQ(connectedClients, numClients);
 }
