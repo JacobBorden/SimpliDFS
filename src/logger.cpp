@@ -100,6 +100,7 @@ void Logger::log(LogLevel level, const std::string& message){
                     std::ifstream oldFileTest(oldPath.c_str());
                     if (oldFileTest.good()) {
                         oldFileTest.close();
+                        std::remove(newPath.c_str()); // Ensure target of rename does not exist
                         std::rename(oldPath.c_str(), newPath.c_str());
                     } else {
                         oldFileTest.close();

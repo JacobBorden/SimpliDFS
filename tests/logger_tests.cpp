@@ -135,6 +135,25 @@ TEST_F(LoggerTest, LogRotation) {
     ASSERT_NO_THROW(Logger::init(baseLogFile, LogLevel::DEBUG, maxFileSize, maxBackupFiles));
     Logger& logger = Logger::getInstance();
 
+    logger.log(LogLevel::DEBUG, "Initial test message to ensure file creation.");
+    // Force a flush and close of the file by reinitializing the logger to a dummy file
+    // This ensures that the initial message is written to disk before we try to read it.
+    // This is a bit heavy-handed for just one message, but crucial for this check.
+    ASSERT_NO_THROW(Logger::init("dummy_initial_check_flush.log", LogLevel::DEBUG, 1024, 1));
+    addFileForCleanup("dummy_initial_check_flush.log"); // Add for cleanup
+    if (1 >=1) addFileForCleanup("dummy_initial_check_flush.log.1");
+
+
+    std::string initialContents = readFileContents(baseLogFile);
+    ASSERT_FALSE(initialContents.empty()) << "Log file " << baseLogFile << " was not created or is empty after initial log. Check permissions or path issues.";
+    
+    // Re-initialize the logger to continue with the actual rotation test setup
+    ASSERT_NO_THROW(Logger::init(baseLogFile, LogLevel::DEBUG, maxFileSize, maxBackupFiles));
+    // Note: The logger reference 'logger' is now stale. Get it again.
+    Logger& logger_reinit = Logger::getInstance(); 
+    // Use logger_reinit for subsequent logging in this test.
+    // Replace all subsequent 'logger.log' with 'logger_reinit.log' in this test.
+
     std::string singleMessage = "Rotation test message. This message is intended to be somewhat long to help fill the log file quickly. "; // ~100 bytes
     // Make it longer to ensure it exceeds file size faster
     for(int k=0; k<3; ++k) singleMessage += singleMessage; // Now ~400 bytes, then ~800 bytes
@@ -147,7 +166,7 @@ TEST_F(LoggerTest, LogRotation) {
     // To create base.log, base.log.1, base.log.2, we need to fill base.log three times.
     // So, 2 messages * 3 = 6 messages should be sufficient. Let's use a few more to be safe.
     for (int i = 0; i < 10; ++i) {
-        logger.log(LogLevel::INFO, singleMessage + " #" + std::to_string(i));
+        logger_reinit.log(LogLevel::INFO, singleMessage + " #" + std::to_string(i));
     }
     
     // Force flush/close by re-initializing. This is a workaround.
