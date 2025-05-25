@@ -280,6 +280,3 @@ TEST_F(LoggerTest, LogBeforeInit) {
     // The Logger::getInstance() method already has a check for s_isInitialized.
     SUCCEED() << "Skipping direct test for 'log before init throws' due to singleton state and test order.";
 }
-Okay, `tests/logger_tests.cpp` has been created with GTest test cases for log level filtering, JSON output format, log rotation (including no backups), and re-initialization. A placeholder test for "log before init" is included with comments about its difficulty. Helper functions for reading file content and counting string occurrences are also included. The `LoggerTest` fixture handles cleanup of log files.
-
-Now, I need to update `tests/CMakeLists.txt` to include this new test file and ensure `logger.cpp` is compiled and linked with the test executable.
