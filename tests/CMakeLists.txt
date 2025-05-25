@@ -7,6 +7,7 @@ add_executable(SimpliDFSTests
     message_tests.cpp
 	metaserver_tests.cpp
     networking_tests.cpp  # Added new test file
+    logger_tests.cpp      # Added new logger tests file
     ../src/filesystem.cpp
     ../src/message.cpp
     ../src/client.cpp     # Added client source
