@@ -8,12 +8,14 @@ add_executable(SimpliDFSTests
 	metaserver_tests.cpp
     networking_tests.cpp  # Added new test file
     logger_tests.cpp      # Added new logger tests file
+    blockio_test.cpp      # Added blockio tests
     ../src/filesystem.cpp
     ../src/message.cpp
     ../src/client.cpp     # Added client source
     ../src/server.cpp     # Added server source
     ../src/logger.cpp     # Added logger source
     ../src/errorcodes.cpp # Added errorcodes source
+    ../src/blockio.cpp    # Added blockio source
 )
 
 # Link GoogleTest, threading library, and other dependencies

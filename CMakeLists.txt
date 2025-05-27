@@ -50,7 +50,7 @@ add_library(SimpliDFS_Message INTERFACE)
 target_include_directories(SimpliDFS_Message INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src) 
 
 # Define the main executable (SimpliDFS - likely for testing or a simple client)
-add_executable(SimpliDFS src/main.cpp src/filesystem.cpp src/logger.cpp src/errorcodes.cpp) 
+add_executable(SimpliDFS src/main.cpp src/filesystem.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
 target_include_directories(SimpliDFS PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(SimpliDFS 
     PRIVATE
@@ -59,7 +59,7 @@ target_link_libraries(SimpliDFS
 )
 
 # Define the metaserver executable
-add_executable(metaserver src/metaserver.cpp src/filesystem.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp) 
+add_executable(metaserver src/metaserver.cpp src/filesystem.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
 target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(metaserver 
     PRIVATE
@@ -68,7 +68,7 @@ target_link_libraries(metaserver
 )
 
 # Define the node executable
-add_executable(node src/node.cpp src/filesystem.cpp src/client.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp) 
+add_executable(node src/node.cpp src/filesystem.cpp src/client.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
 target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(node 
     PRIVATE
@@ -80,4 +80,5 @@ target_link_libraries(node
 enable_testing()
 add_subdirectory(tests)
 
-
+# Add benchmark subdirectory
+add_subdirectory(bench)
