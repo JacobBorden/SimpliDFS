@@ -18,7 +18,7 @@ std::vector<std::byte> create_byte_vector(size_t size) {
 TEST(BlockIOTest, IngestEmpty) {
     BlockIO bio;
     std::vector<std::byte> empty_data;
-    bio.ingest(std::span<const std::byte>(empty_data));
+    bio.ingest(empty_data.data(), empty_data.size());
     std::vector<std::byte> result = bio.finalize_raw();
     EXPECT_TRUE(result.empty());
 }
@@ -26,7 +26,7 @@ TEST(BlockIOTest, IngestEmpty) {
 TEST(BlockIOTest, IngestSingleByte) {
     BlockIO bio;
     std::vector<std::byte> single_byte_data = {std::byte{77}};
-    bio.ingest(std::span<const std::byte>(single_byte_data));
+    bio.ingest(single_byte_data.data(), single_byte_data.size());
     std::vector<std::byte> result = bio.finalize_raw();
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0], std::byte{77});
@@ -36,7 +36,7 @@ TEST(BlockIOTest, Ingest64KiB) {
     BlockIO bio;
     const size_t data_size = 64 * 1024; // 64 KiB
     std::vector<std::byte> data = create_byte_vector(data_size);
-    bio.ingest(std::span<const std::byte>(data));
+    bio.ingest(data.data(), data.size());
     std::vector<std::byte> result = bio.finalize_raw();
     ASSERT_EQ(result.size(), data_size);
     EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
@@ -46,7 +46,7 @@ TEST(BlockIOTest, Ingest4MiB) {
     BlockIO bio;
     const size_t data_size = 4 * 1024 * 1024; // 4 MiB
     std::vector<std::byte> data = create_byte_vector(data_size);
-    bio.ingest(std::span<const std::byte>(data));
+    bio.ingest(data.data(), data.size());
     std::vector<std::byte> result = bio.finalize_raw();
     ASSERT_EQ(result.size(), data_size);
     EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
@@ -59,18 +59,18 @@ TEST(BlockIOTest, IngestMultipleChunks) {
     // Chunk 1: 10 bytes
     std::vector<std::byte> chunk1(10);
     for(size_t i=0; i<10; ++i) chunk1[i] = std::byte(i);
-    bio.ingest(std::span<const std::byte>(chunk1));
+    bio.ingest(chunk1.data(), chunk1.size());
     full_expected_data.insert(full_expected_data.end(), chunk1.begin(), chunk1.end());
 
     // Chunk 2: Empty
     std::vector<std::byte> chunk2;
-    bio.ingest(std::span<const std::byte>(chunk2));
+    bio.ingest(chunk2.data(), chunk2.size());
     // No change to full_expected_data needed
 
     // Chunk 3: 20 bytes
     std::vector<std::byte> chunk3(20);
     for(size_t i=0; i<20; ++i) chunk3[i] = std::byte(10 + i); // Continue sequence
-    bio.ingest(std::span<const std::byte>(chunk3));
+    bio.ingest(chunk3.data(), chunk3.size());
     full_expected_data.insert(full_expected_data.end(), chunk3.begin(), chunk3.end());
 
     std::vector<std::byte> result_bio = bio.finalize_raw();

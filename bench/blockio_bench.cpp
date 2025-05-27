@@ -41,7 +41,7 @@ int main() {
     // --- Benchmarking Ingest ---
     auto ingest_start_time = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < num_chunks; ++i) {
-        bio.ingest(std::span<const std::byte>(source_chunks[i]));
+        bio.ingest(source_chunks[i].data(), source_chunks[i].size());
     }
     auto ingest_end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> ingest_duration = ingest_end_time - ingest_start_time;

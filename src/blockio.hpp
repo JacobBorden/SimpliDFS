@@ -8,7 +8,7 @@
 class BlockIO {
 public:
     // Appends data to the internal buffer.
-    void ingest(std::span<const std::byte> data);
+    void ingest(const std::byte* data, size_t size);
 
     // Returns a copy of the concatenated plaintext data.
     std::vector<std::byte> finalize_raw();
