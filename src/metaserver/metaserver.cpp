@@ -6,15 +6,15 @@
 #include <vector>
 #include <string>
 #include <mutex>
-#include "filesystem.h"
-#include "message.h" // Including message for node communication
+#include "utilities/filesystem.h"
+#include "utilities/message.h" // Including message for node communication
 #include <sstream>
-#include "metaserver.h"
-#include "server.h"
-#include "networkexception.h"
+#include "metaserver/metaserver.h"
+#include "utilities/server.h"
+#include "utilities/networkexception.h"
 #include <thread>
 #include <string> // Required for std::string constructor from vector iterators
-#include "logger.h" // Include the Logger header
+#include "utilities/logger.h" // Include the Logger header
 
 // Define persistence file paths and separators
 // These were already added to metaserver.h in the previous step as global constants.

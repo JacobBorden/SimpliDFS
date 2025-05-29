@@ -1,12 +1,12 @@
 #include "gtest/gtest.h"
-#include "client.h"
-#include "server.h"
-#include "networkexception.h"
+#include "utilities/client.h"
+#include "utilities/server.h"
+#include "utilities/networkexception.h"
 #include <thread>
 #include <chrono>
 #include <vector>
 #include <string>
-#include "logger.h" // Add this include
+#include "utilities/logger.h" // Add this include
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
 

@@ -13,11 +13,11 @@
 #include <iostream>
 #include <string>
 #include <vector> // Required for std::vector
-#include "filesystem.h"
-#include "message.h"
-#include "server.h"
-#include "client.h"
-#include "networkexception.h"
+#include "utilities/filesystem.h"
+#include "utilities/message.h"
+#include "utilities/server.h"
+#include "utilities/client.h"
+#include "utilities/networkexception.h"
 #include <thread>
 #include <chrono> // Required for std::chrono
 

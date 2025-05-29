@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
-#include "filesystem.h"
-#include "logger.h" // Add this include
+#include "utilities/filesystem.h"
+#include "utilities/logger.h" // Add this include
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
 

@@ -1,5 +1,5 @@
-#include "client.h" // include the header file for the client class
-#include "logger.h" // Include the Logger header
+#include "utilities/client.h" // include the header file for the client class
+#include "utilities/logger.h" // Include the Logger header
 #include <string>   // Required for std::to_string
 
 // Constructor that initializes the client socket

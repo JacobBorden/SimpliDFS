@@ -9,13 +9,13 @@ add_executable(SimpliDFSTests
     networking_tests.cpp  # Added new test file
     logger_tests.cpp      # Added new logger tests file
     blockio_test.cpp      # Added blockio tests
-    ../src/filesystem.cpp
-    ../src/message.cpp
-    ../src/client.cpp     # Added client source
-    ../src/server.cpp     # Added server source
-    ../src/logger.cpp     # Added logger source
-    ../src/errorcodes.cpp # Added errorcodes source
-    ../src/blockio.cpp    # Added blockio source
+    ../../src/utilities/filesystem.cpp
+    ../../src/utilities/message.cpp
+    ../../src/utilities/client.cpp     # Added client source
+    ../../src/utilities/server.cpp     # Added server source
+    ../../src/utilities/logger.cpp     # Added logger source
+    ../../src/utilities/errorcodes.cpp # Added errorcodes source
+    ../../src/utilities/blockio.cpp    # Added blockio source
 )
 
 # Link GoogleTest, threading library, and other dependencies
@@ -29,7 +29,7 @@ target_link_libraries(SimpliDFSTests
 # Include directories for the headers
 target_include_directories(SimpliDFSTests
     PRIVATE
-    ${PROJECT_SOURCE_DIR}/src
+    ${PROJECT_SOURCE_DIR}/include
 )
 
 # Register tests with CTest

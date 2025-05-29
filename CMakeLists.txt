@@ -45,36 +45,27 @@ message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEF
 
 # Remove GLOB-based variables for sources, list them explicitly
 
-# Create an INTERFACE library for Message (now header-only with inline static methods)
-add_library(SimpliDFS_Message INTERFACE)
-target_include_directories(SimpliDFS_Message INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/src) 
-
-# Define the main executable (SimpliDFS - likely for testing or a simple client)
-add_executable(SimpliDFS src/main.cpp src/filesystem.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
-target_include_directories(SimpliDFS PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(SimpliDFS 
-    PRIVATE
-    SimpliDFS_Message # Still link to propagate include directories if needed
-    Threads::Threads
-)
-
 # Define the metaserver executable
-add_executable(metaserver src/metaserver.cpp src/filesystem.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
-target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+add_executable(metaserver src/metaserver/metaserver.cpp) 
+target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(metaserver 
     PRIVATE
-    SimpliDFS_Message 
+    SimpliDFS_Utils 
+    BlockIOLib 
     Threads::Threads
 )
 
 # Define the node executable
-add_executable(node src/node.cpp src/filesystem.cpp src/client.cpp src/server.cpp src/logger.cpp src/errorcodes.cpp src/blockio.cpp) 
-target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+add_executable(node src/node/node.cpp) 
+target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(node 
     PRIVATE
-    SimpliDFS_Message 
+    SimpliDFS_Utils 
+    BlockIOLib 
     Threads::Threads
 )
+
+add_subdirectory(src/utilities)
 
 # Add Google Test subdirectory and enable testing
 enable_testing()

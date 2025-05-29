@@ -1,8 +1,8 @@
-#include "logger.h"
+#include "utilities/logger.h"
 #include <cstdio> // For std::rename and std::remove
 // #include <vector> // No longer seems necessary
 
-#include "logger.h"
+#include "utilities/logger.h"
 #include <cstdio> // For std::rename and std::remove
 #include <sstream> // For escapeJsonString
 #include <string>  // For std::string

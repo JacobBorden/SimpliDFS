@@ -42,9 +42,9 @@ typedef const char* PCSTR;
 #include <vector>
 #include <thread>
 #include <chrono>
-#include "networkexception.h"
-#include "errorcodes.h"
-#include "logger.h"
+#include "utilities/networkexception.h"
+#include "utilities/errorcodes.h"
+#include "utilities/logger.h"
 
 namespace Networking {
 
