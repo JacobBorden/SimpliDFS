@@ -1,5 +1,5 @@
-#include "node.h"
-#include "logger.h" // Include the Logger header
+#include "node/node.h"
+#include "utilities/logger.h" // Include the Logger header
 #include <string>   // For std::string, std::stoi
 #include <iostream> // For std::cerr (though logger will replace most)
 #include <stdexcept> // For std::exception

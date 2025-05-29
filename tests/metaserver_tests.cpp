@@ -1,6 +1,6 @@
 // Unit Tests for MetadataManager
 #include "gtest/gtest.h"
-#include "metaserver.h"
+#include "metaserver/metaserver.h"
 
 // Test Fixture for MetadataManager
 class MetadataManagerTest : public ::testing::Test {

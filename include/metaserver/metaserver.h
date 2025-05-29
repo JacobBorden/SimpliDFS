@@ -6,8 +6,8 @@
  * node registration, node liveness (via heartbeats), and orchestrating file
  * replication and data persistence.
  */
-#include "filesystem.h" // Included for context, though not directly used in this header
-#include "message.h"    // For Message struct and MessageType enum
+#include "utilities/filesystem.h" // Included for context, though not directly used in this header
+#include "utilities/message.h"    // For Message struct and MessageType enum
 #include <vector>
 #include <string>
 #include <iostream>

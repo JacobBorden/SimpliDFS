@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "message.h"
+#include "utilities/message.h"
 
 TEST(MessageTests, SerializeMessage)
 {

@@ -1,5 +1,5 @@
-#include "server.h"
-#include "logger.h" // Ensure logger is included for Logger::getInstance()
+#include "utilities/server.h"
+#include "utilities/logger.h" // Ensure logger is included for Logger::getInstance()
 #include <string>   // For std::string conversion if needed (e.g. ex.what())
 
 Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed _pLogFile and logger initialization
