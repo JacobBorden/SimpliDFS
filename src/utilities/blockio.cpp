@@ -11,6 +11,15 @@ BlockIO::BlockIO() {
         // For now, let's assume it's critical if it fails.
         throw std::runtime_error("Failed to initialize libsodium");
     }
+
+    // Explicitly zero-initialize hash_state_ before libsodium init.
+    // This is speculative and typically should not be needed.
+    // Using unsigned char* for byte-wise manipulation.
+    unsigned char * const p_state_bytes = reinterpret_cast<unsigned char *>(&hash_state_);
+    for (size_t i = 0; i < sizeof(crypto_hash_sha256_state); ++i) {
+        p_state_bytes[i] = 0U;
+    }
+
     crypto_hash_sha256_init(&hash_state_);
     finalized_ = false; // Initialize finalized_ flag
 }
