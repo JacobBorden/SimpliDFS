@@ -12,7 +12,7 @@ target_include_directories(BlockIOLib
 # This allows consumers of BlockIOLib to find utilities/blockio.hpp
 
 # Link libsodium to BlockIOLib
-target_link_libraries(BlockIOLib PUBLIC libsodium::sodium)
+target_link_libraries(BlockIOLib PUBLIC Sodium::libsodium)
 
 # Library for other common utilities
 project(SimpliDFSUtils CXX) # Specify language for project command
