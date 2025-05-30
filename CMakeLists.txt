@@ -17,6 +17,14 @@ find_package(Threads REQUIRED)
 
 include(FetchContent)
 
+# Add libsodium using FetchContent
+FetchContent_Declare(
+    libsodium
+    GIT_REPOSITORY https://github.com/jedisct1/libsodium.git
+    GIT_TAG 1.0.18 # Stable tag
+)
+FetchContent_MakeAvailable(libsodium)
+
 # Corrected FetchContent Declaration for Google Test
 FetchContent_Declare(
     googletest
