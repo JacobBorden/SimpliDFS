@@ -165,12 +165,7 @@ TEST(BlockIOTest, FinalizeHashedMultipleChunks) {
     // Let's use a more reliable method, or a simpler string if this is problematic during testing.
     // For now, I'll use a placeholder and then confirm it.
     // Confirmed hash for "Chunk1Chunk2Chunk3": 03255db56069906c7d57c604a02207f3b3aa2a5912706ed84af120323f56d2 // Ensure pristine
-    std::array<uint8_t, 32> expected_digest = {{
-        0x03, 0x25, 0x5d, 0xb5, 0x60, 0x69, 0x90, 0x6c,
-        0x7d, 0x57, 0xc6, 0x04, 0xa0, 0x22, 0x07, 0xf3,
-        0xb3, 0xaa, 0x2a, 0x59, 0x12, 0x70, 0x6e, 0xd8,
-        0x4a, 0xf1, 0x20, 0x32, 0x3f, 0x56, 0xd2
-    }};
+    std::array<uint8_t, 32> expected_digest = hex_string_to_digest("03255db56069906c7d57c604a02207f3b3aa2a5912706ed84af120323f56d288");
     EXPECT_EQ(result.digest, expected_digest);
 }
 
