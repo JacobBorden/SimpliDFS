@@ -9,13 +9,14 @@ add_executable(SimpliDFSTests
     networking_tests.cpp  # Added new test file
     logger_tests.cpp      # Added new logger tests file
     blockio_test.cpp      # Added blockio tests
-    ../../src/utilities/filesystem.cpp
-    ../../src/utilities/message.cpp
-    ../../src/utilities/client.cpp     # Added client source
-    ../../src/utilities/server.cpp     # Added server source
-    ../../src/utilities/logger.cpp     # Added logger source
-    ../../src/utilities/errorcodes.cpp # Added errorcodes source
-    ../../src/utilities/blockio.cpp    # Added blockio source
+    # Removed direct compilation of utility sources:
+    # ../../src/utilities/filesystem.cpp
+    # ../../src/utilities/message.cpp
+    # ../../src/utilities/client.cpp
+    # ../../src/utilities/server.cpp
+    # ../../src/utilities/logger.cpp
+    # ../../src/utilities/errorcodes.cpp
+    # ../../src/utilities/blockio.cpp
 )
 
 # Link GoogleTest, threading library, and other dependencies
@@ -24,6 +25,8 @@ target_link_libraries(SimpliDFSTests
     gtest_main
     gmock_main
     Threads::Threads
+    BlockIOLib      # Link against BlockIO library
+    SimpliDFS_Utils # Link against common utilities library
 )
 
 # Include directories for the headers

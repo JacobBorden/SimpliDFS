@@ -6,6 +6,19 @@
 #include <cstdlib>   // For std::rand, std::srand
 #include <algorithm> // For std::generate
 #include <ctime>     // For std::time
+#include <sstream>   // For std::stringstream
+#include <iomanip>   // For std::setw, std::setfill
+#include <array>     // For std::array (used in DigestResult and digest_to_hex_string)
+
+// Helper function to convert digest to hex string
+std::string digest_to_hex_string(const std::array<uint8_t, 32>& digest) {
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+    for (uint8_t byte : digest) {
+        ss << std::setw(2) << static_cast<int>(byte);
+    }
+    return ss.str();
+}
 
 // Helper function to create a vector of bytes with random values
 std::vector<std::byte> create_random_byte_vector(size_t size) {
@@ -36,7 +49,8 @@ int main() {
     std::cout << "Data preparation complete." << std::endl;
 
     BlockIO bio;
-    std::vector<std::byte> result_data; // To store finalized data
+    // std::vector<std::byte> result_data; // Old: To store finalized data
+    DigestResult digest_result; // New: To store result from finalize_hashed
 
     // --- Benchmarking Ingest ---
     auto ingest_start_time = std::chrono::high_resolution_clock::now();
@@ -46,9 +60,10 @@ int main() {
     auto ingest_end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> ingest_duration = ingest_end_time - ingest_start_time;
 
-    // --- Benchmarking finalize_raw ---
+    // --- Benchmarking finalize_hashed ---
     auto finalize_start_time = std::chrono::high_resolution_clock::now();
-    result_data = bio.finalize_raw();
+    // result_data = bio.finalize_raw(); // Old
+    digest_result = bio.finalize_hashed(); // New
     auto finalize_end_time = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> finalize_duration = finalize_end_time - finalize_start_time;
     
@@ -56,9 +71,9 @@ int main() {
 
     // Verification (optional, but good for sanity check)
     // This can be very slow for 1GiB, consider a smaller verification or hashing.
-    // For now, we'll just check the size.
-    if (result_data.size() != total_size_bytes) {
-        std::cerr << "Error: Finalized data size (" << result_data.size()
+    // For now, we'll just check the size using digest_result.raw.
+    if (digest_result.raw.size() != total_size_bytes) {
+        std::cerr << "Error: Finalized data size (" << digest_result.raw.size()
                   << ") does not match total input size (" << total_size_bytes
                   << ")." << std::endl;
         // Optionally, compare content for smaller data sets if feasible:
@@ -87,14 +102,15 @@ int main() {
     std::cout << "--- BlockIO Benchmark Results ---" << std::endl;
     std::cout << "Total data processed: " << total_gb << " GiB (" << total_size_bytes << " bytes)" << std::endl; // Display in GiB
     std::cout << "Ingest time: " << ingest_duration.count() << " seconds" << std::endl;
-    std::cout << "Finalize_raw time: " << finalize_duration.count() << " seconds" << std::endl;
-    std::cout << "Total BlockIO operation time: " << total_duration.count() << " seconds" << std::endl;
+    std::cout << "Finalize_hashed time: " << finalize_duration.count() << " seconds" << std::endl;
+    std::cout << "Total BlockIO operation time (ingest + hash): " << total_duration.count() << " seconds" << std::endl;
+    std::cout << "Resulting SHA-256 Digest: " << digest_to_hex_string(digest_result.digest) << std::endl;
     
     if (total_duration.count() > 0) {
         double throughput_mib_s = total_mb / total_duration.count(); // Throughput in MiB/s
-        std::cout << "Throughput: " << throughput_mib_s << " MiB/s" << std::endl;
+        std::cout << "Throughput (ingest + hash): " << throughput_mib_s << " MiB/s" << std::endl;
     } else {
-        std::cout << "Throughput: N/A (duration was zero)" << std::endl;
+        std::cout << "Throughput (ingest + hash): N/A (duration was zero)" << std::endl;
     }
 
     // Optional: Compare with memcpy (simplified)
