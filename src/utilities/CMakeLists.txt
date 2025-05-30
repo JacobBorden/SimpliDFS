@@ -8,11 +8,13 @@ add_library(BlockIOLib
 target_include_directories(BlockIOLib
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${SODIUM_INCLUDE_DIRS}
 )
 # This allows consumers of BlockIOLib to find utilities/blockio.hpp
 
 # Link libsodium to BlockIOLib
-target_link_libraries(BlockIOLib PUBLIC Sodium::libsodium)
+# target_link_libraries(BlockIOLib PUBLIC Sodium::libsodium) # Replaced by PkgConfig method
+target_link_libraries(BlockIOLib PUBLIC ${SODIUM_LIBRARIES})
 
 # Library for other common utilities
 project(SimpliDFSUtils CXX) # Specify language for project command

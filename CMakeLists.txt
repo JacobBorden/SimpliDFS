@@ -26,7 +26,11 @@ include(FetchContent)
 # FetchContent_MakeAvailable(libsodium)
 
 # Find system-installed libsodium
-find_package(Sodium REQUIRED)
+# find_package(Sodium REQUIRED) # Replaced by PkgConfig method
+
+# Use PkgConfig to find libsodium
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SODIUM REQUIRED libsodium)
 
 # Corrected FetchContent Declaration for Google Test
 FetchContent_Declare(
