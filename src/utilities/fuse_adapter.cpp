@@ -129,8 +129,47 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
     return read_len;
 }
 
+int simpli_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
+    (void)fi; // fi might be unused if not storing special per-handle info
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_fgetattr called for path: " + std::string(path));
+    // Most simple fgetattr implementations are identical to getattr, unless
+    // you have per-file-handle state that would change attributes (e.g. size for append-only files)
+    return simpli_getattr(path, stbuf);
+}
+
+int simpli_access(const char *path, int mask) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_access called for path: " + std::string(path) + " with mask: " + std::to_string(mask));
+    // For testing, let's be very permissive.
+    // Existence (F_OK) is implicitly handled by returning 0 if we don't return ENOENT.
+    // If the path (after removing leading '/') is in known_files or is "/", assume OK.
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) return -EIO; // Should not happen
+
+    std::string spath(path);
+    if (spath == "/") {
+        return 0; // Root is always accessible
+    }
+
+    std::string filename = spath.substr(1);
+    if (data->known_files.count(filename)) {
+        return 0; // File exists, grant access for testing
+    }
+
+    return -ENOENT;
+}
+
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
+    // Initialize the logger first
+    try {
+        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG); // Or another appropriate log file and level
+    } catch (const std::exception& e) {
+        // Cannot use logger here if it failed to initialize
+        fprintf(stderr, "FATAL: Failed to initialize logger: %s\n", e.what());
+        return 1; // Indicate critical error
+    }
+
     Logger::getInstance().log(LogLevel::INFO, "Starting SimpliDFS FUSE adapter.");
 
     // --- Argument Parsing for Mount Point ---
@@ -197,6 +236,8 @@ int main(int argc, char *argv[]) {
     simpli_ops.readdir = simpli_readdir;
     simpli_ops.open    = simpli_open;
     simpli_ops.read    = simpli_read;
+    simpli_ops.fgetattr = simpli_fgetattr;
+    simpli_ops.access = simpli_access; // Added
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
     // simpli_ops.destroy = simpli_destroy; // Example

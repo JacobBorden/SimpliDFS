@@ -1,0 +1,17 @@
+INFO: Performing tests...
+--- Test: ls -la /mnt/simplidfs ---
+ls: reading directory '/mnt/simplidfs': Function not implemented
+total 0
+ERROR: ls -la /mnt/simplidfs failed.
+--- Test: cat /mnt/simplidfs/hello.txt ---
+cat: /mnt/simplidfs/hello.txt: Function not implemented
+ERROR: cat /mnt/simplidfs/hello.txt failed.
+
+--- Test: cat /mnt/simplidfs/empty_file.txt ---
+
+--- Test: cat /mnt/simplidfs/data.log ---
+cat: /mnt/simplidfs/data.log: Function not implemented
+ERROR: cat /mnt/simplidfs/data.log failed.
+
+--- Test: cat /mnt/simplidfs/nonexistent.txt ---
+cat: /mnt/simplidfs/nonexistent.txt: No such file or directory
