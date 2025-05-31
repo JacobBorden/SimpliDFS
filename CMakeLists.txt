@@ -14,6 +14,9 @@ set(CMAKE_THREAD_PREFER_PTHREAD ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 find_package(Threads REQUIRED)
+# find_package(FUSE REQUIRED) # Replaced by PkgConfig method
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FUSE REQUIRED fuse3) # For FUSE 3.x
 
 include(FetchContent)
 
@@ -91,6 +94,21 @@ target_link_libraries(node
     SimpliDFS_Utils 
     BlockIOLib 
     Threads::Threads
+)
+
+# Define the FUSE adapter executable
+add_executable(simpli_fuse_adapter src/utilities/fuse_adapter.cpp)
+target_include_directories(simpli_fuse_adapter
+    PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include  # For utilities/filesystem.h, utilities/logger.h etc.
+    ${FUSE_INCLUDE_DIRS} # Corrected variable
+)
+target_compile_definitions(simpli_fuse_adapter PRIVATE _FILE_OFFSET_BITS=64) # Add this line
+target_link_libraries(simpli_fuse_adapter
+    PRIVATE
+    SimpliDFS_Utils
+    Threads::Threads
+    ${FUSE_LIBRARIES}
 )
 
 add_subdirectory(src/utilities)
