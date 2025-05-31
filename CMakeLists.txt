@@ -101,7 +101,7 @@ add_executable(simpli_fuse_adapter src/utilities/fuse_adapter.cpp)
 target_include_directories(simpli_fuse_adapter
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include  # For utilities/filesystem.h, utilities/logger.h etc.
-    ${FUSE_INCLUDE_DIR}
+    ${FUSE_INCLUDE_DIRS} # Corrected variable
 )
 target_compile_definitions(simpli_fuse_adapter PRIVATE _FILE_OFFSET_BITS=64) # Add this line
 target_link_libraries(simpli_fuse_adapter
