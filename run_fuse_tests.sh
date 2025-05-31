@@ -105,6 +105,85 @@ if [ $? -eq 0 ]; then # Should fail
 fi
 echo "" >> "$TEST_OUTPUT_FILE"
 
+# --- Create, Write, Unlink, Rename Tests ---
+
+# Variables for new tests
+NEW_FILE="new_test_file.txt"
+RENAMED_FILE="renamed_test_file.txt"
+TEST_STRING="Hello from new_test_file!"
+FILE_PATH="$MOUNT_POINT/$NEW_FILE"
+RENAMED_PATH="$MOUNT_POINT/$RENAMED_FILE"
+
+echo "--- Test: Create $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: touch $FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $FILE_PATH created." | tee -a "$TEST_OUTPUT_FILE"
+fi
+ls -la "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1 # Verify creation
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Write to $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+echo "$TEST_STRING" > "$FILE_PATH"
+# Verify write operation by checking exit status (though echo itself doesn't set $? reliably for this)
+# Instead, we will verify by reading back.
+if [ ! -s "$FILE_PATH" ]; then # Check if file is not empty
+    echo "WARN: Writing to $FILE_PATH might have failed (file is empty or does not exist)." | tee -a "$TEST_OUTPUT_FILE"
+fi
+# Log the attempt
+echo "Attempted to write '$TEST_STRING' to $FILE_PATH" >> "$TEST_OUTPUT_FILE"
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify content of $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+CONTENT=$(cat "$FILE_PATH")
+echo "Content of $FILE_PATH: '$CONTENT'" >> "$TEST_OUTPUT_FILE"
+if [ "$CONTENT" == "$TEST_STRING" ]; then
+    echo "INFO: Content verification for $FILE_PATH successful." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "ERROR: Content verification for $FILE_PATH failed. Expected '$TEST_STRING', got '$CONTENT'." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Rename $FILE_PATH to $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+mv "$FILE_PATH" "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: mv $FILE_PATH $RENAMED_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $FILE_PATH renamed to $RENAMED_PATH." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify rename operation ---" | tee -a "$TEST_OUTPUT_FILE"
+if [ ! -f "$FILE_PATH" ] && [ -f "$RENAMED_PATH" ]; then
+    echo "INFO: Rename successfully verified. $FILE_PATH does not exist, $RENAMED_PATH exists." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+else
+    echo "ERROR: Rename verification failed." | tee -a "$TEST_OUTPUT_FILE"
+    echo "DEBUG: $FILE_PATH exists? $(test -f "$FILE_PATH" && echo Yes || echo No)" >> "$TEST_OUTPUT_FILE"
+    echo "DEBUG: $RENAMED_PATH exists? $(test -f "$RENAMED_PATH" && echo Yes || echo No)" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Delete $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+rm "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: rm $RENAMED_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $RENAMED_PATH deleted." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify deletion of $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+if [ ! -f "$RENAMED_PATH" ]; then
+    echo "INFO: Deletion successfully verified. $RENAMED_PATH does not exist." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "ERROR: Deletion verification failed. $RENAMED_PATH still exists." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+# --- End of Create, Write, Unlink, Rename Tests ---
 
 echo "INFO: Tests completed. Results in $TEST_OUTPUT_FILE."
 echo "INFO: FUSE adapter log ($LOG_FILE) content:"
