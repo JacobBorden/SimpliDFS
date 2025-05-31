@@ -1,4 +1,5 @@
 #include "utilities/blockio.hpp"
+#include "utilities/cid_utils.hpp" // Added for digest_to_cid
 
 #include <algorithm> // For std::copy
 #include <stdexcept> // For std::runtime_error
@@ -62,6 +63,9 @@ DigestResult BlockIO::finalize_hashed() {
     DigestResult result;
     crypto_hash_sha256_final(&hash_state_, result.digest.data());
     result.raw = buffer_; // Copy the raw data
+
+    // Convert digest to CID
+    result.cid = sgns::utils::digest_to_cid(result.digest);
 
     finalized_ = true; // Mark as finalized
 

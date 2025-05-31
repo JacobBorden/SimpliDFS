@@ -32,6 +32,19 @@ include(FetchContent)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED libsodium)
 
+# Fetch cpp-base32 (cppcodec)
+FetchContent_Declare(
+  cppcodec
+  GIT_REPOSITORY https://github.com/tplgy/cppcodec.git
+  GIT_TAG v0.2 # Using specific tag for stability
+)
+# Disable tests for cppcodec to avoid build issues with its Catch2 version
+set(CPPCODEC_BUILD_TESTS OFF CACHE BOOL "Disable cppcodec tests" FORCE)
+set(CPPCODEC_BUILD_EXAMPLES OFF CACHE BOOL "Disable cppcodec examples" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Disable testing for cppcodec subproject" FORCE) # General FetchContent way
+FetchContent_MakeAvailable(cppcodec)
+set(BUILD_TESTING ON CACHE BOOL "Enable testing for main project" FORCE) # Re-enable for main project
+
 # Corrected FetchContent Declaration for Google Test
 FetchContent_Declare(
     googletest

@@ -56,3 +56,53 @@ This ensures that the generated SHA-256 digest always corresponds to the **origi
 *   **Clarity:** It provides a clear and unambiguous definition of what the hash represents.
 
 This principle guarantees that the `BlockIO`'s SHA-256 hash serves as a stable and trustworthy fingerprint of the original input.
+
+## 4. Content Identifiers (CIDs)
+
+While raw SHA-256 digests provide excellent data integrity verification, Content Identifiers (CIDs) offer a standardized and more descriptive way to reference content-addressed data.
+
+### What are CIDs?
+
+CIDs are self-describing content-addressed identifiers. This means the identifier itself contains information about how it was generated and what kind of content it refers to, in addition to uniquely identifying the content based on its hash.
+
+### Structure of CIDs Used
+
+The CIDs implemented and used by our system follow a specific structure:
+
+*   **CIDv1**: The latest version of the CID specification, offering better prefix definition and case-insensitivity for base encodings.
+*   **Base32 Encoding**: CIDs are typically encoded using Base32 (RFC 4648, with lowercase letters by convention) for efficient and human-readable string representation. This is often prefixed with a multibase prefix (e.g., `b` for Base32).
+*   **Multicodec Prefixes**: The core of a CID's self-describing nature comes from multicodec prefixes:
+    *   `0x01`: Specifies CIDv1.
+    *   `0x70`: Multicodec for `dag-pb`, indicating the content is likely an IPLD DAG Protocol Buffers node. While our raw data might not always be `dag-pb`, this is a common default codec used for general data when not otherwise specified in many IPFS contexts.
+    *   `0x12`: Multicodec for `sha2-256`, indicating the hash algorithm used.
+    *   `0x20`: Specifies the length of the hash digest in bytes (32 bytes for SHA-256).
+
+A complete CID string thus wraps the raw SHA-256 hash with these defined prefixes, then encodes the entire byte sequence into Base32. For example, `bafy...`.
+
+### Rationale for Adoption
+
+Adopting CIDs provides several key benefits over using raw hash digests:
+
+*   **Self-Describing Hashes**: CIDs embed the hash algorithm (SHA-256), its length, the CID version, and the data codec. This makes identifiers future-proof (e.g., allowing for new hash algorithms) and reduces ambiguity when encountering an identifier.
+*   **Interoperability**: CIDs are the standard for addressing data in systems like IPFS, Filecoin, and other decentralized storage networks. Using CIDs improves our ability to interoperate with these ecosystems and leverage associated tools and services.
+*   **Standardization**: It aligns our system with a well-defined and widely adopted industry standard for content addressing, moving beyond proprietary or context-specific hash representations.
+*   **Uniqueness & Verifiability**: CIDs retain all the benefits of cryptographic hashes. They are still derived from the content's hash, ensuring data integrity, uniqueness, and verifiability.
+
+### Impact on `DigestResult`
+
+Reflecting this enhancement, the `DigestResult` struct returned by `BlockIO::finalize_hashed()` has been updated to include the generated CID:
+
+```cpp
+#include <array>
+#include <vector>
+#include <string>  // For std::string
+#include <cstddef> // For std::byte
+#include <sodium.h>  // For crypto_hash_sha256_BYTES
+
+struct DigestResult {
+    std::array<uint8_t, crypto_hash_sha256_BYTES> digest; // SHA-256 hash
+    std::string cid;                                      // Content Identifier (CID) string
+    std::vector<std::byte> raw;                           // Concatenated raw data
+};
+```
+The `cid` field now provides a ready-to-use, standard identifier for the hashed content, alongside the raw digest and data.

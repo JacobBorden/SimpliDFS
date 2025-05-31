@@ -9,6 +9,7 @@ add_executable(SimpliDFSTests
     networking_tests.cpp  # Added new test file
     logger_tests.cpp      # Added new logger tests file
     blockio_test.cpp      # Added blockio tests
+    cid_tests.cpp         # Added CID conversion tests
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp

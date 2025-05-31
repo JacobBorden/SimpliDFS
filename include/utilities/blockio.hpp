@@ -6,10 +6,12 @@
 #include <cstddef> // For std::byte
 #include <sodium.h> // For libsodium
 #include <array>    // For std::array
+#include <string>   // For std::string
 
 // Define DigestResult struct
 struct DigestResult {
     std::array<uint8_t, crypto_hash_sha256_BYTES> digest; // 32 bytes for SHA-256
+    std::string cid;                                      // Content Identifier (CID) of the hashed data
     std::vector<std::byte> raw;
 };
 
