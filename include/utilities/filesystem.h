@@ -23,6 +23,15 @@ public:
      */
     bool createFile(const std::string& _pFilename);
 
+  /**
+   * @brief Renames a file in the file system.
+   * If the old file does not exist or the new file already exists, the operation fails.
+   * @param _pOldFilename The current name of the file.
+   * @param _pNewFilename The new name for the file.
+   * @return True if the file was successfully renamed, false otherwise.
+   */
+  bool renameFile(const std::string& _pOldFilename, const std::string& _pNewFilename);
+
     /**
      * @brief Writes content to an existing file.
      * If the file does not exist, the operation fails. The existing content is overwritten.
