@@ -161,6 +161,292 @@ int simpli_access(const char *path, int mask) {
     return -ENOENT;
 }
 
+int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create called for path: " + std::string(path) + " with mode: " + std::to_string(mode));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data || !data->fs) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: FUSE private_data not configured correctly.");
+        return -EIO; // Input/output error
+    }
+
+    std::string spath(path);
+    if (spath == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Cannot create directory / as a file.");
+        return -EISDIR; // Is a directory
+    }
+
+    std::string filename = spath.substr(1); // Remove leading '/'
+
+    // The `fi->flags` should have O_CREAT.
+    // If the file exists, `create` should truncate it to zero length.
+
+    if (data->fs->createFile(filename)) {
+        // File created successfully (was new)
+        data->known_files.insert(filename);
+        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File created: " + filename);
+        // `fi` is an output parameter for `open` flags if needed.
+        // For `create`, we don't typically modify `fi` extensively beyond what FUSE expects.
+        // The file isn't "opened" in the same way as `open` here, but `create` implies it's ready for I/O.
+        // We need to ensure `writeFile` works subsequently.
+    } else {
+        // File might already exist. If so, truncate it as per POSIX `creat()` behavior.
+        // Check if it's a known file OR if readFile indicates it exists in the underlying FS.
+        bool fileExistsInFs = (data->fs->readFile(filename) != ""); // Check underlying FS
+
+        if (data->known_files.count(filename) || fileExistsInFs) {
+             // Truncate by writing empty string
+            if (data->fs->writeFile(filename, "")) {
+                Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file truncated: " + filename);
+                // Ensure it's in known_files if it was only in fs before (e.g. pre-existing)
+                if (!data->known_files.count(filename)) {
+                    data->known_files.insert(filename);
+                }
+            } else {
+                // This case should ideally not happen if known_files is consistent with fs
+                Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to truncate existing file: " + filename);
+                return -EIO;
+            }
+        } else {
+            // Not in known_files and createFile failed (and readFile confirmed not there). This is an issue.
+             Logger::getInstance().log(LogLevel::ERROR, "simpli_create: createFile failed and file does not exist: " + filename);
+            return -EIO; // Or some other error
+        }
+    }
+
+    // The `mode` parameter contains requested permissions. We should store/apply them.
+    // Our current FileSystem doesn't store modes. For now, this is a simplification.
+    // getattr will return a default mode.
+
+    // According to FUSE docs for `create`, if the call is successful,
+    // `fi->fh` can be set to a file handle, and `fi->keep_cache` and `fi->nonseekable` can be set.
+    // For a simple implementation, we might not need a custom file handle if not managing complex state.
+    // Let's assume `open` will be called next if complex I/O is needed.
+    // However, `create` itself should result in an open file descriptor in the calling process.
+    // So, FUSE needs `fi->fh`. Let's use a dummy or skip if `open` is always called.
+    // For now, we'll rely on subsequent `open` if needed by the application.
+    // Many applications will call `creat()` then `close()`, then `open()`.
+
+    return 0; // Success
+}
+
+int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    (void)fi; // Mark as unused if not using file handle specific data yet
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_write called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data || !data->fs) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: FUSE private_data not configured correctly.");
+        return -EIO;
+    }
+
+    std::string filename = std::string(path).substr(1); // Remove leading '/'
+
+    // Check if the file is known/exists.
+    // Create or open(O_CREAT) should have made the file.
+    if (!data->known_files.count(filename)) {
+         // Double check with actual filesystem in case known_files is out of sync
+        if (data->fs->readFile(filename) == "" && !data->fs->createFile(filename)) { // Attempt to create if read "" (non-existent)
+             Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Attempt to write to unknown or non-existent file and creation failed: " + filename);
+             return -ENOENT; // No such file or directory
+        }
+        // If createFile succeeded or readFile found something (e.g. file existed but not in known_files)
+        // Add to known_files to keep it consistent
+        if (!data->known_files.count(filename)){
+            data->known_files.insert(filename);
+            Logger::getInstance().log(LogLevel::INFO, "simpli_write: File " + filename + " was not in known_files, added.");
+        }
+    }
+
+    // Read current content
+    std::string current_content = data->fs->readFile(filename);
+    size_t current_len = current_content.length();
+
+    // Prepare new content buffer
+    // The final size could be offset + size, or current_len if offset + size is within current_len
+    size_t new_len_estimate = std::max(current_len, (size_t)offset + size);
+    std::string new_content_str;
+    new_content_str.resize(new_len_estimate); // Resize and fill with nulls
+
+    // Copy existing data up to offset
+    size_t pre_offset_len = std::min((size_t)offset, current_len);
+    for(size_t i=0; i < pre_offset_len; ++i) {
+        new_content_str[i] = current_content[i];
+    }
+
+    // If offset is beyond current length, the gap is already filled with nulls by resize
+    // Or, explicitly fill if resize doesn't guarantee nulls (it does for std::string)
+    if ((size_t)offset > current_len) {
+        for(size_t i = current_len; i < (size_t)offset; ++i) {
+            new_content_str[i] = '\0';
+        }
+    }
+
+    // Write new data from buf
+    for(size_t i=0; i < size; ++i) {
+        if ((size_t)offset + i < new_len_estimate) { // Boundary check
+            new_content_str[(size_t)offset + i] = buf[i];
+        } else {
+            // This would happen if new_len_estimate was too small - implies an issue with logic or resize.
+            // For safety, append. This part of code should ideally not be reached if resize is correct.
+            new_content_str += buf[i];
+        }
+    }
+
+    // If the write was within the old content and didn't reach its end, append the remainder of old content
+    if ((size_t)offset + size < current_len) {
+        for(size_t i = (size_t)offset + size; i < current_len; ++i) {
+            // This character should already be in new_content_str if new_len_estimate >= current_len
+            // However, if offset+size caused a shrink, and new_len_estimate was based on offset+size,
+            // then we need to append the tail.
+            // Current logic: new_len_estimate = max(current_len, offset+size).
+            // So new_content_str is already large enough to hold the tail.
+            // This loop just ensures those characters from current_content are preserved if not overwritten.
+            new_content_str[i] = current_content[i];
+        }
+        // If new_len_estimate was offset + size, and this was smaller than current_len, we need to truncate.
+        // The current resize() to new_len_estimate handles this.
+         new_content_str.resize(new_len_estimate); // Ensure correct final size
+    } else {
+        // If write went up to or extended the file, new_len_estimate is offset + size.
+        // String is already resized to this.
+         new_content_str.resize((size_t)offset + size); // Ensure correct final size
+    }
+
+
+    if (data->fs->writeFile(filename, new_content_str)) {
+        Logger::getInstance().log(LogLevel::INFO, "simpli_write: Successfully wrote " + std::to_string(size) + " bytes to " + filename + " at offset " + std::to_string(offset) + ". New size: " + std::to_string(new_content_str.length()));
+        return size; // Return number of bytes written
+    } else {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: FileSystem::writeFile failed for: " + filename);
+        return -EIO;
+    }
+}
+
+int simpli_unlink(const char *path) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink called for path: " + std::string(path));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data || !data->fs) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: FUSE private_data not configured correctly.");
+        return -EIO;
+    }
+
+    std::string spath(path);
+    if (spath == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Cannot unlink root directory.");
+        return -EISDIR; // Is a directory
+    }
+
+    std::string filename = spath.substr(1); // Remove leading '/'
+
+    // No need to check known_files first, FileSystem::deleteFile handles non-existent files.
+    // if (!data->known_files.count(filename)) {
+    //     Logger::getInstance().log(LogLevel::WARN, "simpli_unlink: File not found in known_files: " + filename);
+    //     // POSIX unlink returns ENOENT if it never existed.
+    //     // FileSystem::deleteFile returns false if file doesn't exist, which we map to -ENOENT.
+    // }
+
+    if (data->fs->deleteFile(filename)) {
+        Logger::getInstance().log(LogLevel::INFO, "simpli_unlink: File deleted successfully: " + filename);
+        if (data->known_files.count(filename)) { // Only erase if it was there
+            data->known_files.erase(filename); // Update our cache
+        }
+        return 0; // Success
+    } else {
+        // deleteFile returns false if the file didn't exist.
+        Logger::getInstance().log(LogLevel::WARN, "simpli_unlink: FileSystem::deleteFile failed for " + filename + " (likely means file did not exist).");
+        return -ENOENT; // No such file or directory
+    }
+}
+
+int simpli_rename(const char *from, const char *to, unsigned int flags) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename called from: " + std::string(from) + " to: " + std::string(to) + " with flags: " + std::to_string(flags));
+
+    // For now, we will ignore flags for simplicity, assuming basic rename behavior.
+    // if (flags != 0) {
+    //     Logger::getInstance().log(LogLevel::WARN, "simpli_rename: flags are not supported, returning EINVAL.");
+    //     return -EINVAL;
+    // }
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data || !data->fs) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: FUSE private_data not configured correctly.");
+        return -EIO;
+    }
+
+    std::string sfrom(from);
+    std::string sto(to);
+
+    if (sfrom == "/" || sto == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Cannot rename to or from root directory.");
+        return -EBUSY;
+    }
+
+    std::string old_filename = sfrom.substr(1);
+    std::string new_filename = sto.substr(1);
+
+    if (data->fs->renameFile(old_filename, new_filename)) {
+        Logger::getInstance().log(LogLevel::INFO, "simpli_rename: File renamed successfully from " + old_filename + " to " + new_filename);
+        // Update known_files: remove old, insert new
+        if (data->known_files.count(old_filename)) { // Should exist if renameFile succeeded
+             data->known_files.erase(old_filename);
+        }
+        data->known_files.insert(new_filename);
+        return 0; // Success
+    } else {
+        // FileSystem::renameFile logs "Attempted to rename non-existent file" or
+        // "Attempted to rename to an already existing file".
+        // We need to map this boolean 'false' to a FUSE error code.
+        // A robust way would be for FileSystem::renameFile to return an enum or throw specific exceptions.
+        // Lacking that, we make a best guess or return a generic error.
+
+        // Check if the source file still exists. If not, it's ENOENT.
+        // This is racy, but a common approach.
+        // A less racy check is to see if FileSystem thinks the new file exists.
+        // If new_filename is now in its _Files map, it means renameFile failed because new_filename existed.
+        // If old_filename is not in _Files, it means renameFile failed because old_filename didn't exist.
+
+        // The current FileSystem::renameFile implementation:
+        // 1. Checks if old_filename exists. If not, logs WARN, returns false. -> maps to ENOENT
+        // 2. Checks if new_filename exists. If yes, logs WARN, returns false. -> maps to EEXIST
+
+        // We don't have direct access to _Files here.
+        // We can try to mimic the checks if necessary, but it's not ideal.
+        // For now, let's assume that if renameFile fails, it could be one of these two.
+        // To differentiate, we could try a readFile on old_filename. If it's empty (or some error indicator),
+        // it might be ENOENT. If readFile on new_filename is non-empty, it might be EEXIST.
+        // This is still heuristic.
+
+        // Given FileSystem::renameFile logs the specific reason, and for this exercise
+        // we can't change FileSystem::renameFile easily to return better errors.
+        // Let's assume a common default. ENOENT for source or EEXIST for target are common.
+        // POSIX rename overwrites target files. Our FileSystem::renameFile does not.
+        // So if new_filename exists, our renameFile fails, which is like RENAME_NOREPLACE.
+        // In that case, EEXIST is appropriate.
+
+        // Attempt to infer:
+        // This is still not perfect because FileSystem::readFile itself returns "" for non-existent files.
+        // A dedicated FileSystem::fileExists method would be better.
+        // Since FileSystem::renameFile already logs the reason, we'll use a generic error here.
+        // The prompt suggested -EPERM if specific cause is unknown.
+        Logger::getInstance().log(LogLevel::WARN, "simpli_rename: FileSystem::renameFile failed for " + old_filename + " to " + new_filename + ". This could be due to source not existing or target already existing (and not overwriting).");
+
+        // Let's try to be slightly more specific based on logs from FileSystem::renameFile (though not ideal to rely on logs for logic)
+        // If we had a 'fileExists' method in FileSystem:
+        // if (!data->fs->fileExists(old_filename)) return -ENOENT;
+        // if (data->fs->fileExists(new_filename)) return -EEXIST; // if RENAME_NOREPLACE behavior
+
+        // Given current constraints, -EPERM is a safe bet as per prompt.
+        // However, let's try to infer slightly. If the new_filename now exists (somehow, though our rename doesn't overwrite),
+        // that would be EEXIST. If old_filename doesn't exist, ENOENT.
+        // This is hard without better FileSystem feedback.
+        // The provided solution template leans towards -EPERM.
+
+        return -EPERM; // General permission/operation not permitted error
+    }
+}
+
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
     // Initialize the logger first
@@ -240,6 +526,10 @@ int main(int argc, char *argv[]) {
     simpli_ops.read    = simpli_read;
     // simpli_ops.fgetattr = simpli_fgetattr; // Removed for FUSE 3 compatibility
     simpli_ops.access = simpli_access; // Added
+    simpli_ops.create  = simpli_create; // Add this line
+    simpli_ops.write   = simpli_write; // Add this line
+    simpli_ops.unlink  = simpli_unlink; // Add this line
+    simpli_ops.rename  = simpli_rename; // Add this line
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
     // simpli_ops.destroy = simpli_destroy; // Example

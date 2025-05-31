@@ -51,3 +51,22 @@ bool FileSystem::deleteFile(const std::string& _pFilename) {
     Logger::getInstance().log(LogLevel::WARN, "Attempted to delete non-existent file: " + _pFilename);
     return false; // File did not exist
 }
+
+bool FileSystem::renameFile(const std::string& _pOldFilename, const std::string& _pNewFilename) {
+    std::unique_lock<std::mutex> lock(_Mutex);
+    if (_Files.find(_pOldFilename) == _Files.end()) {
+        Logger::getInstance().log(LogLevel::WARN, "Attempted to rename non-existent file: " + _pOldFilename);
+        return false; // Old file doesn't exist
+    }
+    if (_Files.find(_pNewFilename) != _Files.end()) {
+        Logger::getInstance().log(LogLevel::WARN, "Attempted to rename to an already existing file: " + _pNewFilename);
+        return false; // New file already exists
+    }
+
+    // Perform the rename
+    _Files[_pNewFilename] = _Files[_pOldFilename];
+    _Files.erase(_pOldFilename);
+
+    Logger::getInstance().log(LogLevel::INFO, "File renamed from " + _pOldFilename + " to " + _pNewFilename);
+    return true;
+}

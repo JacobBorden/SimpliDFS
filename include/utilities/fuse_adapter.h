@@ -22,5 +22,9 @@ int simpli_open(const char *path, struct fuse_file_info *fi);
 int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 // int simpli_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi); // Removed for FUSE 3 compatibility
 int simpli_access(const char *path, int mask); // Added
+int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi);
+int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+int simpli_unlink(const char *path);
+int simpli_rename(const char *from, const char *to, unsigned int flags);
 
 #endif // SIMPLIDFS_FUSE_ADAPTER_H
