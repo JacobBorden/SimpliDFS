@@ -16,7 +16,8 @@ static SimpliDfsFuseData* get_fuse_data() {
     return data;
 }
 
-int simpli_getattr(const char *path, struct stat *stbuf) {
+int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
+    (void)fi; // Mark as unused if the function body does not use it
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr called for path: " + std::string(path));
     memset(stbuf, 0, sizeof(struct stat));
 
@@ -48,9 +49,10 @@ int simpli_getattr(const char *path, struct stat *stbuf) {
     return -ENOENT;
 }
 
-int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
+int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
     (void) offset;
     (void) fi;
+    (void)flags; // Mark as unused
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir called for path: " + std::string(path));
 
     SimpliDfsFuseData* data = get_fuse_data();
@@ -61,11 +63,11 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
         return -ENOENT;
     }
 
-    filler(buf, ".", NULL, 0);
-    filler(buf, "..", NULL, 0);
+    filler(buf, ".", NULL, 0, (enum fuse_fill_dir_flags)0);
+    filler(buf, "..", NULL, 0, (enum fuse_fill_dir_flags)0);
 
     for (const auto& filename_entry : data->known_files) {
-        filler(buf, filename_entry.c_str(), NULL, 0);
+        filler(buf, filename_entry.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
     }
     return 0;
 }
@@ -129,13 +131,13 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
     return read_len;
 }
 
-int simpli_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
-    (void)fi; // fi might be unused if not storing special per-handle info
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_fgetattr called for path: " + std::string(path));
-    // Most simple fgetattr implementations are identical to getattr, unless
-    // you have per-file-handle state that would change attributes (e.g. size for append-only files)
-    return simpli_getattr(path, stbuf);
-}
+// int simpli_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
+// (void)fi; // fi might be unused if not storing special per-handle info
+// Logger::getInstance().log(LogLevel::DEBUG, "simpli_fgetattr called for path: " + std::string(path));
+// // Most simple fgetattr implementations are identical to getattr, unless
+// // you have per-file-handle state that would change attributes (e.g. size for append-only files)
+// return simpli_getattr(path, stbuf);
+// }
 
 int simpli_access(const char *path, int mask) {
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_access called for path: " + std::string(path) + " with mask: " + std::to_string(mask));
@@ -236,7 +238,7 @@ int main(int argc, char *argv[]) {
     simpli_ops.readdir = simpli_readdir;
     simpli_ops.open    = simpli_open;
     simpli_ops.read    = simpli_read;
-    simpli_ops.fgetattr = simpli_fgetattr;
+    // simpli_ops.fgetattr = simpli_fgetattr; // Removed for FUSE 3 compatibility
     simpli_ops.access = simpli_access; // Added
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
