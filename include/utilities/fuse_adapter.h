@@ -2,7 +2,9 @@
 #ifndef SIMPLIDFS_FUSE_ADAPTER_H
 #define SIMPLIDFS_FUSE_ADAPTER_H
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #define FUSE_USE_VERSION 316 // Changed from 30 to 31
 
 #include <linux/stat.h>
@@ -40,5 +42,11 @@ int simpli_unlink(const char *path);
 int simpli_rename(const char *from, const char *to, unsigned int flags);
 int simpli_release(const char *path, struct fuse_file_info *fi); // Added release
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi); // Added utimens
+
+#ifdef SIMPLIDFS_HAS_STATX
+struct statx; // Forward declaration for statx structure
+// struct fuse_file_info; // Forward declaration for fuse_file_info structure - already declared by fuse.h inclusion
+int simpli_statx(const char *path, struct statx *stxbuf, int flags, struct fuse_file_info *fi);
+#endif
 
 #endif // SIMPLIDFS_FUSE_ADAPTER_H

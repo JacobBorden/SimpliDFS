@@ -59,6 +59,7 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
 // Note: FUSE's handling of xattrs with statx can be complex.
 // This initial implementation focuses on retrieving the attribute and filling basic fields.
 // The actual return of xattr data might require more advanced FUSE techniques if done directly via statx buffer.
+#ifdef SIMPLIDFS_HAS_STATX
 int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struct fuse_file_info *fi) {
     (void)fi; // Mark as unused
     (void)flags_unused; // Mark as unused for now, kernel passes AT_STATX_SYNC_AS_STAT etc.
@@ -136,6 +137,7 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
     Logger::getInstance().log(LogLevel::WARN, "simpli_statx: File not found in known_files: " + filename);
     return -ENOENT;
 }
+#endif // SIMPLIDFS_HAS_STATX
 
 int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
     (void) offset;
@@ -689,7 +691,9 @@ int main(int argc, char *argv[]) {
     simpli_ops.rename  = simpli_rename; // Add this line
     simpli_ops.release = simpli_release; // Added release handler
     simpli_ops.utimens = simpli_utimens; // Added utimens handler
+#ifdef SIMPLIDFS_HAS_STATX
     simpli_ops.statx   = simpli_statx;   // Added statx handler
+#endif
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
     // simpli_ops.destroy = simpli_destroy; // Example
