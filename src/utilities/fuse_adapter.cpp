@@ -42,9 +42,9 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     if (data->known_files.count(filename)) {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: File found in known_files: " + filename);
         std::string content = data->fs->readFile(filename);
-        stbuf->st_mode = S_IFREG | 0444; // Read-only permissions (simplification)
-        // For a newly created file, mode would ideally come from 'create's mode argument.
-        // Current simpli_open also restricts to O_RDONLY for existing files.
+        stbuf->st_mode = S_IFREG | 0644; // RW for owner, R for group/other (simplification)
+        // For a newly created file, mode would ideally come from 'create's mode argument
+        // and umask. This is a simplified fixed permission.
         stbuf->st_nlink = 1;
         stbuf->st_size = content.length();
         return 0;
@@ -94,11 +94,13 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
     std::string filename = spath.substr(1);
     if (data->known_files.count(filename)) {
-        if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-            Logger::getInstance().log(LogLevel::WARN, "simpli_open: Write access denied for " + filename);
-            return -EACCES;
-        }
-        return 0;
+        // Permissions are now 0644 from getattr.
+        // The kernel will use these permissions based on getattr results.
+        // We don't need to do an explicit O_ACCMODE check here for basic cases.
+        // If open is for O_WRONLY or O_RDWR by the owner, it should be allowed at this stage.
+        // Actual write permission will be checked by the kernel or by our simpli_write.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Opening existing file " + filename + " with flags: " + std::to_string(fi->flags) + ". Allowing, relying on getattr mode and write handler.");
+        return 0; // Success, allow open
     }
 
     Logger::getInstance().log(LogLevel::WARN, "simpli_open: File not found: " + filename);
