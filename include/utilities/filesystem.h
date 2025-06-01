@@ -57,11 +57,28 @@ public:
      */
     bool deleteFile(const std::string& _pFilename);
 
+    /**
+     * @brief Sets an extended attribute for a file.
+     * @param filename The name of the file.
+     * @param attrName The name of the attribute.
+     * @param attrValue The value of the attribute.
+     */
+    void setXattr(const std::string& filename, const std::string& attrName, const std::string& attrValue);
+
+    /**
+     * @brief Gets an extended attribute for a file.
+     * @param filename The name of the file.
+     * @param attrName The name of the attribute.
+     * @return The value of the attribute, or an empty string if not found.
+     */
+    std::string getXattr(const std::string& filename, const std::string& attrName);
+
 private:
     /**
      * @brief In-memory storage for files, mapping filename to its content.
      */
     std::unordered_map<std::string, std::string> _Files;
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> _FileXattrs;
 
     /**
      * @brief Mutex to protect the _Files map, ensuring thread-safe access to file data.
