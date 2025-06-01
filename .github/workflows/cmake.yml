@@ -1,51 +1,40 @@
 name: CMake
 
 on:
-  push:    { branches: [ master, development ] }
-  pull_request: { branches: [ master, development ] }
+  push:          { branches: [ master, development ] }
+  pull_request:  { branches: [ master, development ] }
 
 env:
   BUILD_TYPE: Release
 
 jobs:
   build:
-    runs-on: ubuntu-24.04      # Noble snapshot
+    runs-on: ubuntu-24.04  # noble snapshot
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install libsodium
+      # ---- system deps (libsodium + build tools) --------------------------
+      - name: Install base packages
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y libsodium-dev pkg-config
+          sudo apt-get install -y libsodium-dev pkg-config \
+                                   build-essential meson ninja-build \
+                                   libudev-dev curl
 
-      # Choose ONE of the next two blocks ↓↓↓
-
-      # ---------- Option 1: pull from noble-proposed ----------
-      # - name: Enable proposed & install libfuse 3.16
-      #   run: |
-      #     echo "deb http://archive.ubuntu.com/ubuntu noble-proposed main" | \
-      #       sudo tee /etc/apt/sources.list.d/noble-proposed.list
-      #     sudo apt-get update -y
-      #     sudo apt-get install -y -t noble-proposed libfuse3-dev libfuse3-3
-      # --------------------------------------------------------
-
-      # ---------- Option 2: build libfuse 3.16.2 from source ----------
+      # ---- build libfuse 3.16.2 ------------------------------------------
       - name: Build & install libfuse 3.16.2
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-               build-essential meson ninja-build pkg-config libudev-dev curl
-          curl -L -o fuse-3.16.2.tar.xz \
-               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.xz
-          tar xf fuse-3.16.2.tar.xz
+          curl -L -o fuse-3.16.2.tar.gz \
+               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
+          tar xzf fuse-3.16.2.tar.gz
           cd fuse-3.16.2
           meson setup build --prefix=/usr
           ninja -C build
           sudo ninja -C build install
           sudo ldconfig
-      # -----------------------------------------------------------------
 
+      # ---- project build/test --------------------------------------------
       - name: Init submodules
         run: git submodule update --init --recursive
 
