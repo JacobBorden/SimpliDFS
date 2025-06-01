@@ -2,9 +2,21 @@
 #ifndef SIMPLIDFS_FUSE_ADAPTER_H
 #define SIMPLIDFS_FUSE_ADAPTER_H
 
-#define FUSE_USE_VERSION 31 // Changed from 30 to 31
+#define _GNU_SOURCE
+#define FUSE_USE_VERSION 316 // Changed from 30 to 31
 
-#include <fuse.h> // Should be included before system headers like stat.h if it defines them
+#include <linux/stat.h>
+#include <fuse3/fuse.h> // Should be included before system headers like stat.h if it defines them
+
+// ------------------------------------------------------------------------
+ // Fallbacks for hosts whose kernel headers are older than 5.19
+ #ifndef STATX_ATTR_DIRECTORY
+ #  define STATX_ATTR_DIRECTORY 0
+ #endif
+ #ifndef STATX_XATTR
+ #  define STATX_XATTR          0
+ #endif
+
 #include "utilities/filesystem.h"
 #include <string>
 #include <vector> // Keep for now, might be useful elsewhere or by fuse.h
