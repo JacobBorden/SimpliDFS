@@ -90,6 +90,120 @@ if [ $? -ne 0 ]; then
 fi
 echo "" >> "$TEST_OUTPUT_FILE"
 
+# --- Specific Tests for touch ---
+TOUCH_NEW_FILE="newly_touched_file.txt"
+TOUCH_EXISTING_FILE_SETUP="existing_file_for_touch_setup.txt"
+TOUCH_NEW_FILE_PATH="$MOUNT_POINT/$TOUCH_NEW_FILE"
+TOUCH_EXISTING_FILE_PATH="$MOUNT_POINT/$TOUCH_EXISTING_FILE_SETUP"
+
+echo "--- Test: touch (create) $TOUCH_NEW_FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch_new_file_ok=true
+touch "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: touch (create) $TOUCH_NEW_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    touch_new_file_ok=false
+else
+    echo "INFO: touch (create) $TOUCH_NEW_FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: ls -la $TOUCH_NEW_FILE_PATH failed after touch (create)." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    else
+        echo "INFO: ls -la $TOUCH_NEW_FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    fi
+
+    # Check FUSE logs for create and release
+    CREATE_LOG_PATTERN="simpli_create: File successfully created (new): $TOUCH_NEW_FILE"
+    # Note: simpli_release logs path with leading /
+    RELEASE_LOG_PATTERN="simpli_release called for path: /$TOUCH_NEW_FILE"
+
+    if grep -q -E "$CREATE_LOG_PATTERN" "$LOG_FILE"; then
+        echo "INFO: Found simpli_create success log for $TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_create success log for $TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    fi
+    if grep -q -E "$RELEASE_LOG_PATTERN" "$LOG_FILE"; then
+        echo "INFO: Found simpli_release log for /$TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_release log for /$TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    fi
+fi
+if [ "$touch_new_file_ok" = true ]; then
+    echo "SUCCESS: Test touch (create) $TOUCH_NEW_FILE_PATH passed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "FAILURE: Test touch (create) $TOUCH_NEW_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    # Display FUSE log snippet on failure for this test
+    echo "DEBUG: Last 50 lines of $LOG_FILE for $TOUCH_NEW_FILE_PATH failure:" | tee -a "$TEST_OUTPUT_FILE"
+    tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+
+echo "--- Test: touch (update timestamp) $TOUCH_EXISTING_FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch_existing_file_ok=true
+# Setup: Create the file first
+echo "Initial content for touch test" > "$TOUCH_EXISTING_FILE_PATH"
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to create setup file $TOUCH_EXISTING_FILE_PATH for touch (update) test." | tee -a "$TEST_OUTPUT_FILE"
+    touch_existing_file_ok=false
+else
+    echo "INFO: Setup file $TOUCH_EXISTING_FILE_PATH created." | tee -a "$TEST_OUTPUT_FILE"
+    # Optional: verify initial content if necessary, but for touch, existence is key.
+    # Wait a second to ensure timestamp change is observable if FS had high time resolution
+    sleep 1
+
+    touch "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: touch (update) $TOUCH_EXISTING_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+        touch_existing_file_ok=false
+    else
+        echo "INFO: touch (update) $TOUCH_EXISTING_FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+        ls -la "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "ERROR: ls -la $TOUCH_EXISTING_FILE_PATH failed after touch (update)." | tee -a "$TEST_OUTPUT_FILE"
+            touch_existing_file_ok=false
+        else
+            echo "INFO: ls -la $TOUCH_EXISTING_FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+        fi
+
+        # Check FUSE log for simpli_utimens success message
+        # Note: simpli_utimens logs path with leading / and specific success message
+        UTIMENS_LOG_PATTERN="simpli_utimens: Operation completed successfully (stubbed) for /$TOUCH_EXISTING_FILE_SETUP"
+        if grep -q -E "$UTIMENS_LOG_PATTERN" "$LOG_FILE"; then
+            echo "INFO: Found simpli_utimens success log for /$TOUCH_EXISTING_FILE_SETUP." | tee -a "$TEST_OUTPUT_FILE"
+        else
+            echo "ERROR: Did not find simpli_utimens success log for /$TOUCH_EXISTING_FILE_SETUP in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+            touch_existing_file_ok=false
+        fi
+    fi
+fi
+if [ "$touch_existing_file_ok" = true ]; then
+    echo "SUCCESS: Test touch (update) $TOUCH_EXISTING_FILE_PATH passed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "FAILURE: Test touch (update) $TOUCH_EXISTING_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    echo "DEBUG: Last 50 lines of $LOG_FILE for $TOUCH_EXISTING_FILE_PATH failure:" | tee -a "$TEST_OUTPUT_FILE"
+    tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+# Cleanup for touch tests
+echo "--- Cleanup for touch tests ---" | tee -a "$TEST_OUTPUT_FILE"
+rm "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "WARN: rm $TOUCH_NEW_FILE_PATH failed during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $TOUCH_NEW_FILE_PATH deleted during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+fi
+rm "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "WARN: rm $TOUCH_EXISTING_FILE_PATH failed during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $TOUCH_EXISTING_FILE_PATH deleted during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
 
 echo "--- Test: cat $MOUNT_POINT/data.log ---" | tee -a "$TEST_OUTPUT_FILE"
 cat "$MOUNT_POINT/data.log" >> "$TEST_OUTPUT_FILE" 2>&1

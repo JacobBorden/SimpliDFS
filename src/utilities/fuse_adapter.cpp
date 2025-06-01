@@ -194,9 +194,14 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
         // File was newly created
         data->known_files.insert(filename);
         Logger::getInstance().log(LogLevel::INFO, "simpli_create: File successfully created (new): " + filename);
+
+        // The mode is ignored for now as FileSystem doesn't store it.
+        fi->fh = 1; // Set a dummy file handle for FUSE.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for new file: " + filename);
         // Note: `fi->fh` could be set here if we were managing file handles directly in create.
         // For this system, `open` will likely follow and handle `fi->fh`.
         // The mode is ignored for now as FileSystem doesn't store it.
+
         return 0; // Success
     } else {
         // createFile returned false. This means either the file already existed,
@@ -217,6 +222,10 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
                 data->known_files.insert(filename);
                 Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Added truncated file " + filename + " to known_files.");
             }
+
+            fi->fh = 1; // Set a dummy file handle for FUSE.
+            Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for truncated file: " + filename);
+
             return 0; // Success
         } else {
             // Truncation failed.
@@ -456,6 +465,63 @@ int simpli_rename(const char *from, const char *to, unsigned int flags) {
     }
 }
 
+int simpli_release(const char *path, struct fuse_file_info *fi) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_release called for path: " + std::string(path) + " with fi->fh: " + std::to_string(fi->fh));
+    // This is the counterpart to 'open' or 'create'.
+    // For 'create', fi->fh was set (e.g., to 1).
+    // For 'open', fi->fh might be 0 if not set by 'open' itself, or some other value.
+    // Since we are using a dummy file handle and not managing complex per-handle state,
+    // there's nothing specific to clean up here based on fh.
+    // If fi->fh was used to store a resource index or pointer, this is where it would be freed.
+    // For now, just logging is sufficient.
+    return 0; // Success
+}
+
+// Stub for utimens
+int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
+    // fi can be NULL if utimensat(2) was called with AT_SYMLINK_NOFOLLOW.
+    // We don't use fi for this stub anyway.
+    (void)fi;
+
+    Logger& logger = Logger::getInstance();
+    logger.log(LogLevel::DEBUG, "simpli_utimens called for path: " + std::string(path));
+
+    if (tv == nullptr) {
+        logger.log(LogLevel::DEBUG, "simpli_utimens: tv is NULL (touch behavior, set to current time).");
+        // This case means "set to current time".
+        // Our FileSystem model doesn't store timestamps, so getattr always returns current time.
+        // Thus, doing nothing here effectively achieves the desired outcome for this case.
+    } else {
+        // Log the requested timestamps.
+        // tv[0] is atime (access time), tv[1] is mtime (modification time).
+        // Special UTIME_NOW and UTIME_OMIT values could also be present in tv[n].tv_nsec.
+        std::string atime_str = "atime: sec=" + std::to_string(tv[0].tv_sec) + " nsec=" + std::to_string(tv[0].tv_nsec);
+        std::string mtime_str = "mtime: sec=" + std::to_string(tv[1].tv_sec) + " nsec=" + std::to_string(tv[1].tv_nsec);
+        logger.log(LogLevel::DEBUG, "simpli_utimens: " + atime_str + ", " + mtime_str);
+
+        if (tv[0].tv_nsec == UTIME_OMIT && tv[1].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: Both atime and mtime are UTIME_OMIT. No change needed.");
+        } else if (tv[0].tv_nsec == UTIME_NOW) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_NOW.");
+        } else if (tv[0].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_OMIT.");
+        }
+
+        if (tv[1].tv_nsec == UTIME_NOW) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_NOW.");
+        } else if (tv[1].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_OMIT.");
+        }
+    }
+
+    // Our FileSystem doesn't currently store timestamps for files.
+    // simpli_getattr always reports the current time.
+    // So, for now, we don't need to do anything to the underlying storage.
+    // We return 0 to indicate success, which should satisfy `touch`.
+    logger.log(LogLevel::INFO, "simpli_utimens: Operation completed successfully (stubbed) for " + std::string(path));
+    return 0;
+}
+
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
     // Initialize the logger first
@@ -539,6 +605,8 @@ int main(int argc, char *argv[]) {
     simpli_ops.write   = simpli_write; // Add this line
     simpli_ops.unlink  = simpli_unlink; // Add this line
     simpli_ops.rename  = simpli_rename; // Add this line
+    simpli_ops.release = simpli_release; // Added release handler
+    simpli_ops.utimens = simpli_utimens; // Added utimens handler
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
     // simpli_ops.destroy = simpli_destroy; // Example
