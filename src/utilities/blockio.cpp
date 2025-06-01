@@ -71,3 +71,136 @@ DigestResult BlockIO::finalize_hashed() {
 
     return result;
 }
+
+// Compression methods
+std::vector<std::byte> BlockIO::compress_data(const std::vector<std::byte>& plaintext_data) {
+    if (plaintext_data.empty()) {
+        return {};
+    }
+
+    size_t const cBuffSize = ZSTD_compressBound(plaintext_data.size());
+    std::vector<std::byte> compressed_data(cBuffSize);
+
+    size_t const cSize = ZSTD_compress(
+        compressed_data.data(), cBuffSize,
+        plaintext_data.data(), plaintext_data.size(),
+        1 // Default compression level
+    );
+
+    if (ZSTD_isError(cSize)) {
+        throw std::runtime_error(std::string("ZSTD_compress failed: ") + ZSTD_getErrorName(cSize));
+    }
+
+    compressed_data.resize(cSize);
+    return compressed_data;
+}
+
+std::vector<std::byte> BlockIO::decompress_data(const std::vector<std::byte>& compressed_data, size_t original_size) {
+    if (compressed_data.empty()) {
+        return {};
+    }
+    if (original_size == 0 && !compressed_data.empty()) {
+        // ZSTD_getFrameContentSize can be used if the original size is not known,
+        // but it requires the compressed data to contain that information.
+        // For this implementation, we require original_size.
+        // However, a more robust implementation might try ZSTD_getFrameContentSize.
+        // For now, let's assume original_size must be provided if data is not empty.
+        // Or, if original_size is 0, try to get it from the frame.
+        unsigned long long const rSize = ZSTD_getFrameContentSize(compressed_data.data(), compressed_data.size());
+        if (rSize == ZSTD_CONTENTSIZE_ERROR || rSize == ZSTD_CONTENTSIZE_UNKNOWN) {
+            throw std::runtime_error("ZSTD_decompress failed: original_size must be provided or retrievable from frame, and it was not.");
+        }
+        original_size = static_cast<size_t>(rSize);
+        if (original_size == 0) { // Still 0 after trying to get from frame (e.g. for empty original data)
+             return {};
+        }
+    }
+
+
+    std::vector<std::byte> decompressed_data(original_size);
+
+    size_t const dSize = ZSTD_decompress(
+        decompressed_data.data(), original_size,
+        compressed_data.data(), compressed_data.size()
+    );
+
+    if (ZSTD_isError(dSize)) {
+        throw std::runtime_error(std::string("ZSTD_decompress failed: ") + ZSTD_getErrorName(dSize));
+    }
+
+    if (dSize != original_size) {
+        // This case should ideally not happen if original_size was correct and ZSTD_decompress succeeded.
+        // However, it's a good sanity check.
+        throw std::runtime_error("ZSTD_decompress failed: output size does not match original size.");
+    }
+
+    // The vector is already sized to original_size, no resize needed if dSize == original_size.
+    // If ZSTD_decompress can return a dSize smaller than original_size for some valid cases
+    // (e.g. if original_size was an upper bound), then resize might be needed:
+    // decompressed_data.resize(dSize);
+    // But typically for zstd, you decompress into a buffer of known original size.
+
+    return decompressed_data;
+}
+
+// Encryption methods
+std::vector<std::byte> BlockIO::encrypt_data(const std::vector<std::byte>& plaintext_data,
+                                             const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
+                                             std::vector<unsigned char>& nonce_output) {
+    if (!crypto_aead_aes256gcm_is_available()) {
+        throw std::runtime_error("AES-256-GCM is not available on this CPU.");
+    }
+
+    nonce_output.resize(crypto_aead_aes256gcm_NPUBBYTES);
+    randombytes_buf(nonce_output.data(), nonce_output.size());
+
+    std::vector<std::byte> ciphertext(plaintext_data.size() + crypto_aead_aes256gcm_ABYTES);
+    unsigned long long ciphertext_len;
+
+    int result = crypto_aead_aes256gcm_encrypt(
+        reinterpret_cast<unsigned char*>(ciphertext.data()), &ciphertext_len,
+        reinterpret_cast<const unsigned char*>(plaintext_data.data()), plaintext_data.size(),
+        nullptr, 0, // No additional authenticated data
+        nullptr,    // Must be NULL for this function (according to docs for some versions)
+        nonce_output.data(), key.data()
+    );
+
+    if (result != 0) {
+        throw std::runtime_error("Encryption failed.");
+    }
+    ciphertext.resize(static_cast<size_t>(ciphertext_len));
+    return ciphertext;
+}
+
+std::vector<std::byte> BlockIO::decrypt_data(const std::vector<std::byte>& ciphertext_data,
+                                             const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
+                                             const std::vector<unsigned char>& nonce) {
+    if (!crypto_aead_aes256gcm_is_available()) {
+        throw std::runtime_error("AES-256-GCM is not available on this CPU.");
+    }
+
+    if (nonce.size() != crypto_aead_aes256gcm_NPUBBYTES) {
+        throw std::runtime_error("Invalid nonce size for decryption.");
+    }
+
+    if (ciphertext_data.size() < crypto_aead_aes256gcm_ABYTES) {
+        throw std::runtime_error("Invalid ciphertext: too short to contain MAC.");
+    }
+
+    std::vector<std::byte> decrypted_data(ciphertext_data.size() - crypto_aead_aes256gcm_ABYTES);
+    unsigned long long decrypted_len;
+
+    int result = crypto_aead_aes256gcm_decrypt(
+        reinterpret_cast<unsigned char*>(decrypted_data.data()), &decrypted_len,
+        nullptr, // Must be NULL (not used for output by this function)
+        reinterpret_cast<const unsigned char*>(ciphertext_data.data()), ciphertext_data.size(),
+        nullptr, 0, // No additional authenticated data
+        nonce.data(), key.data()
+    );
+
+    if (result != 0) {
+        throw std::runtime_error("Decryption failed. Ciphertext might be invalid or tampered.");
+    }
+    decrypted_data.resize(static_cast<size_t>(decrypted_len));
+    return decrypted_data;
+}

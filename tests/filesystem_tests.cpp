@@ -1,129 +1,300 @@
 #include <gtest/gtest.h>
 #include "utilities/filesystem.h"
-#include "utilities/logger.h" // Add this include
+#include "utilities/logger.h"
+#include "utilities/blockio.hpp" // For crypto_aead_aes256gcm_ABYTES, etc.
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
+#include <vector>
+#include <cstddef> // For std::byte
+#include <stdexcept> // For std::runtime_error
+
+// Helper to convert vector<unsigned char> to string (for comparing nonce storage)
+// Nonces can contain nulls, so direct string construction is fine.
+std::string uchar_vec_to_string(const std::vector<unsigned char>& vec) {
+    return std::string(reinterpret_cast<const char*>(vec.data()), vec.size());
+}
+// Helper to convert string to vector<unsigned char>
+std::vector<unsigned char> string_to_uchar_vec(const std::string& str) {
+    std::vector<unsigned char> vec(str.length());
+    std::transform(str.begin(), str.end(), vec.begin(), [](char c) {
+        return static_cast<unsigned char>(c);
+    });
+    return vec;
+}
+
 
 class FileSystemTestFix : public ::testing::Test {
 protected:
+    FileSystem fs; // Use a single FileSystem instance for each test case
+
     void SetUp() override {
-        // It's possible init might throw if there's a fundamental issue,
-        // though tests generally expect it to succeed.
         try {
+            // Using a unique log file per test run might be better if tests run in parallel
+            // or if log content is critical for debugging specific tests.
             Logger::init("filesystem_tests.log", LogLevel::DEBUG);
         } catch (const std::exception& e) {
-            // Optionally handle or log this, but for tests, an ASSERT_NO_THROW in SetUp
-            // might be too much if the focus is not logger itself.
-            // For now, let it throw if it must.
+            // No action needed if logger init fails, tests might still run
         }
     }
+
     void TearDown() override {
-        // Attempt to init logger to a dummy file to release handle on test log file
-        // This is a workaround for singleton logger file handles persisting.
         try {
-            Logger::init("dummy_fs_cleanup.log", LogLevel::DEBUG);
-            std::remove("dummy_fs_cleanup.log"); // Clean up the dummy log itself
-            // Clean up potential rotated dummy log
-            std::remove("dummy_fs_cleanup.log.1"); 
-        } catch (const std::runtime_error& e) { /* Logger might not have been initted if SetUp failed */ }
+            Logger::init("dummy_fs_cleanup.log", LogLevel::DEBUG); // Release main log file
+            std::remove("dummy_fs_cleanup.log");
+            std::remove("dummy_fs_cleanup.log.1");
+        } catch (const std::runtime_error& e) { /* ignore */ }
         
         std::remove("filesystem_tests.log");
-        // Clean up potential rotated files if any were created
-        for (int i = 1; i <= 5; ++i) { // Check a few potential backup numbers
+        for (int i = 1; i <= 5; ++i) { // Clean up potential rotated files
             std::remove(("filesystem_tests.log." + std::to_string(i)).c_str());
         }
     }
 };
 
-TEST_F(FileSystemTestFix, createFile)
-{
-	FileSystem fs;
-	bool first = fs.createFile("Test");
-	bool second = fs.createFile("Test");
-	
-	ASSERT_EQ(first, true);
-	ASSERT_EQ(second, false);
+TEST_F(FileSystemTestFix, CreateFile) {
+    ASSERT_TRUE(fs.createFile("Test.txt"));
+    EXPECT_EQ(fs.readFile("Test.txt"), ""); // Newly created file should be empty
+    // Xattrs should not exist yet for a file that hasn't had content written via new pipeline
+    EXPECT_TRUE(fs.getXattr("Test.txt", "user.cid").empty());
+    ASSERT_FALSE(fs.createFile("Test.txt")); // Already exists
 }
 
-TEST_F(FileSystemTestFix, writeFile)
-{
-	FileSystem fs;
-	fs.createFile("Test"); // Depends on createFile working
-	bool first = fs.writeFile("Test", "Test");
-	bool second = fs.writeFile("Test2", "Test"); // Writing to a non-existent file
+TEST_F(FileSystemTestFix, WriteAndReadFile_Basic) {
+    const std::string filename = "TestWriteRead.txt";
+    const std::string content = "This is some test content for the file system pipeline.";
 
-	ASSERT_EQ(first,true);
-	ASSERT_EQ(second,false);
-
-}
-
-
-TEST_F(FileSystemTestFix, readFile)
-{
-	FileSystem fs;
-	fs.createFile("Test"); // Depends on createFile
-	fs.writeFile("Test", "Read Test"); // Depends on writeFile
-	std::string data = fs.readFile("Test");
-    std::string non_existent_data = fs.readFile("NonExistentFile");
-
-	ASSERT_EQ(data, "Read Test");
-	ASSERT_EQ(non_existent_data, ""); // Expecting empty string for non-existent file
-	 	
-}
-
-// It might be good to add a deleteFile test if it's part of FileSystem functionality.
-// Assuming FileSystem::deleteFile exists based on previous tasks.
-TEST_F(FileSystemTestFix, deleteFile)
-{
-    FileSystem fs;
-    fs.createFile("ToDelete.txt");
-    ASSERT_TRUE(fs.deleteFile("ToDelete.txt"));
-    ASSERT_FALSE(fs.deleteFile("NonExistent.txt")); // Test deleting non-existent file
-    ASSERT_EQ(fs.readFile("ToDelete.txt"), ""); // Verify it's gone (or returns empty)
-}
-
-TEST_F(FileSystemTestFix, extendedAttributes)
-{
-    FileSystem fs;
-    const std::string filename = "xattr_file.txt";
-    const std::string non_existent_filename = "non_existent_xattr_file.txt";
-    const std::string attr_name = "user.cid";
-    const std::string attr_value1 = "test_cid_value_123";
-    const std::string attr_value2 = "test_cid_value_456";
-
-    // Pre-condition: Create a file
     ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, content));
 
-    // Test 1: Set and Get an extended attribute
+    // Verify xattrs (basic checks)
+    std::string cid = fs.getXattr(filename, "user.cid");
+    std::string nonce_str = fs.getXattr(filename, "user.nonce");
+    std::string original_size_str = fs.getXattr(filename, "user.original_size");
+    std::string encrypted_size_str = fs.getXattr(filename, "user.encrypted_size");
+
+    EXPECT_FALSE(cid.empty());
+    EXPECT_FALSE(nonce_str.empty());
+    EXPECT_EQ(nonce_str.length(), crypto_aead_aes256gcm_NPUBBYTES); // Nonce string raw byte storage
+    EXPECT_EQ(original_size_str, std::to_string(content.length()));
+    EXPECT_FALSE(encrypted_size_str.empty());
+    if (!encrypted_size_str.empty()) {
+        EXPECT_EQ(std::stoul(encrypted_size_str), content.length() + crypto_aead_aes256gcm_ABYTES);
+    }
+
+
+    std::string read_content = fs.readFile(filename);
+    EXPECT_EQ(read_content, content);
+}
+
+TEST_F(FileSystemTestFix, WriteAndReadFile_EmptyContent) {
+    const std::string filename = "EmptyFile.txt";
+    const std::string content = "";
+
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, content));
+
+    EXPECT_FALSE(fs.getXattr(filename, "user.cid").empty()); // CID of empty string
+    std::string nonce_str = fs.getXattr(filename, "user.nonce");
+    EXPECT_FALSE(nonce_str.empty());
+    EXPECT_EQ(nonce_str.length(), crypto_aead_aes256gcm_NPUBBYTES);
+    EXPECT_EQ(fs.getXattr(filename, "user.original_size"), "0");
+    EXPECT_EQ(fs.getXattr(filename, "user.encrypted_size"), std::to_string(crypto_aead_aes256gcm_ABYTES));
+
+    std::string read_content = fs.readFile(filename);
+    EXPECT_EQ(read_content, content);
+}
+
+
+TEST_F(FileSystemTestFix, WriteToNonExistentFile) {
+    ASSERT_FALSE(fs.writeFile("NonExistentWrite.txt", "content"));
+}
+
+TEST_F(FileSystemTestFix, ReadNonExistentFile) {
+    EXPECT_EQ(fs.readFile("NonExistentRead.txt"), "");
+}
+
+TEST_F(FileSystemTestFix, OverwriteExistingFile) {
+    const std::string filename = "Overwrite.txt";
+    const std::string content1 = "Initial content.";
+    const std::string content2 = "Overwritten content which is much longer to ensure new processing.";
+
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, content1));
+    std::string cid1 = fs.getXattr(filename, "user.cid");
+    std::string nonce1 = fs.getXattr(filename, "user.nonce");
+
+    ASSERT_TRUE(fs.writeFile(filename, content2));
+    std::string cid2 = fs.getXattr(filename, "user.cid");
+    std::string nonce2 = fs.getXattr(filename, "user.nonce");
+
+    EXPECT_NE(cid1, cid2);
+    EXPECT_NE(nonce1, nonce2); // Nonce should change with each encryption
+
+    std::string read_content = fs.readFile(filename);
+    EXPECT_EQ(read_content, content2);
+    EXPECT_EQ(fs.getXattr(filename, "user.original_size"), std::to_string(content2.length()));
+}
+
+
+TEST_F(FileSystemTestFix, DeleteFile) {
+    const std::string filename = "ToDelete.txt";
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, "some data to ensure xattrs are created"));
+    // Check an xattr exists before delete
+    ASSERT_FALSE(fs.getXattr(filename, "user.cid").empty());
+
+
+    ASSERT_TRUE(fs.deleteFile(filename));
+    EXPECT_EQ(fs.readFile(filename), "");
+    EXPECT_TRUE(fs.getXattr(filename, "user.cid").empty()); // Check if xattrs are gone
+
+    ASSERT_FALSE(fs.deleteFile("NonExistentDelete.txt"));
+}
+
+TEST_F(FileSystemTestFix, RenameFile) {
+    const std::string old_filename = "OldName.txt";
+    const std::string new_filename = "NewName.txt";
+    const std::string content = "Content for rename test.";
+
+    ASSERT_TRUE(fs.createFile(old_filename));
+    ASSERT_TRUE(fs.writeFile(old_filename, content));
+    std::string old_cid = fs.getXattr(old_filename, "user.cid");
+    std::string old_nonce = fs.getXattr(old_filename, "user.nonce");
+    std::string old_orig_size = fs.getXattr(old_filename, "user.original_size");
+    std::string old_enc_size = fs.getXattr(old_filename, "user.encrypted_size");
+
+    ASSERT_FALSE(old_cid.empty());
+
+    ASSERT_TRUE(fs.renameFile(old_filename, new_filename));
+
+    // Check old file and its xattrs are gone
+    EXPECT_EQ(fs.readFile(old_filename), "");
+    EXPECT_TRUE(fs.getXattr(old_filename, "user.cid").empty());
+    EXPECT_TRUE(fs.getXattr(old_filename, "user.nonce").empty());
+
+    // Check new file has content and all xattrs
+    EXPECT_EQ(fs.readFile(new_filename), content);
+    EXPECT_EQ(fs.getXattr(new_filename, "user.cid"), old_cid);
+    EXPECT_EQ(fs.getXattr(new_filename, "user.nonce"), old_nonce);
+    EXPECT_EQ(fs.getXattr(new_filename, "user.original_size"), old_orig_size);
+    EXPECT_EQ(fs.getXattr(new_filename, "user.encrypted_size"), old_enc_size);
+
+    // Test renaming non-existent file
+    ASSERT_FALSE(fs.renameFile("NonExistentOld.txt", "anyNewName.txt"));
+    // Test renaming to an existing file name (should fail)
+    ASSERT_TRUE(fs.createFile("ExistingTarget.txt"));
+    ASSERT_FALSE(fs.renameFile(new_filename, "ExistingTarget.txt"));
+}
+
+TEST_F(FileSystemTestFix, ReadFile_TamperedNonce) {
+    const std::string filename = "TamperNonce.txt";
+    const std::string content = "Sensitive data for nonce tampering test.";
+
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, content));
+
+    std::string original_nonce_str = fs.getXattr(filename, "user.nonce");
+    ASSERT_FALSE(original_nonce_str.empty());
+
+    // Tamper with the nonce: convert to uchar vec, modify, convert back to string for setXattr
+    std::vector<unsigned char> tampered_nonce_vec = string_to_uchar_vec(original_nonce_str);
+    if (!tampered_nonce_vec.empty()) {
+        tampered_nonce_vec[0]++;
+    } else {
+        FAIL() << "Nonce is empty, cannot tamper.";
+    }
+    fs.setXattr(filename, "user.nonce", uchar_vec_to_string(tampered_nonce_vec));
+
+    // Expect readFile to fail (returns empty string due to internal catch block)
+    EXPECT_EQ(fs.readFile(filename), "");
+    // Ideally, we'd check for a specific exception type or error log if FileSystem re-threw.
+}
+
+TEST_F(FileSystemTestFix, ReadFile_TamperedCID_Simulated) {
+    const std::string filename = "TamperCID.txt";
+    const std::string content = "Data with CID to be tampered for test.";
+
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, content));
+
+    std::string original_cid = fs.getXattr(filename, "user.cid");
+    ASSERT_FALSE(original_cid.empty());
+
+    fs.setXattr(filename, "user.cid", "a_completely_fake_and_tampered_cid_value_that_will_not_match");
+
+    EXPECT_EQ(fs.readFile(filename), ""); // Expect empty string due to CID mismatch exception
+}
+
+// Test for the original extendedAttributes test logic, ensuring general xattr functions work
+TEST_F(FileSystemTestFix, ExtendedAttributeGeneralOperations) {
+    const std::string filename = "xattr_general_ops.txt";
+    const std::string attr_name = "user.test_attr";
+    const std::string attr_value1 = "value1";
+    const std::string attr_value2 = "value2";
+
+    ASSERT_TRUE(fs.createFile(filename)); // Create file first
+    // Note: writeFile is not called, so no pipeline xattrs (cid, nonce etc) are set initially.
+
+    // Set and Get
     fs.setXattr(filename, attr_name, attr_value1);
-    // No explicit return value for setXattr to check, success is verified by getXattr
-    std::string retrieved_value = fs.getXattr(filename, attr_name);
-    ASSERT_EQ(retrieved_value, attr_value1);
+    EXPECT_EQ(fs.getXattr(filename, attr_name), attr_value1);
 
-    // Test 2: Get a non-existent attribute for an existing file
-    std::string non_existent_attr = fs.getXattr(filename, "user.nonexistentattr");
-    ASSERT_EQ(non_existent_attr, "");
+    // Get non-existent attribute
+    EXPECT_EQ(fs.getXattr(filename, "user.non_existent_attr_test"), "");
 
-    // Test 3: Get an attribute for a non-existent file
-    std::string non_existent_file_attr = fs.getXattr(non_existent_filename, attr_name);
-    ASSERT_EQ(non_existent_file_attr, "");
-
-    // Test 4: Set an attribute on a non-existent file (should be a no-op or log error)
-    fs.setXattr(non_existent_filename, attr_name, "value_for_non_existent_file");
-    std::string check_attr_non_existent_file = fs.getXattr(non_existent_filename, attr_name);
-    ASSERT_EQ(check_attr_non_existent_file, ""); // Expecting it not to be set
-
-    // Test 5: Overwrite an existing attribute
+    // Overwrite
     fs.setXattr(filename, attr_name, attr_value2);
-    std::string updated_value = fs.getXattr(filename, attr_name);
-    ASSERT_EQ(updated_value, attr_value2);
+    EXPECT_EQ(fs.getXattr(filename, attr_name), attr_value2);
 
-    // Test 6: Get attribute after file deletion
-    // First, set an attribute, then delete the file, then try to get.
-    const std::string file_to_delete = "file_for_xattr_deletion_test.txt";
-    ASSERT_TRUE(fs.createFile(file_to_delete));
-    fs.setXattr(file_to_delete, attr_name, "cid_before_delete");
-    ASSERT_TRUE(fs.deleteFile(file_to_delete)); // Delete the file
-    std::string attr_after_delete = fs.getXattr(file_to_delete, attr_name);
-    ASSERT_EQ(attr_after_delete, ""); // Should be empty as file (and its xattrs) are gone
+    // Set/Get on non-existent file (should be no-op for set, empty for get)
+    fs.setXattr("NoFileHere.txt", "user.test", "value");
+    EXPECT_EQ(fs.getXattr("NoFileHere.txt", "user.test"), "");
+}
+
+TEST_F(FileSystemTestFix, ReadOldFormatFile) {
+    const std::string filename = "OldFormat.txt";
+    const std::string old_content = "This is an old format file content.";
+
+    // Simulate an old file by manually inserting it into _Files and not setting pipeline xattrs
+    // This requires friend class or making _Files public for tests, which is not ideal.
+    // The current FileSystem::readFile has a heuristic:
+    // if (!compressedData.empty() && cid.empty()) { return bytes_to_string(compressedData); }
+    // So, if we createFile and then manually set _Files[_pFilename] = string_to_bytes(old_content)
+    // without setting xattrs, it should be treated as an old file.
+    // This test cannot be perfectly implemented without modifying FileSystem for testability
+    // or using the existing writeFile which now always applies the new pipeline.
+
+    // For now, we test the behavior of reading a file that has data but no 'user.cid' xattr.
+    // This can be achieved by creating a file, then manually clearing the CID xattr (if possible)
+    // or relying on the heuristic for files that were never processed by the new writeFile.
+
+    ASSERT_TRUE(fs.createFile(filename));
+    // Manually set content to bypass new writeFile pipeline. This is tricky.
+    // The best we can do with current public API is to write, then remove CID.
+    ASSERT_TRUE(fs.writeFile(filename, old_content)); // This writes with NEW pipeline
+    std::string current_cid = fs.getXattr(filename, "user.cid");
+    ASSERT_FALSE(current_cid.empty());
+
+    // Simulate missing CID for an "old" file by removing it.
+    // Need a method to remove a single xattr for a clean test, or modify setXattr to take empty value as delete.
+    // For now, setting it to empty to simulate absence for the readFile logic.
+    fs.setXattr(filename, "user.cid", "");
+    // Also clear other pipeline xattrs to make it look more like an old file
+    fs.setXattr(filename, "user.nonce", "");
+    fs.setXattr(filename, "user.original_size", "");
+    fs.setXattr(filename, "user.encrypted_size", "");
+
+    // Now, readFile should hit the "old format" path if the data itself is stored raw (which it isn't with current writeFile)
+    // The current writeFile stores processed data. So, this test will actually try to decrypt/decompress the
+    // already processed data using missing metadata, which should fail and return empty.
+    // The "old format" handling in readFile is for data that was stored *before* the pipeline.
+    // This test, as is, will likely result in readFile returning "" due to other errors.
+    // A true test of old format reading would require populating _Files directly.
+
+    // Given the current FileSystem::readFile logic:
+    // 1. It will find missing xattrs.
+    // 2. It will throw "Missing required metadata..."
+    // 3. The catch block will return "".
+    EXPECT_EQ(fs.readFile(filename), "");
+    // This isn't testing reading old raw data, but rather how it handles missing metadata for new data.
 }

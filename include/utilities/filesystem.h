@@ -3,8 +3,11 @@
 #define _SIMPLIDFS_FILESYSTEM_H
 
 #include <string>
+#include <vector> // Required for std::vector
+#include <cstddef> // Required for std::byte
 #include <unordered_map>
 #include <mutex> // Required for std::mutex and std::unique_lock
+// #include "utilities/blockio.hpp" // Forward declare or include only in .cpp if possible
 
 /**
  * @brief Manages an in-memory file system for storing file content.
@@ -75,9 +78,9 @@ public:
 
 private:
     /**
-     * @brief In-memory storage for files, mapping filename to its content.
+     * @brief In-memory storage for files, mapping filename to its content (now binary).
      */
-    std::unordered_map<std::string, std::string> _Files;
+    std::unordered_map<std::string, std::vector<std::byte>> _Files;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> _FileXattrs;
 
     /**
