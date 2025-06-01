@@ -118,10 +118,35 @@ echo "--- Test: Create $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
 touch "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
 if [ $? -ne 0 ]; then
     echo "ERROR: touch $FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    # Optionally, exit here or mark test as failed and continue
 else
-    echo "INFO: $FILE_PATH created." | tee -a "$TEST_OUTPUT_FILE"
+    echo "INFO: touch $FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    # Now verify with ls and FUSE adapter logs
+    ls -la "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: ls -la $FILE_PATH failed after touch." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "INFO: ls -la $FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    fi
+
+    # Check FUSE adapter log for simpli_create success message
+    # Grep for either "File successfully created (new)" or "Existing file successfully truncated" for the specific file
+    # Need to escape the colon for grep pattern if it's part of the fixed string search.
+    # Using -E for extended regex to make the OR cleaner.
+    # Ensuring the filename is part of the match.
+    CREATE_LOG_PATTERN_NEW="simpli_create: File successfully created (new): $NEW_FILE"
+    CREATE_LOG_PATTERN_TRUNC="simpli_create: Existing file successfully truncated: $NEW_FILE"
+
+    # It's better to grep for the full message including the filename variable $NEW_FILE
+    # to avoid ambiguity if other files are created/truncated with similar names.
+    if grep -q -E "$CREATE_LOG_PATTERN_NEW|$CREATE_LOG_PATTERN_TRUNC" "$LOG_FILE"; then
+        echo "INFO: Found simpli_create success log for $NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_create success log for $NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        echo "DEBUG: Last 50 lines of $LOG_FILE:" | tee -a "$TEST_OUTPUT_FILE"
+        tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+    fi
 fi
-ls -la "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1 # Verify creation
 echo "" >> "$TEST_OUTPUT_FILE"
 
 echo "--- Test: Write to $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
