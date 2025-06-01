@@ -113,20 +113,21 @@ else
     fi
 
     # Check FUSE logs for create and release
-    CREATE_LOG_PATTERN="simpli_create: File successfully created (new): $TOUCH_NEW_FILE"
-    # Note: simpli_release logs path with leading /
-    RELEASE_LOG_PATTERN="simpli_release called for path: /$TOUCH_NEW_FILE"
+    CREATE_LOG_PATTERN_TOUCH_NEW="simpli_create: File successfully created (new): $TOUCH_NEW_FILE"
+    CREATE_LOG_PATTERN_TOUCH_TRUNC="simpli_create: Existing file successfully truncated: $TOUCH_NEW_FILE"
+    # Note: simpli_release logs path with leading / and specific fh
+    RELEASE_LOG_PATTERN_TOUCH="simpli_release called for path: /$TOUCH_NEW_FILE .* with fi->fh: 1"
 
-    if grep -q -E "$CREATE_LOG_PATTERN" "$LOG_FILE"; then
-        echo "INFO: Found simpli_create success log for $TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    if grep -q -E "$CREATE_LOG_PATTERN_TOUCH_NEW|$CREATE_LOG_PATTERN_TOUCH_TRUNC" "$LOG_FILE"; then
+        echo "INFO: Found simpli_create success log (new or truncated) for $TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
     else
-        echo "ERROR: Did not find simpli_create success log for $TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        echo "ERROR: Did not find appropriate simpli_create success log for $TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
         touch_new_file_ok=false
     fi
-    if grep -q -E "$RELEASE_LOG_PATTERN" "$LOG_FILE"; then
-        echo "INFO: Found simpli_release log for /$TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    if grep -q -E "$RELEASE_LOG_PATTERN_TOUCH" "$LOG_FILE"; then
+        echo "INFO: Found simpli_release log for /$TOUCH_NEW_FILE with fh:1." | tee -a "$TEST_OUTPUT_FILE"
     else
-        echo "ERROR: Did not find simpli_release log for /$TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        echo "ERROR: Did not find simpli_release log for /$TOUCH_NEW_FILE with fh:1 in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
         touch_new_file_ok=false
     fi
 fi
