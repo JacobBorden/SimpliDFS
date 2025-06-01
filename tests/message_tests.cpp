@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <fcntl.h> // For O_RDWR, R_OK etc.
 #include "utilities/message.h"
 #include <string> // Required for std::to_string
 
