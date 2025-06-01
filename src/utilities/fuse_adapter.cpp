@@ -37,9 +37,14 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     }
 
     std::string filename = spath.substr(1);
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Evaluating filename: " + filename);
+
     if (data->known_files.count(filename)) {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: File found in known_files: " + filename);
         std::string content = data->fs->readFile(filename);
-        stbuf->st_mode = S_IFREG | 0444; // Read-only permissions
+        stbuf->st_mode = S_IFREG | 0444; // Read-only permissions (simplification)
+        // For a newly created file, mode would ideally come from 'create's mode argument.
+        // Current simpli_open also restricts to O_RDONLY for existing files.
         stbuf->st_nlink = 1;
         stbuf->st_size = content.length();
         return 0;
@@ -178,39 +183,46 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
     std::string filename = spath.substr(1); // Remove leading '/'
 
-    // The `fi->flags` should have O_CREAT.
-    // If the file exists, `create` should truncate it to zero length.
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to create or truncate: " + filename);
 
+    // Attempt to create the file.
+    // FileSystem::createFile is expected to return true if the file was newly created,
+    // and false if it already existed or an error occurred.
     if (data->fs->createFile(filename)) {
-        // File created successfully (was new)
+        // File was newly created
         data->known_files.insert(filename);
-        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File created: " + filename);
-        // `fi` is an output parameter for `open` flags if needed.
-        // For `create`, we don't typically modify `fi` extensively beyond what FUSE expects.
-        // The file isn't "opened" in the same way as `open` here, but `create` implies it's ready for I/O.
-        // We need to ensure `writeFile` works subsequently.
+        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File successfully created (new): " + filename);
+        // Note: `fi->fh` could be set here if we were managing file handles directly in create.
+        // For this system, `open` will likely follow and handle `fi->fh`.
+        // The mode is ignored for now as FileSystem doesn't store it.
+        return 0; // Success
     } else {
-        // File might already exist. If so, truncate it as per POSIX `creat()` behavior.
-        // Check if it's a known file OR if readFile indicates it exists in the underlying FS.
-        bool fileExistsInFs = (data->fs->readFile(filename) != ""); // Check underlying FS
+        // createFile returned false. This means either the file already existed,
+        // or an error occurred during the creation attempt for a non-existent file.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: createFile(" + filename + ") returned false. Assuming file may exist or creation failed.");
 
-        if (data->known_files.count(filename) || fileExistsInFs) {
-             // Truncate by writing empty string
-            if (data->fs->writeFile(filename, "")) {
-                Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file truncated: " + filename);
-                // Ensure it's in known_files if it was only in fs before (e.g. pre-existing)
-                if (!data->known_files.count(filename)) {
-                    data->known_files.insert(filename);
-                }
-            } else {
-                // This case should ideally not happen if known_files is consistent with fs
-                Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to truncate existing file: " + filename);
-                return -EIO;
+        // POSIX creat() truncates existing files. So, we attempt to truncate.
+        // We need to be sure it's an "already exists" case vs. "creation failed for other reasons".
+        // The current FileSystem::createFile doesn't distinguish.
+        // We'll proceed with truncation attempt. If this also fails, it covers both scenarios.
+
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to truncate (overwrite with empty content) existing file: " + filename);
+        if (data->fs->writeFile(filename, "")) {
+            // Successfully truncated the file.
+            Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file successfully truncated: " + filename);
+            // Ensure it's in known_files, as it might have existed in FS but not in our cache.
+            if (!data->known_files.count(filename)) {
+                data->known_files.insert(filename);
+                Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Added truncated file " + filename + " to known_files.");
             }
+            return 0; // Success
         } else {
-            // Not in known_files and createFile failed (and readFile confirmed not there). This is an issue.
-             Logger::getInstance().log(LogLevel::ERROR, "simpli_create: createFile failed and file does not exist: " + filename);
-            return -EIO; // Or some other error
+            // Truncation failed.
+            // This could be because:
+            // 1. `createFile` failed because the file truly couldn't be created (e.g., bad path, FS error), AND it didn't exist.
+            // 2. `createFile` indicated "already exists" (by returning false), but `writeFile` to truncate failed.
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to create (or createFile indicated no new creation) AND failed to truncate file: " + filename + ". This could be a genuine I/O error or permissions issue with the underlying FileSystem implementation.");
+            return -EIO; // Input/output error seems appropriate for this combined failure.
         }
     }
 
@@ -220,14 +232,9 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
     // According to FUSE docs for `create`, if the call is successful,
     // `fi->fh` can be set to a file handle, and `fi->keep_cache` and `fi->nonseekable` can be set.
-    // For a simple implementation, we might not need a custom file handle if not managing complex state.
-    // Let's assume `open` will be called next if complex I/O is needed.
-    // However, `create` itself should result in an open file descriptor in the calling process.
-    // So, FUSE needs `fi->fh`. Let's use a dummy or skip if `open` is always called.
-    // For now, we'll rely on subsequent `open` if needed by the application.
+    // For this implementation, we assume that `open` will be called if these are needed.
     // Many applications will call `creat()` then `close()`, then `open()`.
-
-    return 0; // Success
+    // FUSE handles setting up `fi->fh` if we return 0 from `create` and don't set it ourselves.
 }
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
