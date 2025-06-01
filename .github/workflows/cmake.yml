@@ -28,7 +28,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential cmake ninja-build pkg-config
 
-
+    - name: Install fuse
+      run: sudo apt-get update && sudo apt-get install -y libfuse3-dev fuse3
     
     # - name: Checkout repository # This was a duplicate, removing
     #   uses: actions/checkout@v3 # This was a duplicate, removing
