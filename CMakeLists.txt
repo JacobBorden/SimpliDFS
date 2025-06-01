@@ -96,14 +96,30 @@ message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEF
 
 # Remove GLOB-based variables for sources, list them explicitly
 
-# Define the metaserver executable
-add_executable(metaserver src/metaserver/metaserver.cpp) 
-target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(metaserver 
-    PRIVATE
-    SimpliDFS_Utils 
+# Define the SimpliDFS_MetaServerLib library
+add_library(SimpliDFS_MetaServerLib src/metaserver/metaserver.cpp)
+target_include_directories(SimpliDFS_MetaServerLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(SimpliDFS_MetaServerLib
+    PRIVATE # Should be PUBLIC if SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
+            # or INTERFACE if SimpliDFS_Utils is header-only and its headers are included by SimpliDFS_MetaServerLib headers.
+            # For now, PRIVATE if SimpliDFS_Utils is mostly .cpp linked into MetaServerLib.
+            # If metaserver.h includes headers from SimpliDFS_Utils that then are needed by things linking to MetaServerLib,
+            # then SimpliDFS_Utils might need to be PUBLIC on MetaServerLib.
+            # Let's assume metaserver.cpp uses SimpliDFS_Utils, and metaserver.h might expose some types from it.
+    SimpliDFS_Utils
     Threads::Threads
 )
+
+# Define the metaserver executable
+add_executable(metaserver src/main_metaserver.cpp) # Assuming main() is moved or is in a separate file
+target_link_libraries(metaserver 
+    PRIVATE
+    SimpliDFS_MetaServerLib
+    # SimpliDFS_Utils is already linked via SimpliDFS_MetaServerLib if it's PUBLIC there
+    # Threads::Threads is already linked via SimpliDFS_MetaServerLib
+)
+# Ensure metaserver executable can find headers if main_metaserver.cpp needs them directly
+target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
 # Define the node executable
@@ -111,7 +127,7 @@ add_executable(node src/node/node.cpp)
 target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(node 
     PRIVATE
-    SimpliDFS_Utils 
+    SimpliDFS_Utils # This is fine as SimpliDFS_Utils is a separate utility library
     Threads::Threads
 )
 
@@ -130,6 +146,7 @@ target_link_libraries(simpli_fuse_adapter
     ${FUSE_LIBRARIES}
 )
 
+# Utilities are now built as a library SimpliDFS_Utils via its own CMakeLists.txt
 add_subdirectory(src/utilities)
 
 # Add Google Test subdirectory and enable testing

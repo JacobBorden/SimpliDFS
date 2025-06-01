@@ -27,6 +27,7 @@ target_link_libraries(SimpliDFSTests
     gmock_main
     Threads::Threads
     SimpliDFS_Utils # Link against common utilities library (now includes BlockIO)
+    SimpliDFS_MetaServerLib # Link against the new metaserver library
 )
 
 # Include directories for the headers

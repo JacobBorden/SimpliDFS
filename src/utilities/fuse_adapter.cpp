@@ -1,68 +1,101 @@
 #include "utilities/fuse_adapter.h"
 #include "utilities/logger.h"
+#include "utilities/client.h"
+#include "utilities/message.h"
 #include <errno.h>
 #include <string.h> // For memset, strerror, strcmp
 #include <unistd.h> // for getuid, getgid
 #include <time.h>   // for time()
 #include <sys/stat.h> // For S_IFDIR, S_IFREG modes, and struct statx
-#include <sys/xattr.h> // For XATTR_USER_PREFIX (though not directly used for statx population here)
+#include <sys/xattr.h> // For XATTR_USER_PREFIX
+#include <string>       // For std::string, std::stoi, std::to_string
+#include <stdexcept>    // For std::invalid_argument, std::out_of_range, std::exception
+#include <sstream>      // For std::istringstream
+#include <algorithm>    // For std::min
 
-// Helper to get our FileSystem instance and SimpliDfsFuseData from FUSE context
+// Helper to get SimpliDfsFuseData from FUSE context
 static SimpliDfsFuseData* get_fuse_data() {
-    SimpliDfsFuseData* data = (SimpliDfsFuseData*) fuse_get_context()->private_data;
-    if (!data || !data->fs) {
-        Logger::getInstance().log(LogLevel::ERROR, "FUSE private_data not configured correctly or FileSystem not accessible.");
+    SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(fuse_get_context()->private_data);
+    if (!data || !data->metadata_client) {
+        Logger::getInstance().log(LogLevel::ERROR, "FUSE private_data not configured correctly or metadata_client not accessible or configured.");
         return nullptr;
     }
     return data;
 }
 
 int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
-    (void)fi; // Mark as unused if the function body does not use it
+    (void)fi;
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr called for path: " + std::string(path));
     memset(stbuf, 0, sizeof(struct stat));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO;
+    // Note: get_fuse_data() already logs if data or metadata_client is null,
+    // so we can directly return -EIO if it returns nullptr.
+    if (!data) {
+        // Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Critical error: FUSE data or metadata client is not available.");
+        return -EIO;
+    }
 
-    std::string spath(path);
-
-    stbuf->st_uid = getuid();
-    stbuf->st_gid = getgid();
-    stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL);
-
-    if (spath == "/") {
-        stbuf->st_mode = S_IFDIR | 0755; // Read/execute permissions
-        stbuf->st_nlink = 2;
+    // Handle root directory locally
+    if (strcmp(path, "/") == 0) {
+        stbuf->st_mode = S_IFDIR | 0755;
+        stbuf->st_nlink = 2; // Standard for directories (.) and (..)
+        stbuf->st_uid = getuid(); // Current user
+        stbuf->st_gid = getgid(); // Current group
+        stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL); // Current time
         return 0;
     }
 
-    std::string filename = spath.substr(1);
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Evaluating filename: " + filename);
+    // For other paths, query the metaserver
+    Message req_msg;
+    req_msg._Type = MessageType::GetAttr;
+    req_msg._Path = path; // Send full path
 
-    if (data->known_files.count(filename)) {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: File found in known_files: " + filename);
-        std::string content = data->fs->readFile(filename);
-        stbuf->st_mode = S_IFREG | 0644; // RW for owner, R for group/other (simplification)
-        // For a newly created file, mode would ideally come from 'create's mode argument
-        // and umask. This is a simplified fixed permission.
-        stbuf->st_nlink = 1;
-        stbuf->st_size = content.length();
-        return 0;
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Sending GetAttr request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Failed to send GetAttr request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_getattr = data->metadata_client->Receive();
+        if (received_vector_getattr.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Received empty response for GetAttr request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_getattr.begin(), received_vector_getattr.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Received GetAttr response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode; // Return negative errno
+        }
+
+        // Populate stbuf from res_msg
+        stbuf->st_mode = static_cast<mode_t>(res_msg._Mode);
+        stbuf->st_uid = static_cast<uid_t>(res_msg._Uid);
+        stbuf->st_gid = static_cast<gid_t>(res_msg._Gid);
+        stbuf->st_size = static_cast<off_t>(res_msg._Size);
+        stbuf->st_nlink = (S_ISDIR(stbuf->st_mode)) ? 2 : 1; // Basic nlink logic
+
+        // Timestamps: Use current time as placeholder, ideally server provides these
+        stbuf->st_atime = time(NULL);
+        stbuf->st_mtime = time(NULL);
+        stbuf->st_ctime = time(NULL);
+
+        return 0; // Success
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
     }
-
-    Logger::getInstance().log(LogLevel::WARN, "getattr: File not found in known_files: " + filename);
-    return -ENOENT;
 }
 
-// Implementation for statx
-// Note: FUSE's handling of xattrs with statx can be complex.
-// This initial implementation focuses on retrieving the attribute and filling basic fields.
-// The actual return of xattr data might require more advanced FUSE techniques if done directly via statx buffer.
 #ifdef SIMPLIDFS_HAS_STATX
 int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struct fuse_file_info *fi) {
-    (void)fi; // Mark as unused
-    (void)flags_unused; // Mark as unused for now, kernel passes AT_STATX_SYNC_AS_STAT etc.
+    (void)fi;
+    (void)flags_unused;
 
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx called for path: " + std::string(path));
     memset(stxbuf, 0, sizeof(struct statx));
@@ -72,14 +105,8 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
 
     std::string spath(path);
 
-    // For statx, stx_mask indicates which fields the caller is interested in.
-    // We should try to fill what's requested if available.
-    // For simplicity, we'll fill common fields always, and xattr conditionally.
-
     stxbuf->stx_uid = getuid();
     stxbuf->stx_gid = getgid();
-    // Timestamps - using current time for simplicity as in getattr
-    // For a real filesystem, these would come from stored metadata.
     struct timespec current_time;
     clock_gettime(CLOCK_REALTIME, &current_time);
     stxbuf->stx_atime.tv_sec = current_time.tv_sec;
@@ -88,53 +115,33 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
     stxbuf->stx_mtime.tv_nsec = current_time.tv_nsec;
     stxbuf->stx_ctime.tv_sec = current_time.tv_sec;
     stxbuf->stx_ctime.tv_nsec = current_time.tv_nsec;
-    stxbuf->stx_btime.tv_sec = current_time.tv_sec; // Birth time, same as others for now
+    stxbuf->stx_btime.tv_sec = current_time.tv_sec;
     stxbuf->stx_btime.tv_nsec = current_time.tv_nsec;
 
 
     if (spath == "/") {
         stxbuf->stx_mode = S_IFDIR | 0755;
         stxbuf->stx_nlink = 2;
-        // size for directory is usually block size or implementation defined.
-        stxbuf->stx_size = 4096; // A common size for directories
+        stxbuf->stx_size = 4096;
         stxbuf->stx_attributes_mask |= STATX_ATTR_DIRECTORY;
+        stxbuf->stx_mask |= STATX_BASIC_STATS | STATX_BTIME; // Indicate what fields are filled
         return 0;
     }
 
     std::string filename = spath.substr(1);
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: Evaluating filename: " + filename);
+    // Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: Evaluating filename: " + filename);
+    // TODO: Implement network call to metaserver for Statx (similar to GetAttr but with statx structure)
+    // if successful:
+    //    stxbuf->stx_mode = ...
+    //    stxbuf->stx_nlink = ...
+    //    stxbuf->stx_size = ...
+    //    stxbuf->stx_uid = ...
+    //    stxbuf->stx_gid = ...
+    //    stxbuf->stx_mask = STATX_BASIC_STATS | STATX_BTIME; // and other relevant STATX_ flags
+    //    if (xattrs_present) stxbuf->stx_attributes_mask |= STATX_ATTR_HAS_XATTRS;
+    //    return 0;
 
-    if (data->known_files.count(filename)) {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: File found in known_files: " + filename);
-        std::string content = data->fs->readFile(filename);
-        stxbuf->stx_mode = S_IFREG | 0644;
-        stxbuf->stx_nlink = 1;
-        stxbuf->stx_size = content.length();
-        stxbuf->stx_attributes_mask = 0; // Regular file, not a directory
-
-        // Handle extended attributes if requested
-        if (stxbuf->stx_mask & STATX_XATTR) {
-            Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: STATX_XATTR requested for " + filename);
-            std::string cid = data->fs->getXattr(filename, "user.cid");
-            if (!cid.empty()) {
-                Logger::getInstance().log(LogLevel::INFO, "simpli_statx: Found user.cid='" + cid + "' for " + filename);
-                // How to return this with statx is the tricky part.
-                // FUSE might expect getxattr/listxattr to be called subsequently
-                // rather than embedding xattr data directly in statx results for arbitrary xattrs.
-                // For now, we'll just log it. The presence of xattrs can be indicated
-                // by STATX_ATTR_HAS_XATTRS in stx_attributes if we had a generic way to know this.
-                // Let's assume for now the caller will use listxattr/getxattr.
-                // We can set a hypothetical bit if the kernel/libfuse supports it.
-                // For now, this example focuses on retrieval and basic statx population.
-                // The task is to "prepare it to be returned", logging it is a form of preparation.
-            } else {
-                Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: No user.cid xattr found for " + filename);
-            }
-        }
-        return 0;
-    }
-
-    Logger::getInstance().log(LogLevel::WARN, "simpli_statx: File not found in known_files: " + filename);
+    Logger::getInstance().log(LogLevel::WARN, "simpli_statx: Statx not yet fully implemented for: " + filename + ". Returning ENOENT.");
     return -ENOENT;
 }
 #endif // SIMPLIDFS_HAS_STATX
@@ -142,279 +149,302 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
 int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags) {
     (void) offset;
     (void) fi;
-    (void)flags; // Mark as unused
+    (void)flags;
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir called for path: " + std::string(path));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO;
-
-    if (strcmp(path, "/") != 0) {
-        Logger::getInstance().log(LogLevel::ERROR, "readdir: Path is not root: " + std::string(path));
-        return -ENOENT;
+    if (!data) {
+        return -EIO;
     }
 
     filler(buf, ".", NULL, 0, (enum fuse_fill_dir_flags)0);
     filler(buf, "..", NULL, 0, (enum fuse_fill_dir_flags)0);
 
-    for (const auto& filename_entry : data->known_files) {
-        filler(buf, filename_entry.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
+    Message req_msg;
+    req_msg._Type = MessageType::Readdir;
+    req_msg._Path = path; // Send the full path
+
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Sending Readdir request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Failed to send Readdir request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_readdir = data->metadata_client->Receive();
+        if (received_vector_readdir.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Received empty response for Readdir request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_readdir.begin(), received_vector_readdir.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Received Readdir response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
+        // Parse res_msg._Data (entries separated by null character '\0')
+        std::istringstream name_stream(res_msg._Data);
+        std::string name_token;
+        while(std::getline(name_stream, name_token, '\0')) {
+            if (!name_token.empty()) { // Ensure not to fill empty tokens if any
+                filler(buf, name_token.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
+            }
+        }
+        return 0; // Success
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
     }
-    return 0;
 }
 
 int simpli_open(const char *path, struct fuse_file_info *fi) {
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_open called for path: " + std::string(path) + " with flags: " + std::to_string(fi->flags));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO;
-
-    std::string spath(path);
-    if (spath == "/") {
-        if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-             Logger::getInstance().log(LogLevel::WARN, "simpli_open: Write access denied for directory /");
-             return -EACCES;
-        }
-        return 0;
-    }
-
-    std::string filename = spath.substr(1);
-    if (data->known_files.count(filename)) {
-        // Permissions are now 0644 from getattr.
-        // The kernel will use these permissions based on getattr results.
-        // We don't need to do an explicit O_ACCMODE check here for basic cases.
-        // If open is for O_WRONLY or O_RDWR by the owner, it should be allowed at this stage.
-        // Actual write permission will be checked by the kernel or by our simpli_write.
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Opening existing file " + filename + " with flags: " + std::to_string(fi->flags) + ". Allowing, relying on getattr mode and write handler.");
-        return 0; // Success, allow open
-    }
-
-    Logger::getInstance().log(LogLevel::WARN, "simpli_open: File not found: " + filename);
-    return -ENOENT;
-}
-
-int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void) fi;
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_read called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
-
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO;
-
-    std::string filename = std::string(path).substr(1);
-
-    if (!data->known_files.count(filename)) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_read: File not in known_files (should have been caught by open): " + filename);
-        return -ENOENT;
-    }
-
-    std::string content = data->fs->readFile(filename);
-    size_t content_len = content.length();
-
-    if ((size_t)offset >= content_len) {
-        return 0;
-    }
-
-    size_t read_len = content_len - offset;
-    if (read_len > size) {
-        read_len = size;
-    }
-
-    memcpy(buf, content.c_str() + offset, read_len);
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Read " + std::to_string(read_len) + " bytes from " + filename);
-    return read_len;
-}
-
-// int simpli_fgetattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
-// (void)fi; // fi might be unused if not storing special per-handle info
-// Logger::getInstance().log(LogLevel::DEBUG, "simpli_fgetattr called for path: " + std::string(path));
-// // Most simple fgetattr implementations are identical to getattr, unless
-// // you have per-file-handle state that would change attributes (e.g. size for append-only files)
-// return simpli_getattr(path, stbuf);
-// }
-
-int simpli_access(const char *path, int mask) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_access called for path: " + std::string(path) + " with mask: " + std::to_string(mask));
-    // For testing, let's be very permissive.
-    // Existence (F_OK) is implicitly handled by returning 0 if we don't return ENOENT.
-    // If the path (after removing leading '/') is in known_files or is "/", assume OK.
-
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO; // Should not happen
-
-    std::string spath(path);
-    if (spath == "/") {
-        return 0; // Root is always accessible
-    }
-
-    std::string filename = spath.substr(1);
-    if (data->known_files.count(filename)) {
-        return 0; // File exists, grant access for testing
-    }
-
-    return -ENOENT;
-}
-
-int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create called for path: " + std::string(path) + " with mode: " + std::to_string(mode));
-
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->fs) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: FUSE private_data not configured correctly.");
-        return -EIO; // Input/output error
-    }
-
-    std::string spath(path);
-    if (spath == "/") {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Cannot create directory / as a file.");
-        return -EISDIR; // Is a directory
-    }
-
-    std::string filename = spath.substr(1); // Remove leading '/'
-
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to create or truncate: " + filename);
-
-    // Attempt to create the file.
-    // FileSystem::createFile is expected to return true if the file was newly created,
-    // and false if it already existed or an error occurred.
-    if (data->fs->createFile(filename)) {
-        // File was newly created
-        data->known_files.insert(filename);
-        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File successfully created (new): " + filename);
-        // The mode is ignored for now as FileSystem doesn't store it.
-        fi->fh = 1; // Set a dummy file handle for FUSE.
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for new file: " + filename);
-        return 0; // Success
-    } else {
-        // createFile returned false. This means either the file already existed,
-        // or an error occurred during the creation attempt for a non-existent file.
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: createFile(" + filename + ") returned false. Assuming file may exist or creation failed.");
-
-        // POSIX creat() truncates existing files. So, we attempt to truncate.
-        // We need to be sure it's an "already exists" case vs. "creation failed for other reasons".
-        // The current FileSystem::createFile doesn't distinguish.
-        // We'll proceed with truncation attempt. If this also fails, it covers both scenarios.
-
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to truncate (overwrite with empty content) existing file: " + filename);
-        if (data->fs->writeFile(filename, "")) {
-            // Successfully truncated the file.
-            Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file successfully truncated: " + filename);
-            // Ensure it's in known_files, as it might have existed in FS but not in our cache.
-            if (!data->known_files.count(filename)) {
-                data->known_files.insert(filename);
-                Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Added truncated file " + filename + " to known_files.");
-            }
-            fi->fh = 1; // Set a dummy file handle for FUSE.
-            Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for truncated file: " + filename);
-            return 0; // Success
-        } else {
-            // Truncation failed.
-            // This could be because:
-            // 1. `createFile` failed because the file truly couldn't be created (e.g., bad path, FS error), AND it didn't exist.
-            // 2. `createFile` indicated "already exists" (by returning false), but `writeFile` to truncate failed.
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to create (or createFile indicated no new creation) AND failed to truncate file: " + filename + ". This could be a genuine I/O error or permissions issue with the underlying FileSystem implementation.");
-            return -EIO; // Input/output error seems appropriate for this combined failure.
-        }
-    }
-
-    // The `mode` parameter contains requested permissions. We should store/apply them.
-    // Our current FileSystem doesn't store modes. For now, this is a simplification.
-    // getattr will return a default mode.
-
-    // According to FUSE docs for `create`, if the call is successful,
-    // `fi->fh` can be set to a file handle, and `fi->keep_cache` and `fi->nonseekable` can be set.
-    // For this implementation, we assume that `open` will be called if these are needed.
-    // Many applications will call `creat()` then `close()`, then `open()`.
-    // FUSE handles setting up `fi->fh` if we return 0 from `create` and don't set it ourselves.
-}
-
-int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void)fi; // Mark as unused if not using file handle specific data yet
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_write called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
-
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->fs) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: FUSE private_data not configured correctly.");
+    if (!data) {
         return -EIO;
     }
 
-    std::string filename = std::string(path).substr(1); // Remove leading '/'
-
-    // Check if the file is known/exists.
-    // Create or open(O_CREAT) should have made the file.
-    if (!data->known_files.count(filename)) {
-         // Double check with actual filesystem in case known_files is out of sync
-        if (data->fs->readFile(filename) == "" && !data->fs->createFile(filename)) { // Attempt to create if read "" (non-existent)
-             Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Attempt to write to unknown or non-existent file and creation failed: " + filename);
-             return -ENOENT; // No such file or directory
+    if (strcmp(path, "/") == 0) {
+        if ((fi->flags & O_ACCMODE) != O_RDONLY) {
+            Logger::getInstance().log(LogLevel::WARN, "simpli_open: Write access denied for directory /");
+            return -EACCES;
         }
-        // If createFile succeeded or readFile found something (e.g. file existed but not in known_files)
-        // Add to known_files to keep it consistent
-        if (!data->known_files.count(filename)){
-            data->known_files.insert(filename);
-            Logger::getInstance().log(LogLevel::INFO, "simpli_write: File " + filename + " was not in known_files, added.");
-        }
+        return 0;
     }
 
-    // Read current content
-    std::string current_content = data->fs->readFile(filename);
-    size_t current_len = current_content.length();
+    Message req_msg;
+    req_msg._Type = MessageType::Open;
+    req_msg._Path = path;
+    req_msg._Mode = static_cast<uint32_t>(fi->flags); // Using _Mode to pass FUSE flags
 
-    // Prepare new content buffer
-    // The final size could be offset + size, or current_len if offset + size is within current_len
-    size_t new_len_estimate = std::max(current_len, (size_t)offset + size);
-    std::string new_content_str;
-    new_content_str.resize(new_len_estimate); // Resize and fill with nulls
-
-    // Copy existing data up to offset
-    size_t pre_offset_len = std::min((size_t)offset, current_len);
-    for(size_t i=0; i < pre_offset_len; ++i) {
-        new_content_str[i] = current_content[i];
-    }
-
-    // If offset is beyond current length, the gap is already filled with nulls by resize
-    // Or, explicitly fill if resize doesn't guarantee nulls (it does for std::string)
-    if ((size_t)offset > current_len) {
-        for(size_t i = current_len; i < (size_t)offset; ++i) {
-            new_content_str[i] = '\0';
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Sending Open request for " + std::string(path) + " with flags " + std::to_string(fi->flags));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Failed to send Open request for " + std::string(path));
+            return -EIO;
         }
-    }
 
-    // Write new data from buf
-    for(size_t i=0; i < size; ++i) {
-        if ((size_t)offset + i < new_len_estimate) { // Boundary check
-            new_content_str[(size_t)offset + i] = buf[i];
-        } else {
-            // This would happen if new_len_estimate was too small - implies an issue with logic or resize.
-            // For safety, append. This part of code should ideally not be reached if resize is correct.
-            new_content_str += buf[i];
+        std::vector<char> received_vector_open = data->metadata_client->Receive();
+        if (received_vector_open.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Received empty response for Open request for " + std::string(path));
+            return -EIO;
         }
-    }
+        std::string serialized_res(received_vector_open.begin(), received_vector_open.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Received Open response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
-    // If the write was within the old content and didn't reach its end, append the remainder of old content
-    if ((size_t)offset + size < current_len) {
-        for(size_t i = (size_t)offset + size; i < current_len; ++i) {
-            // This character should already be in new_content_str if new_len_estimate >= current_len
-            // However, if offset+size caused a shrink, and new_len_estimate was based on offset+size,
-            // then we need to append the tail.
-            // Current logic: new_len_estimate = max(current_len, offset+size).
-            // So new_content_str is already large enough to hold the tail.
-            // This loop just ensures those characters from current_content are preserved if not overwritten.
-            new_content_str[i] = current_content[i];
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
         }
-        // If new_len_estimate was offset + size, and this was smaller than current_len, we need to truncate.
-        // The current resize() to new_len_estimate handles this.
-         new_content_str.resize(new_len_estimate); // Ensure correct final size
-    } else {
-        // If write went up to or extended the file, new_len_estimate is offset + size.
-        // String is already resized to this.
-         new_content_str.resize((size_t)offset + size); // Ensure correct final size
+
+        fi->fh = 1; // Dummy file handle, as server doesn't manage them yet.
+                    // Could use res_msg._FileHandle if server sent one.
+        return 0; // Success
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
+}
+
+int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    (void)fi; // fi->fh could be used if server manages file handles
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_read called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) {
+        return -EIO;
     }
 
+    Message req_msg;
+    req_msg._Type = MessageType::Read;
+    req_msg._Path = path;
+    req_msg._Offset = static_cast<int64_t>(offset);
+    req_msg._Size = static_cast<uint64_t>(size);
 
-    if (data->fs->writeFile(filename, new_content_str)) {
-        Logger::getInstance().log(LogLevel::INFO, "simpli_write: Successfully wrote " + std::to_string(size) + " bytes to " + filename + " at offset " + std::to_string(offset) + ". New size: " + std::to_string(new_content_str.length()));
-        return size; // Return number of bytes written
-    } else {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: FileSystem::writeFile failed for: " + filename);
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Sending Read request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Failed to send Read request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_read = data->metadata_client->Receive();
+        // Empty response can be valid if reading 0 bytes or at EOF.
+        // The metaserver should handle this by sending a response with _Data being empty and _ErrorCode = 0.
+        // A truly empty network response (e.g. connection closed by peer) might indicate an error.
+        // For now, we proceed if received_vector_read is empty, and Message::Deserialize will handle it.
+        // If size > 0 and it's a persistent empty response, it could be an issue.
+        if (received_vector_read.empty() && size > 0) {
+             Logger::getInstance().log(LogLevel::WARN, "simpli_read: Received completely empty (zero bytes) network response for " + std::string(path) + " when requesting " + std::to_string(size) + " bytes. This might be EOF or an issue.");
+        }
+        std::string serialized_res(received_vector_read.begin(), received_vector_read.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+         Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Received Read response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Data size: " + std::to_string(res_msg._Data.length()));
+
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
+        size_t bytes_to_copy = std::min(size, static_cast<size_t>(res_msg._Data.length()));
+        memcpy(buf, res_msg._Data.data(), bytes_to_copy);
+
+        return static_cast<ssize_t>(bytes_to_copy); // FUSE read returns ssize_t
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
+}
+
+int simpli_access(const char *path, int mask) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_access called for path: " + std::string(path) + " with mask: " + std::to_string(mask));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) {
+        return -EIO;
+    }
+
+    if (strcmp(path, "/") == 0) {
+        return 0; // Root is generally accessible
+    }
+
+    Message req_msg;
+    req_msg._Type = MessageType::Access;
+    req_msg._Path = path; // Send full path
+    req_msg._Mode = static_cast<uint32_t>(mask); // Send FUSE access mask in _Mode
+
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Sending Access request for " + std::string(path) + " with mask " + std::to_string(mask));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Failed to send Access request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_access = data->metadata_client->Receive();
+        if (received_vector_access.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Received empty response for Access request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_access.begin(), received_vector_access.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Received Access response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        // If ErrorCode is 0, access is granted (return 0).
+        // Otherwise, ErrorCode contains the errno to be returned (e.g., ENOENT, EACCES),
+        // so return -ErrorCode.
+        return (res_msg._ErrorCode == 0) ? 0 : -res_msg._ErrorCode;
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
+}
+
+int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    std::ostringstream oss_create_log;
+    oss_create_log << "simpli_create called for path: " << path << " with mode: " << std::oct << mode << std::dec << ", flags: " << fi->flags;
+    Logger::getInstance().log(LogLevel::DEBUG, oss_create_log.str());
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) { // data->metadata_client is checked by get_fuse_data
+        return -EIO;
+    }
+
+    if (strcmp(path, "/") == 0) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Cannot create file at root path /.");
+        return -EISDIR;
+    }
+
+    Message req_msg;
+    req_msg._Type = MessageType::CreateFile;
+    req_msg._Path = path;
+    req_msg._Mode = static_cast<uint32_t>(mode);
+
+    try {
+        std::ostringstream oss_create_send_log;
+        oss_create_send_log << "simpli_create: Sending CreateFile request for " << path << " with mode " << std::oct << mode;
+        Logger::getInstance().log(LogLevel::DEBUG, oss_create_send_log.str());
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to send CreateFile request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_create = data->metadata_client->Receive();
+        if (received_vector_create.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Received empty response for CreateFile request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_create.begin(), received_vector_create.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Received CreateFile response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
+        fi->fh = 1; // Dummy file handle, as server doesn't manage them yet.
+                    // Could use res_msg._FileHandle if server sent one.
+        return 0; // Success
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
+}
+
+int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
+    (void)fi; // fi->fh could be used if server manages file handles
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_write called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) {
+        return -EIO;
+    }
+
+    Message req_msg;
+    req_msg._Type = MessageType::Write;
+    req_msg._Path = path;
+    req_msg._Offset = static_cast<int64_t>(offset);
+    req_msg._Size = static_cast<uint64_t>(size);
+    req_msg._Data.assign(buf, size);
+
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Sending Write request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Failed to send Write request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_write = data->metadata_client->Receive();
+        if (received_vector_write.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Received empty response for Write request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_write.begin(), received_vector_write.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Received Write response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Size Confirmed: " + std::to_string(res_msg._Size));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
+        // Server confirms the number of bytes written in res_msg._Size
+        return static_cast<ssize_t>(res_msg._Size);
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Exception for " + std::string(path) + ": " + std::string(e.what()));
         return -EIO;
     }
 }
@@ -423,259 +453,190 @@ int simpli_unlink(const char *path) {
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink called for path: " + std::string(path));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->fs) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: FUSE private_data not configured correctly.");
+    if (!data) {
         return -EIO;
     }
 
-    std::string spath(path);
-    if (spath == "/") {
+    if (strcmp(path, "/") == 0) {
         Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Cannot unlink root directory.");
-        return -EISDIR; // Is a directory
+        return -EISDIR;
     }
 
-    std::string filename = spath.substr(1); // Remove leading '/'
+    Message req_msg;
+    req_msg._Type = MessageType::Unlink;
+    req_msg._Path = path;
 
-    // No need to check known_files first, FileSystem::deleteFile handles non-existent files.
-    // if (!data->known_files.count(filename)) {
-    //     Logger::getInstance().log(LogLevel::WARN, "simpli_unlink: File not found in known_files: " + filename);
-    //     // POSIX unlink returns ENOENT if it never existed.
-    //     // FileSystem::deleteFile returns false if file doesn't exist, which we map to -ENOENT.
-    // }
-
-    if (data->fs->deleteFile(filename)) {
-        Logger::getInstance().log(LogLevel::INFO, "simpli_unlink: File deleted successfully: " + filename);
-        if (data->known_files.count(filename)) { // Only erase if it was there
-            data->known_files.erase(filename); // Update our cache
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Sending Unlink request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Failed to send Unlink request for " + std::string(path));
+            return -EIO;
         }
+
+        std::vector<char> received_vector_unlink = data->metadata_client->Receive();
+        if (received_vector_unlink.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Received empty response for Unlink request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_unlink.begin(), received_vector_unlink.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Received Unlink response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
         return 0; // Success
-    } else {
-        // deleteFile returns false if the file didn't exist.
-        Logger::getInstance().log(LogLevel::WARN, "simpli_unlink: FileSystem::deleteFile failed for " + filename + " (likely means file did not exist).");
-        return -ENOENT; // No such file or directory
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
     }
 }
 
-int simpli_rename(const char *from, const char *to, unsigned int flags) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename called from: " + std::string(from) + " to: " + std::string(to) + " with flags: " + std::to_string(flags));
-
-    // For now, we will ignore flags for simplicity, assuming basic rename behavior.
-    // if (flags != 0) {
-    //     Logger::getInstance().log(LogLevel::WARN, "simpli_rename: flags are not supported, returning EINVAL.");
-    //     return -EINVAL;
-    // }
+int simpli_rename(const char *from_path, const char *to_path, unsigned int flags) {
+    (void)flags; // Ignoring flags for now, as per instruction
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename called from: " + std::string(from_path) + " to: " + std::string(to_path) + " with flags: " + std::to_string(flags));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->fs) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: FUSE private_data not configured correctly.");
+    if (!data) {
         return -EIO;
     }
 
-    std::string sfrom(from);
-    std::string sto(to);
-
-    if (sfrom == "/" || sto == "/") {
+    if (strcmp(from_path, "/") == 0 || strcmp(to_path, "/") == 0) {
         Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Cannot rename to or from root directory.");
         return -EBUSY;
     }
 
-    std::string old_filename = sfrom.substr(1);
-    std::string new_filename = sto.substr(1);
+    Message req_msg;
+    req_msg._Type = MessageType::Rename;
+    req_msg._Path = from_path;
+    req_msg._NewPath = to_path;
 
-    if (data->fs->renameFile(old_filename, new_filename)) {
-        Logger::getInstance().log(LogLevel::INFO, "simpli_rename: File renamed successfully from " + old_filename + " to " + new_filename);
-        // Update known_files: remove old, insert new
-        if (data->known_files.count(old_filename)) { // Should exist if renameFile succeeded
-             data->known_files.erase(old_filename);
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Sending Rename request from " + std::string(from_path) + " to " + std::string(to_path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Failed to send Rename request.");
+            return -EIO;
         }
-        data->known_files.insert(new_filename);
+
+        std::vector<char> received_vector_rename = data->metadata_client->Receive();
+        if (received_vector_rename.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Received empty response for Rename request.");
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_rename.begin(), received_vector_rename.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Received Rename response, ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode;
+        }
+
         return 0; // Success
-    } else {
-        // FileSystem::renameFile logs "Attempted to rename non-existent file" or
-        // "Attempted to rename to an already existing file".
-        // We need to map this boolean 'false' to a FUSE error code.
-        // A robust way would be for FileSystem::renameFile to return an enum or throw specific exceptions.
-        // Lacking that, we make a best guess or return a generic error.
 
-        // Check if the source file still exists. If not, it's ENOENT.
-        // This is racy, but a common approach.
-        // A less racy check is to see if FileSystem thinks the new file exists.
-        // If new_filename is now in its _Files map, it means renameFile failed because new_filename existed.
-        // If old_filename is not in _Files, it means renameFile failed because old_filename didn't exist.
-
-        // The current FileSystem::renameFile implementation:
-        // 1. Checks if old_filename exists. If not, logs WARN, returns false. -> maps to ENOENT
-        // 2. Checks if new_filename exists. If yes, logs WARN, returns false. -> maps to EEXIST
-
-        // We don't have direct access to _Files here.
-        // We can try to mimic the checks if necessary, but it's not ideal.
-        // For now, let's assume that if renameFile fails, it could be one of these two.
-        // To differentiate, we could try a readFile on old_filename. If it's empty (or some error indicator),
-        // it might be ENOENT. If readFile on new_filename is non-empty, it might be EEXIST.
-        // This is still heuristic.
-
-        // Given FileSystem::renameFile logs the specific reason, and for this exercise
-        // we can't change FileSystem::renameFile easily to return better errors.
-        // Let's assume a common default. ENOENT for source or EEXIST for target are common.
-        // POSIX rename overwrites target files. Our FileSystem::renameFile does not.
-        // So if new_filename exists, our renameFile fails, which is like RENAME_NOREPLACE.
-        // In that case, EEXIST is appropriate.
-
-        // Attempt to infer:
-        // This is still not perfect because FileSystem::readFile itself returns "" for non-existent files.
-        // A dedicated FileSystem::fileExists method would be better.
-        // Since FileSystem::renameFile already logs the reason, we'll use a generic error here.
-        // The prompt suggested -EPERM if specific cause is unknown.
-        Logger::getInstance().log(LogLevel::WARN, "simpli_rename: FileSystem::renameFile failed for " + old_filename + " to " + new_filename + ". This could be due to source not existing or target already existing (and not overwriting).");
-
-        // Let's try to be slightly more specific based on logs from FileSystem::renameFile (though not ideal to rely on logs for logic)
-        // If we had a 'fileExists' method in FileSystem:
-        // if (!data->fs->fileExists(old_filename)) return -ENOENT;
-        // if (data->fs->fileExists(new_filename)) return -EEXIST; // if RENAME_NOREPLACE behavior
-
-        // Given current constraints, -EPERM is a safe bet as per prompt.
-        // However, let's try to infer slightly. If the new_filename now exists (somehow, though our rename doesn't overwrite),
-        // that would be EEXIST. If old_filename doesn't exist, ENOENT.
-        // This is hard without better FileSystem feedback.
-        // The provided solution template leans towards -EPERM.
-
-        return -EPERM; // General permission/operation not permitted error
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Exception: " + std::string(e.what()));
+        return -EIO;
     }
 }
 
 int simpli_release(const char *path, struct fuse_file_info *fi) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_release called for path: " + std::string(path) + " with fi->fh: " + std::to_string(fi->fh));
-    // This is the counterpart to 'open' or 'create'.
-    // For 'create', fi->fh was set (e.g., to 1).
-    // For 'open', fi->fh might be 0 if not set by 'open' itself, or some other value.
-    // Since we are using a dummy file handle and not managing complex per-handle state,
-    // there's nothing specific to clean up here based on fh.
-    // If fi->fh was used to store a resource index or pointer, this is where it would be freed.
-    // For now, just logging is sufficient.
-    return 0; // Success
+    (void)path; // Path is not used in this stub
+    (void)fi;   // File info (including fh) is not used in this stub
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_release called for path: " + std::string(path) + " with fi->fh: " + std::to_string(fi->fh) + ". No server action implemented yet.");
+    // Since the server isn't managing file handles (fi->fh is a dummy value),
+    // there's no specific "close" message to send to the server at this time.
+    // If the server were to manage file handles, a MessageType::Close would be sent here.
+    return 0;
 }
 
-// Stub for utimens
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
-    // fi can be NULL if utimensat(2) was called with AT_SYMLINK_NOFOLLOW.
-    // We don't use fi for this stub anyway.
-    (void)fi;
-
+    (void)fi; // fi can be NULL.
     Logger& logger = Logger::getInstance();
     logger.log(LogLevel::DEBUG, "simpli_utimens called for path: " + std::string(path));
 
-    if (tv == nullptr) {
-        logger.log(LogLevel::DEBUG, "simpli_utimens: tv is NULL (touch behavior, set to current time).");
-        // This case means "set to current time".
-        // Our FileSystem model doesn't store timestamps, so getattr always returns current time.
-        // Thus, doing nothing here effectively achieves the desired outcome for this case.
-    } else {
-        // Log the requested timestamps.
-        // tv[0] is atime (access time), tv[1] is mtime (modification time).
-        // Special UTIME_NOW and UTIME_OMIT values could also be present in tv[n].tv_nsec.
-        std::string atime_str = "atime: sec=" + std::to_string(tv[0].tv_sec) + " nsec=" + std::to_string(tv[0].tv_nsec);
-        std::string mtime_str = "mtime: sec=" + std::to_string(tv[1].tv_sec) + " nsec=" + std::to_string(tv[1].tv_nsec);
-        logger.log(LogLevel::DEBUG, "simpli_utimens: " + atime_str + ", " + mtime_str);
+    // TODO: Implement network call to metaserver for Utimens
+    // Serialize timespec tv into msg._Data or specific fields if added to Message struct
+    // Message msg_req;
+    // msg_req._Type = MessageType::Utimens;
+    // msg_req._Path = std::string(path).substr(1); // Assuming path starts with /
+    // // Logic to serialize tv[0] (atime) and tv[1] (mtime) into msg_req._Data
+    // // e.g., "sec1:nsec1|sec2:nsec2" or binary representation
+    // SimpliDfsFuseData* data = get_fuse_data();
+    // if (!data || !data->metadata_client) return -EIO;
+    // data->metadata_client->Send(Message::Serialize(msg_req));
+    // std::string response_str = data->metadata_client->Receive();
+    // Message msg_res = Message::Deserialize(response_str);
+    // return -msg_res._ErrorCode;
 
-        if (tv[0].tv_nsec == UTIME_OMIT && tv[1].tv_nsec == UTIME_OMIT) {
-            logger.log(LogLevel::DEBUG, "simpli_utimens: Both atime and mtime are UTIME_OMIT. No change needed.");
-        } else if (tv[0].tv_nsec == UTIME_NOW) {
-            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_NOW.");
-        } else if (tv[0].tv_nsec == UTIME_OMIT) {
-            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_OMIT.");
-        }
-
-        if (tv[1].tv_nsec == UTIME_NOW) {
-            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_NOW.");
-        } else if (tv[1].tv_nsec == UTIME_OMIT) {
-            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_OMIT.");
-        }
-    }
-
-    // Our FileSystem doesn't currently store timestamps for files.
-    // simpli_getattr always reports the current time.
-    // So, for now, we don't need to do anything to the underlying storage.
-    // We return 0 to indicate success, which should satisfy `touch`.
-    logger.log(LogLevel::INFO, "simpli_utimens: Operation completed successfully (stubbed) for " + std::string(path));
+    logger.log(LogLevel::INFO, "simpli_utimens: Operation not yet fully implemented for " + std::string(path) + ". Optimistically succeeding.");
     return 0;
 }
 
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
-    // Initialize the logger first
     try {
-        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG); // Or another appropriate log file and level
+        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG);
     } catch (const std::exception& e) {
-        // Cannot use logger here if it failed to initialize
         fprintf(stderr, "FATAL: Failed to initialize logger: %s\n", e.what());
-        return 1; // Indicate critical error
+        return 1;
     }
 
     Logger::getInstance().log(LogLevel::INFO, "Starting SimpliDFS FUSE adapter.");
 
-    // --- Argument Parsing for Mount Point ---
-    if (argc < 2) {
-        Logger::getInstance().log(LogLevel::FATAL, "Usage: " + std::string(argv[0]) + " <mountpoint> [FUSE options]");
-        // FUSE typically prints its own help message if -h or --help is passed,
-        // or if it fails to parse args. fuse_main will handle this.
-        // We might not need this explicit check if fuse_main's behavior is sufficient.
-        // For now, let's keep it as a basic guard.
+    if (argc < 4) {
+        Logger::getInstance().log(LogLevel::FATAL, "Usage: " + std::string(argv[0]) + " <metaserver_host> <metaserver_port> <mountpoint> [FUSE options]");
+        return 1;
     }
-    // The actual mountpoint argument is processed by fuse_main.
 
-    // --- Initialize FileSystem and SimpliDfsFuseData ---
-    FileSystem local_fs;
     SimpliDfsFuseData fuse_data;
-    fuse_data.fs = &local_fs;
-    // fuse_data.known_files is default constructed (empty set)
-
-    // --- Pre-populate FileSystem with some test data ---
-    // And update known_files in fuse_data accordingly.
-    std::string file1_name = "hello.txt";
-    std::string file1_content = "Hello from SimpliDFS FUSE!";
-    if (local_fs.createFile(file1_name)) {
-        if (local_fs.writeFile(file1_name, file1_content)) {
-            local_fs.setXattr(file1_name, "user.cid", "cid_for_hello_txt_12345");
-            Logger::getInstance().log(LogLevel::DEBUG, "Set user.cid for " + file1_name);
-            fuse_data.known_files.insert(file1_name);
-            Logger::getInstance().log(LogLevel::INFO, "Created test file: " + file1_name);
-        } else {
-            Logger::getInstance().log(LogLevel::ERROR, "Failed to write to test file: " + file1_name);
-        }
-    } else {
-        Logger::getInstance().log(LogLevel::ERROR, "Failed to create test file: " + file1_name);
+    fuse_data.metaserver_host = argv[1];
+    try {
+        fuse_data.metaserver_port = std::stoi(argv[2]);
+    } catch (const std::invalid_argument& ia) {
+        Logger::getInstance().log(LogLevel::FATAL, "Invalid metaserver port: " + std::string(argv[2]) + ". Must be an integer. " + ia.what());
+        return 1;
+    } catch (const std::out_of_range& oor) {
+        Logger::getInstance().log(LogLevel::FATAL, "Metaserver port out of range: " + std::string(argv[2]) + ". " + oor.what());
+        return 1;
     }
 
-    std::string file2_name = "empty_file.txt"; // Renamed to avoid confusion if "empty.txt" is a common ignore pattern
-    if (local_fs.createFile(file2_name)) {
-        if (local_fs.writeFile(file2_name, "")) { // Empty content
-            local_fs.setXattr(file2_name, "user.cid", "cid_for_empty_file_67890");
-            Logger::getInstance().log(LogLevel::DEBUG, "Set user.cid for " + file2_name);
-            fuse_data.known_files.insert(file2_name);
-            Logger::getInstance().log(LogLevel::INFO, "Created test file: " + file2_name);
-        } else {
-            Logger::getInstance().log(LogLevel::ERROR, "Failed to write to test file: " + file2_name);
+    Logger::getInstance().log(LogLevel::INFO, "Attempting to connect to metaserver at " + fuse_data.metaserver_host + ":" + std::to_string(fuse_data.metaserver_port));
+
+    fuse_data.metadata_client = new Networking::Client();
+    try {
+        if (!fuse_data.metadata_client->CreateClientTCPSocket(fuse_data.metaserver_host.c_str(), fuse_data.metaserver_port)) {
+            Logger::getInstance().log(LogLevel::FATAL, "Failed to create TCP socket for metaserver.");
+            delete fuse_data.metadata_client;
+            fuse_data.metadata_client = nullptr;
+            return 1;
         }
-    } else {
-        Logger::getInstance().log(LogLevel::ERROR, "Failed to create test file: " + file2_name);
+        if (!fuse_data.metadata_client->ConnectClientSocket()) {
+            Logger::getInstance().log(LogLevel::FATAL, "Failed to connect to metaserver.");
+            delete fuse_data.metadata_client;
+            fuse_data.metadata_client = nullptr;
+            return 1;
+        }
+        Logger::getInstance().log(LogLevel::INFO, "Successfully connected to metaserver.");
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::FATAL, "Exception during metaserver connection: " + std::string(e.what()));
+        if (fuse_data.metadata_client) {
+            delete fuse_data.metadata_client;
+            fuse_data.metadata_client = nullptr;
+        }
+        return 1;
     }
 
-    std::string file3_name = "data.log"; // Another test file
-    std::string file3_content = "Log entry 1\nLog entry 2\nEnd of log.\n";
-    if (local_fs.createFile(file3_name)) {
-        if (local_fs.writeFile(file3_name, file3_content)) {
-            local_fs.setXattr(file3_name, "user.cid", "cid_for_data_log_abcde");
-            Logger::getInstance().log(LogLevel::DEBUG, "Set user.cid for " + file3_name);
-            fuse_data.known_files.insert(file3_name);
-            Logger::getInstance().log(LogLevel::INFO, "Created test file: " + file3_name);
-        } else {
-            Logger::getInstance().log(LogLevel::ERROR, "Failed to write to test file: " + file3_name);
-        }
-    } else {
-        Logger::getInstance().log(LogLevel::ERROR, "Failed to create test file: " + file3_name);
+    char** fuse_argv = new char*[argc - 2];
+    fuse_argv[0] = argv[0];
+    for (int i = 3; i < argc; ++i) {
+        fuse_argv[i - 2] = argv[i];
     }
+    int fuse_argc = argc - 2;
 
-    // --- Define FUSE operations ---
     struct fuse_operations simpli_ops;
     memset(&simpli_ops, 0, sizeof(struct fuse_operations));
 
@@ -683,25 +644,44 @@ int main(int argc, char *argv[]) {
     simpli_ops.readdir = simpli_readdir;
     simpli_ops.open    = simpli_open;
     simpli_ops.read    = simpli_read;
-    // simpli_ops.fgetattr = simpli_fgetattr; // Removed for FUSE 3 compatibility
-    simpli_ops.access = simpli_access; // Added
-    simpli_ops.create  = simpli_create; // Add this line
-    simpli_ops.write   = simpli_write; // Add this line
-    simpli_ops.unlink  = simpli_unlink; // Add this line
-    simpli_ops.rename  = simpli_rename; // Add this line
-    simpli_ops.release = simpli_release; // Added release handler
-    simpli_ops.utimens = simpli_utimens; // Added utimens handler
+    simpli_ops.access  = simpli_access;
+    simpli_ops.create  = simpli_create;
+    simpli_ops.write   = simpli_write;
+    simpli_ops.unlink  = simpli_unlink;
+    simpli_ops.rename  = simpli_rename;
+    simpli_ops.release = simpli_release;
+    simpli_ops.utimens = simpli_utimens;
+    simpli_ops.destroy = simpli_destroy;
 #ifdef SIMPLIDFS_HAS_STATX
-    simpli_ops.statx   = simpli_statx;   // Added statx handler
+    simpli_ops.statx   = simpli_statx;
 #endif
-    // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
-    // simpli_ops.init = simpli_init; // Example
-    // simpli_ops.destroy = simpli_destroy; // Example
 
     Logger::getInstance().log(LogLevel::INFO, "Passing control to fuse_main.");
 
-    // fuse_main will take over the current thread and only return on unmount or error.
-    // It parses FUSE options from argc/argv (e.g., -f for foreground, -d for debug, mountpoint).
-    // The mountpoint is typically the first non-option argument.
-    return fuse_main(argc, argv, &simpli_ops, &fuse_data); // Pass our fuse_data as user_data
+    int fuse_ret = fuse_main(fuse_argc, fuse_argv, &simpli_ops, &fuse_data);
+
+    delete[] fuse_argv;
+
+    return fuse_ret;
+}
+
+void simpli_destroy(void* private_data) {
+    Logger::getInstance().log(LogLevel::INFO, "simpli_destroy called.");
+    if (!private_data) {
+        return;
+    }
+    SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(private_data);
+    if (data->metadata_client) {
+        if (data->metadata_client->IsConnected()) {
+            try {
+                data->metadata_client->Disconnect();
+                Logger::getInstance().log(LogLevel::INFO, "Disconnected from metaserver.");
+            } catch (const std::exception& e) {
+                Logger::getInstance().log(LogLevel::ERROR, "Exception during disconnect from metaserver: " + std::string(e.what()));
+            }
+        }
+        delete data->metadata_client;
+        data->metadata_client = nullptr;
+        Logger::getInstance().log(LogLevel::INFO, "Metadata client deleted.");
+    }
 }

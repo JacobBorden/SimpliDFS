@@ -17,7 +17,9 @@ TEST_F(MetadataManagerTest, AddFile) {
     metadataManager.registerNode("Node1", "localhost", 1001);
     metadataManager.registerNode("Node2", "localhost", 1002);
 
-    ASSERT_NO_THROW(metadataManager.addFile(filename, nodes));
+    // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
+    int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
+    ASSERT_EQ(add_result, 0); // 0 indicates success
 
     std::vector<std::string> storedNodes; 
     ASSERT_NO_THROW({
@@ -35,7 +37,9 @@ TEST_F(MetadataManagerTest, GetFileNodes) {
     metadataManager.registerNode("Node3", "localhost", 1003);
     metadataManager.registerNode("Node4", "localhost", 1004);
 
-    metadataManager.addFile(filename, nodes); 
+    // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
+    int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
+    ASSERT_EQ(add_result, 0); // 0 indicates success
 
     std::vector<std::string> retrievedNodes;
     ASSERT_NO_THROW({
@@ -54,16 +58,24 @@ TEST_F(MetadataManagerTest, GetFileNodesNonExistent) {
 TEST_F(MetadataManagerTest, RemoveFile) {
     std::string filename = "testfile3.txt";
     std::vector<std::string> nodes = {"Node5", "Node6"};
-    metadataManager.addFile(filename, nodes);
+    // Register nodes to make them available for addFile
+    metadataManager.registerNode("Node5", "localhost", 1005);
+    metadataManager.registerNode("Node6", "localhost", 1006);
+    int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
+    ASSERT_EQ(add_result, 0); // Ensure file was added successfully
 
-    ASSERT_NO_THROW(metadataManager.removeFile(filename));
+    // bool removeFile(const std::string& filename)
+    bool remove_result = metadataManager.removeFile(filename);
+    ASSERT_TRUE(remove_result); // true indicates success
     EXPECT_THROW(metadataManager.getFileNodes(filename), std::runtime_error);
 }
 
 // Test removing a non-existent file
 TEST_F(MetadataManagerTest, RemoveNonExistentFile) {
     std::string filename = "nonexistentfile.txt";
-    ASSERT_NO_THROW(metadataManager.removeFile(filename));
+    // bool removeFile(const std::string& filename)
+    bool remove_result = metadataManager.removeFile(filename);
+    ASSERT_FALSE(remove_result); // false indicates file not found or error
 }
 
 // Test printing metadata (no assertions, just ensuring no exceptions)
@@ -73,7 +85,9 @@ TEST_F(MetadataManagerTest, PrintMetadata) {
     // Register nodes before adding file that uses them
     metadataManager.registerNode("Node7", "localhost", 1007);
     metadataManager.registerNode("Node8", "localhost", 1008);
-    metadataManager.addFile(filename, nodes);
+    // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
+    int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
+    ASSERT_EQ(add_result, 0); // 0 indicates success
 
     ASSERT_NO_THROW(metadataManager.printMetadata());
 }
