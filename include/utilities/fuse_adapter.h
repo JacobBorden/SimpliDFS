@@ -26,5 +26,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi);
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
 int simpli_unlink(const char *path);
 int simpli_rename(const char *from, const char *to, unsigned int flags);
+int simpli_release(const char *path, struct fuse_file_info *fi); // Added release
+int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi); // Added utimens
 
 #endif // SIMPLIDFS_FUSE_ADAPTER_H

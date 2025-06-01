@@ -37,9 +37,14 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     }
 
     std::string filename = spath.substr(1);
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Evaluating filename: " + filename);
+
     if (data->known_files.count(filename)) {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: File found in known_files: " + filename);
         std::string content = data->fs->readFile(filename);
-        stbuf->st_mode = S_IFREG | 0444; // Read-only permissions
+        stbuf->st_mode = S_IFREG | 0644; // RW for owner, R for group/other (simplification)
+        // For a newly created file, mode would ideally come from 'create's mode argument
+        // and umask. This is a simplified fixed permission.
         stbuf->st_nlink = 1;
         stbuf->st_size = content.length();
         return 0;
@@ -89,11 +94,13 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
     std::string filename = spath.substr(1);
     if (data->known_files.count(filename)) {
-        if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-            Logger::getInstance().log(LogLevel::WARN, "simpli_open: Write access denied for " + filename);
-            return -EACCES;
-        }
-        return 0;
+        // Permissions are now 0644 from getattr.
+        // The kernel will use these permissions based on getattr results.
+        // We don't need to do an explicit O_ACCMODE check here for basic cases.
+        // If open is for O_WRONLY or O_RDWR by the owner, it should be allowed at this stage.
+        // Actual write permission will be checked by the kernel or by our simpli_write.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Opening existing file " + filename + " with flags: " + std::to_string(fi->flags) + ". Allowing, relying on getattr mode and write handler.");
+        return 0; // Success, allow open
     }
 
     Logger::getInstance().log(LogLevel::WARN, "simpli_open: File not found: " + filename);
@@ -178,39 +185,48 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
     std::string filename = spath.substr(1); // Remove leading '/'
 
-    // The `fi->flags` should have O_CREAT.
-    // If the file exists, `create` should truncate it to zero length.
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to create or truncate: " + filename);
 
+    // Attempt to create the file.
+    // FileSystem::createFile is expected to return true if the file was newly created,
+    // and false if it already existed or an error occurred.
     if (data->fs->createFile(filename)) {
-        // File created successfully (was new)
+        // File was newly created
         data->known_files.insert(filename);
-        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File created: " + filename);
-        // `fi` is an output parameter for `open` flags if needed.
-        // For `create`, we don't typically modify `fi` extensively beyond what FUSE expects.
-        // The file isn't "opened" in the same way as `open` here, but `create` implies it's ready for I/O.
-        // We need to ensure `writeFile` works subsequently.
+        Logger::getInstance().log(LogLevel::INFO, "simpli_create: File successfully created (new): " + filename);
+        // The mode is ignored for now as FileSystem doesn't store it.
+        fi->fh = 1; // Set a dummy file handle for FUSE.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for new file: " + filename);
+        return 0; // Success
     } else {
-        // File might already exist. If so, truncate it as per POSIX `creat()` behavior.
-        // Check if it's a known file OR if readFile indicates it exists in the underlying FS.
-        bool fileExistsInFs = (data->fs->readFile(filename) != ""); // Check underlying FS
+        // createFile returned false. This means either the file already existed,
+        // or an error occurred during the creation attempt for a non-existent file.
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: createFile(" + filename + ") returned false. Assuming file may exist or creation failed.");
 
-        if (data->known_files.count(filename) || fileExistsInFs) {
-             // Truncate by writing empty string
-            if (data->fs->writeFile(filename, "")) {
-                Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file truncated: " + filename);
-                // Ensure it's in known_files if it was only in fs before (e.g. pre-existing)
-                if (!data->known_files.count(filename)) {
-                    data->known_files.insert(filename);
-                }
-            } else {
-                // This case should ideally not happen if known_files is consistent with fs
-                Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to truncate existing file: " + filename);
-                return -EIO;
+        // POSIX creat() truncates existing files. So, we attempt to truncate.
+        // We need to be sure it's an "already exists" case vs. "creation failed for other reasons".
+        // The current FileSystem::createFile doesn't distinguish.
+        // We'll proceed with truncation attempt. If this also fails, it covers both scenarios.
+
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Attempting to truncate (overwrite with empty content) existing file: " + filename);
+        if (data->fs->writeFile(filename, "")) {
+            // Successfully truncated the file.
+            Logger::getInstance().log(LogLevel::INFO, "simpli_create: Existing file successfully truncated: " + filename);
+            // Ensure it's in known_files, as it might have existed in FS but not in our cache.
+            if (!data->known_files.count(filename)) {
+                data->known_files.insert(filename);
+                Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Added truncated file " + filename + " to known_files.");
             }
+            fi->fh = 1; // Set a dummy file handle for FUSE.
+            Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for truncated file: " + filename);
+            return 0; // Success
         } else {
-            // Not in known_files and createFile failed (and readFile confirmed not there). This is an issue.
-             Logger::getInstance().log(LogLevel::ERROR, "simpli_create: createFile failed and file does not exist: " + filename);
-            return -EIO; // Or some other error
+            // Truncation failed.
+            // This could be because:
+            // 1. `createFile` failed because the file truly couldn't be created (e.g., bad path, FS error), AND it didn't exist.
+            // 2. `createFile` indicated "already exists" (by returning false), but `writeFile` to truncate failed.
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to create (or createFile indicated no new creation) AND failed to truncate file: " + filename + ". This could be a genuine I/O error or permissions issue with the underlying FileSystem implementation.");
+            return -EIO; // Input/output error seems appropriate for this combined failure.
         }
     }
 
@@ -220,14 +236,9 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
     // According to FUSE docs for `create`, if the call is successful,
     // `fi->fh` can be set to a file handle, and `fi->keep_cache` and `fi->nonseekable` can be set.
-    // For a simple implementation, we might not need a custom file handle if not managing complex state.
-    // Let's assume `open` will be called next if complex I/O is needed.
-    // However, `create` itself should result in an open file descriptor in the calling process.
-    // So, FUSE needs `fi->fh`. Let's use a dummy or skip if `open` is always called.
-    // For now, we'll rely on subsequent `open` if needed by the application.
+    // For this implementation, we assume that `open` will be called if these are needed.
     // Many applications will call `creat()` then `close()`, then `open()`.
-
-    return 0; // Success
+    // FUSE handles setting up `fi->fh` if we return 0 from `create` and don't set it ourselves.
 }
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
@@ -447,6 +458,63 @@ int simpli_rename(const char *from, const char *to, unsigned int flags) {
     }
 }
 
+int simpli_release(const char *path, struct fuse_file_info *fi) {
+    Logger::getInstance().log(LogLevel::DEBUG, "simpli_release called for path: " + std::string(path) + " with fi->fh: " + std::to_string(fi->fh));
+    // This is the counterpart to 'open' or 'create'.
+    // For 'create', fi->fh was set (e.g., to 1).
+    // For 'open', fi->fh might be 0 if not set by 'open' itself, or some other value.
+    // Since we are using a dummy file handle and not managing complex per-handle state,
+    // there's nothing specific to clean up here based on fh.
+    // If fi->fh was used to store a resource index or pointer, this is where it would be freed.
+    // For now, just logging is sufficient.
+    return 0; // Success
+}
+
+// Stub for utimens
+int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
+    // fi can be NULL if utimensat(2) was called with AT_SYMLINK_NOFOLLOW.
+    // We don't use fi for this stub anyway.
+    (void)fi;
+
+    Logger& logger = Logger::getInstance();
+    logger.log(LogLevel::DEBUG, "simpli_utimens called for path: " + std::string(path));
+
+    if (tv == nullptr) {
+        logger.log(LogLevel::DEBUG, "simpli_utimens: tv is NULL (touch behavior, set to current time).");
+        // This case means "set to current time".
+        // Our FileSystem model doesn't store timestamps, so getattr always returns current time.
+        // Thus, doing nothing here effectively achieves the desired outcome for this case.
+    } else {
+        // Log the requested timestamps.
+        // tv[0] is atime (access time), tv[1] is mtime (modification time).
+        // Special UTIME_NOW and UTIME_OMIT values could also be present in tv[n].tv_nsec.
+        std::string atime_str = "atime: sec=" + std::to_string(tv[0].tv_sec) + " nsec=" + std::to_string(tv[0].tv_nsec);
+        std::string mtime_str = "mtime: sec=" + std::to_string(tv[1].tv_sec) + " nsec=" + std::to_string(tv[1].tv_nsec);
+        logger.log(LogLevel::DEBUG, "simpli_utimens: " + atime_str + ", " + mtime_str);
+
+        if (tv[0].tv_nsec == UTIME_OMIT && tv[1].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: Both atime and mtime are UTIME_OMIT. No change needed.");
+        } else if (tv[0].tv_nsec == UTIME_NOW) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_NOW.");
+        } else if (tv[0].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: atime is UTIME_OMIT.");
+        }
+
+        if (tv[1].tv_nsec == UTIME_NOW) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_NOW.");
+        } else if (tv[1].tv_nsec == UTIME_OMIT) {
+            logger.log(LogLevel::DEBUG, "simpli_utimens: mtime is UTIME_OMIT.");
+        }
+    }
+
+    // Our FileSystem doesn't currently store timestamps for files.
+    // simpli_getattr always reports the current time.
+    // So, for now, we don't need to do anything to the underlying storage.
+    // We return 0 to indicate success, which should satisfy `touch`.
+    logger.log(LogLevel::INFO, "simpli_utimens: Operation completed successfully (stubbed) for " + std::string(path));
+    return 0;
+}
+
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
     // Initialize the logger first
@@ -530,6 +598,8 @@ int main(int argc, char *argv[]) {
     simpli_ops.write   = simpli_write; // Add this line
     simpli_ops.unlink  = simpli_unlink; // Add this line
     simpli_ops.rename  = simpli_rename; // Add this line
+    simpli_ops.release = simpli_release; // Added release handler
+    simpli_ops.utimens = simpli_utimens; // Added utimens handler
     // For FUSE 3.0+, you might also consider init/destroy if needed, but not for this minimal example.
     // simpli_ops.init = simpli_init; // Example
     // simpli_ops.destroy = simpli_destroy; // Example

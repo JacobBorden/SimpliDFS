@@ -90,6 +90,120 @@ if [ $? -ne 0 ]; then
 fi
 echo "" >> "$TEST_OUTPUT_FILE"
 
+# --- Specific Tests for touch ---
+TOUCH_NEW_FILE="newly_touched_file.txt"
+TOUCH_EXISTING_FILE_SETUP="existing_file_for_touch_setup.txt"
+TOUCH_NEW_FILE_PATH="$MOUNT_POINT/$TOUCH_NEW_FILE"
+TOUCH_EXISTING_FILE_PATH="$MOUNT_POINT/$TOUCH_EXISTING_FILE_SETUP"
+
+echo "--- Test: touch (create) $TOUCH_NEW_FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch_new_file_ok=true
+touch "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: touch (create) $TOUCH_NEW_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    touch_new_file_ok=false
+else
+    echo "INFO: touch (create) $TOUCH_NEW_FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: ls -la $TOUCH_NEW_FILE_PATH failed after touch (create)." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    else
+        echo "INFO: ls -la $TOUCH_NEW_FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    fi
+
+    # Check FUSE logs for create and release
+    CREATE_LOG_PATTERN="simpli_create: File successfully created (new): $TOUCH_NEW_FILE"
+    # Note: simpli_release logs path with leading /
+    RELEASE_LOG_PATTERN="simpli_release called for path: /$TOUCH_NEW_FILE"
+
+    if grep -q -E "$CREATE_LOG_PATTERN" "$LOG_FILE"; then
+        echo "INFO: Found simpli_create success log for $TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_create success log for $TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    fi
+    if grep -q -E "$RELEASE_LOG_PATTERN" "$LOG_FILE"; then
+        echo "INFO: Found simpli_release log for /$TOUCH_NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_release log for /$TOUCH_NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        touch_new_file_ok=false
+    fi
+fi
+if [ "$touch_new_file_ok" = true ]; then
+    echo "SUCCESS: Test touch (create) $TOUCH_NEW_FILE_PATH passed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "FAILURE: Test touch (create) $TOUCH_NEW_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    # Display FUSE log snippet on failure for this test
+    echo "DEBUG: Last 50 lines of $LOG_FILE for $TOUCH_NEW_FILE_PATH failure:" | tee -a "$TEST_OUTPUT_FILE"
+    tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+
+echo "--- Test: touch (update timestamp) $TOUCH_EXISTING_FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch_existing_file_ok=true
+# Setup: Create the file first
+echo "Initial content for touch test" > "$TOUCH_EXISTING_FILE_PATH"
+if [ $? -ne 0 ]; then
+    echo "ERROR: Failed to create setup file $TOUCH_EXISTING_FILE_PATH for touch (update) test." | tee -a "$TEST_OUTPUT_FILE"
+    touch_existing_file_ok=false
+else
+    echo "INFO: Setup file $TOUCH_EXISTING_FILE_PATH created." | tee -a "$TEST_OUTPUT_FILE"
+    # Optional: verify initial content if necessary, but for touch, existence is key.
+    # Wait a second to ensure timestamp change is observable if FS had high time resolution
+    sleep 1
+
+    touch "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: touch (update) $TOUCH_EXISTING_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+        touch_existing_file_ok=false
+    else
+        echo "INFO: touch (update) $TOUCH_EXISTING_FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+        ls -la "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+        if [ $? -ne 0 ]; then
+            echo "ERROR: ls -la $TOUCH_EXISTING_FILE_PATH failed after touch (update)." | tee -a "$TEST_OUTPUT_FILE"
+            touch_existing_file_ok=false
+        else
+            echo "INFO: ls -la $TOUCH_EXISTING_FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+        fi
+
+        # Check FUSE log for simpli_utimens success message
+        # Note: simpli_utimens logs path with leading / and specific success message
+        UTIMENS_LOG_PATTERN="simpli_utimens: Operation completed successfully (stubbed) for /$TOUCH_EXISTING_FILE_SETUP"
+        if grep -q -E "$UTIMENS_LOG_PATTERN" "$LOG_FILE"; then
+            echo "INFO: Found simpli_utimens success log for /$TOUCH_EXISTING_FILE_SETUP." | tee -a "$TEST_OUTPUT_FILE"
+        else
+            echo "ERROR: Did not find simpli_utimens success log for /$TOUCH_EXISTING_FILE_SETUP in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+            touch_existing_file_ok=false
+        fi
+    fi
+fi
+if [ "$touch_existing_file_ok" = true ]; then
+    echo "SUCCESS: Test touch (update) $TOUCH_EXISTING_FILE_PATH passed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "FAILURE: Test touch (update) $TOUCH_EXISTING_FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    echo "DEBUG: Last 50 lines of $LOG_FILE for $TOUCH_EXISTING_FILE_PATH failure:" | tee -a "$TEST_OUTPUT_FILE"
+    tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+# Cleanup for touch tests
+echo "--- Cleanup for touch tests ---" | tee -a "$TEST_OUTPUT_FILE"
+rm "$TOUCH_NEW_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "WARN: rm $TOUCH_NEW_FILE_PATH failed during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $TOUCH_NEW_FILE_PATH deleted during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+fi
+rm "$TOUCH_EXISTING_FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "WARN: rm $TOUCH_EXISTING_FILE_PATH failed during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $TOUCH_EXISTING_FILE_PATH deleted during cleanup." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
 
 echo "--- Test: cat $MOUNT_POINT/data.log ---" | tee -a "$TEST_OUTPUT_FILE"
 cat "$MOUNT_POINT/data.log" >> "$TEST_OUTPUT_FILE" 2>&1
@@ -105,6 +219,110 @@ if [ $? -eq 0 ]; then # Should fail
 fi
 echo "" >> "$TEST_OUTPUT_FILE"
 
+# --- Create, Write, Unlink, Rename Tests ---
+
+# Variables for new tests
+NEW_FILE="new_test_file.txt"
+RENAMED_FILE="renamed_test_file.txt"
+TEST_STRING="Hello from new_test_file!"
+FILE_PATH="$MOUNT_POINT/$NEW_FILE"
+RENAMED_PATH="$MOUNT_POINT/$RENAMED_FILE"
+
+echo "--- Test: Create $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+touch "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: touch $FILE_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+    # Optionally, exit here or mark test as failed and continue
+else
+    echo "INFO: touch $FILE_PATH command succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    # Now verify with ls and FUSE adapter logs
+    ls -la "$FILE_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+    if [ $? -ne 0 ]; then
+        echo "ERROR: ls -la $FILE_PATH failed after touch." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "INFO: ls -la $FILE_PATH succeeded." | tee -a "$TEST_OUTPUT_FILE"
+    fi
+
+    # Check FUSE adapter log for simpli_create success message
+    # Grep for either "File successfully created (new)" or "Existing file successfully truncated" for the specific file
+    # Need to escape the colon for grep pattern if it's part of the fixed string search.
+    # Using -E for extended regex to make the OR cleaner.
+    # Ensuring the filename is part of the match.
+    CREATE_LOG_PATTERN_NEW="simpli_create: File successfully created (new): $NEW_FILE"
+    CREATE_LOG_PATTERN_TRUNC="simpli_create: Existing file successfully truncated: $NEW_FILE"
+
+    # It's better to grep for the full message including the filename variable $NEW_FILE
+    # to avoid ambiguity if other files are created/truncated with similar names.
+    if grep -q -E "$CREATE_LOG_PATTERN_NEW|$CREATE_LOG_PATTERN_TRUNC" "$LOG_FILE"; then
+        echo "INFO: Found simpli_create success log for $NEW_FILE." | tee -a "$TEST_OUTPUT_FILE"
+    else
+        echo "ERROR: Did not find simpli_create success log for $NEW_FILE in $LOG_FILE." | tee -a "$TEST_OUTPUT_FILE"
+        echo "DEBUG: Last 50 lines of $LOG_FILE:" | tee -a "$TEST_OUTPUT_FILE"
+        tail -n 50 "$LOG_FILE" >> "$TEST_OUTPUT_FILE"
+    fi
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Write to $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+echo "$TEST_STRING" > "$FILE_PATH"
+# Verify write operation by checking exit status (though echo itself doesn't set $? reliably for this)
+# Instead, we will verify by reading back.
+if [ ! -s "$FILE_PATH" ]; then # Check if file is not empty
+    echo "WARN: Writing to $FILE_PATH might have failed (file is empty or does not exist)." | tee -a "$TEST_OUTPUT_FILE"
+fi
+# Log the attempt
+echo "Attempted to write '$TEST_STRING' to $FILE_PATH" >> "$TEST_OUTPUT_FILE"
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify content of $FILE_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+CONTENT=$(cat "$FILE_PATH")
+echo "Content of $FILE_PATH: '$CONTENT'" >> "$TEST_OUTPUT_FILE"
+if [ "$CONTENT" == "$TEST_STRING" ]; then
+    echo "INFO: Content verification for $FILE_PATH successful." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "ERROR: Content verification for $FILE_PATH failed. Expected '$TEST_STRING', got '$CONTENT'." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Rename $FILE_PATH to $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+mv "$FILE_PATH" "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: mv $FILE_PATH $RENAMED_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $FILE_PATH renamed to $RENAMED_PATH." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify rename operation ---" | tee -a "$TEST_OUTPUT_FILE"
+if [ ! -f "$FILE_PATH" ] && [ -f "$RENAMED_PATH" ]; then
+    echo "INFO: Rename successfully verified. $FILE_PATH does not exist, $RENAMED_PATH exists." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+else
+    echo "ERROR: Rename verification failed." | tee -a "$TEST_OUTPUT_FILE"
+    echo "DEBUG: $FILE_PATH exists? $(test -f "$FILE_PATH" && echo Yes || echo No)" >> "$TEST_OUTPUT_FILE"
+    echo "DEBUG: $RENAMED_PATH exists? $(test -f "$RENAMED_PATH" && echo Yes || echo No)" >> "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Delete $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+rm "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+if [ $? -ne 0 ]; then
+    echo "ERROR: rm $RENAMED_PATH failed." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "INFO: $RENAMED_PATH deleted." | tee -a "$TEST_OUTPUT_FILE"
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+echo "--- Test: Verify deletion of $RENAMED_PATH ---" | tee -a "$TEST_OUTPUT_FILE"
+if [ ! -f "$RENAMED_PATH" ]; then
+    echo "INFO: Deletion successfully verified. $RENAMED_PATH does not exist." | tee -a "$TEST_OUTPUT_FILE"
+else
+    echo "ERROR: Deletion verification failed. $RENAMED_PATH still exists." | tee -a "$TEST_OUTPUT_FILE"
+    ls -la "$RENAMED_PATH" >> "$TEST_OUTPUT_FILE" 2>&1
+fi
+echo "" >> "$TEST_OUTPUT_FILE"
+
+# --- End of Create, Write, Unlink, Rename Tests ---
 
 echo "INFO: Tests completed. Results in $TEST_OUTPUT_FILE."
 echo "INFO: FUSE adapter log ($LOG_FILE) content:"
