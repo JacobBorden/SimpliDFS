@@ -70,3 +70,31 @@ bool FileSystem::renameFile(const std::string& _pOldFilename, const std::string&
     Logger::getInstance().log(LogLevel::INFO, "File renamed from " + _pOldFilename + " to " + _pNewFilename);
     return true;
 }
+
+void FileSystem::setXattr(const std::string& filename, const std::string& attrName, const std::string& attrValue) {
+    std::unique_lock<std::mutex> lock(_Mutex);
+    if (_Files.find(filename) == _Files.end()) {
+        Logger::getInstance().log(LogLevel::WARN, "Attempted to set xattr for non-existent file: " + filename);
+        return;
+    }
+    _FileXattrs[filename][attrName] = attrValue;
+    Logger::getInstance().log(LogLevel::INFO, "xattr set for file: " + filename + ", Attribute: " + attrName);
+}
+
+std::string FileSystem::getXattr(const std::string& filename, const std::string& attrName) {
+    std::unique_lock<std::mutex> lock(_Mutex);
+    if (_Files.find(filename) == _Files.end()) {
+        Logger::getInstance().log(LogLevel::WARN, "Attempted to get xattr for non-existent file: " + filename);
+        return "";
+    }
+    auto it = _FileXattrs.find(filename);
+    if (it != _FileXattrs.end()) {
+        auto attrIt = it->second.find(attrName);
+        if (attrIt != it->second.end()) {
+            Logger::getInstance().log(LogLevel::INFO, "xattr retrieved for file: " + filename + ", Attribute: " + attrName);
+            return attrIt->second;
+        }
+    }
+    Logger::getInstance().log(LogLevel::INFO, "xattr not found for file: " + filename + ", Attribute: " + attrName);
+    return "";
+}
