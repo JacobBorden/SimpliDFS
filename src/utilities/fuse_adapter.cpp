@@ -194,9 +194,14 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
         // File was newly created
         data->known_files.insert(filename);
         Logger::getInstance().log(LogLevel::INFO, "simpli_create: File successfully created (new): " + filename);
+
         // The mode is ignored for now as FileSystem doesn't store it.
         fi->fh = 1; // Set a dummy file handle for FUSE.
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for new file: " + filename);
+        // Note: `fi->fh` could be set here if we were managing file handles directly in create.
+        // For this system, `open` will likely follow and handle `fi->fh`.
+        // The mode is ignored for now as FileSystem doesn't store it.
+
         return 0; // Success
     } else {
         // createFile returned false. This means either the file already existed,
@@ -217,8 +222,10 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
                 data->known_files.insert(filename);
                 Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Added truncated file " + filename + " to known_files.");
             }
+
             fi->fh = 1; // Set a dummy file handle for FUSE.
             Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Set fi->fh = " + std::to_string(fi->fh) + " for truncated file: " + filename);
+
             return 0; // Success
         } else {
             // Truncation failed.
