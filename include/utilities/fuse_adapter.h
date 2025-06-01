@@ -19,17 +19,19 @@
  #  define STATX_XATTR          0
  #endif
 
-#include "utilities/filesystem.h"
+#include "utilities/client.h" // Added
 #include <string>
 #include <vector> // Keep for now, might be useful elsewhere or by fuse.h
-#include <set>    // For std::set
+// #include <set> // Removed
 
 struct SimpliDfsFuseData {
-    FileSystem* fs;
-    std::set<std::string> known_files; // Using set for efficient lookup
+    Networking::Client* metadata_client = nullptr;
+    std::string metaserver_host;
+    int metaserver_port = 0;
 };
 
 // FUSE operation functions
+void simpli_destroy(void* private_data); // Added declaration
 int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi);
 int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi, enum fuse_readdir_flags flags);
 int simpli_open(const char *path, struct fuse_file_info *fi);

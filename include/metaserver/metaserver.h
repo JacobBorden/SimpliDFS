@@ -58,6 +58,10 @@ private:
     
     /** @brief Maps node identifiers to NodeInfo structs containing details about each registered node. */
     std::unordered_map<std::string, NodeInfo> registeredNodes;
+
+    // New private members for FUSE attributes
+    std::unordered_map<std::string, uint32_t> fileModes;
+    std::unordered_map<std::string, uint64_t> fileSizes;
     
     /** @brief Default number of replicas to create for each file. */
     static const int DEFAULT_REPLICATION_FACTOR = 3;
@@ -220,69 +224,29 @@ public:
      * @note If no live nodes are available, or not enough to meet a minimum (even if less than desired replication factor),
      *       the file might not be added, or a warning is logged.
      */
-    void addFile(const std::string &filename, const std::vector<std::string> &preferredNodes) {
+    void addFile(const std::string &filename, const std::vector<std::string> &preferredNodes); // Signature will be modified
+
+    // New/modified public methods for FUSE operations
+    bool fileExists(const std::string& filename) {
         std::lock_guard<std::mutex> lock(metadataMutex);
-        std::vector<std::string> targetNodes;
-
-        // 1. Try to use preferred nodes if they are alive
-        for (const auto& nodeID : preferredNodes) {
-            if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
-            auto it = registeredNodes.find(nodeID);
-            if (it != registeredNodes.end() && it->second.isAlive) {
-                // Check for duplicates before adding
-                if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
-                    targetNodes.push_back(nodeID);
-                }
-            }
-        }
-
-        // 2. If not enough nodes from preferred, fill with other alive nodes
-        if (targetNodes.size() < DEFAULT_REPLICATION_FACTOR) {
-            for (const auto& entry : registeredNodes) {
-                if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
-                const std::string& nodeID = entry.first;
-                const NodeInfo& nodeInfo = entry.second;
-                if (nodeInfo.isAlive) {
-                    // Check if not already in targetNodes
-                    if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
-                        targetNodes.push_back(nodeID);
-                    }
-                }
-            }
-        }
-
-        // Logging based on the outcome of node selection
-        if (targetNodes.empty()) {
-            std::cerr << "Error: No live nodes available to store file " << filename << std::endl;
-            // Do not add to fileMetadata, file cannot be stored
-            std::cout << "File " << filename << " was not added as no live nodes are available." << std::endl;
-            return; // Exit if no nodes could be found
-        } else if (targetNodes.size() < DEFAULT_REPLICATION_FACTOR) {
-            std::cout << "Warning: Could only find " << targetNodes.size() 
-                      << " live nodes for file " << filename 
-                      << ". Required: " << DEFAULT_REPLICATION_FACTOR << std::endl;
-        }
-
-        // Update metadata and send messages if nodes were found
-        fileMetadata[filename] = targetNodes;
-        std::cout << "File " << filename << " added with chunks on nodes: ";
-        for (const auto &node : targetNodes) {
-            std::cout << node << " ";
-        }
-        std::cout << std::endl;
-
-        // Sending message to nodes about new file
-        for (const auto &nodeID : targetNodes) {
-            Message msg;
-            msg._Type = MessageType::CreateFile;
-            msg._Filename = filename;
-            msg._Content = "Adding file to node"; // Content might be chunk specific later
-            std::string serializedMsg = Message::Serialize(msg);
-            // Here you would send `serializedMsg` to the appropriate node 
-            // (communication code is assumed to be elsewhere, using nodeID to get address)
-            std::cout << "Sending CreateFile message to " << nodeID << " for file " << filename << ": " << serializedMsg << std::endl;
-        }
+        return fileMetadata.count(filename);
     }
+    int getFileAttributes(const std::string& filename, uint32_t& mode, uint32_t& uid, uint32_t& gid, uint64_t& size);
+    std::vector<std::string> getAllFileNames();
+    int checkAccess(const std::string& filename, uint32_t access_mask);
+    int openFile(const std::string& filename, uint32_t flags); // flags from FUSE open
+
+    // Modified addFile signature and functionality
+    int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode);
+
+    int readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read);
+    int writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written);
+
+    int renameFileEntry(const std::string& old_filename, const std::string& new_filename);
+
+    // Existing methods (signatures mostly unchanged, but implementations might need review for new members)
+    bool removeFile(const std::string& filename);     // Declaration for bool return type
+    std::vector<std::string> getFileNodes(const std::string &filename);
 
     // Retrieve metadata for a given file
     /**
@@ -307,33 +271,8 @@ public:
      * @note If the file is found and removed from metadata, messages of type `DeleteFile` are
      *       logged for each node that was storing a replica.
      */
-    void removeFile(const std::string &filename) {
-        std::lock_guard<std::mutex> lock(metadataMutex);
-        
-        std::vector<std::string> nodesToNotify;
-        if (fileMetadata.count(filename)) { // Check if file exists before getting nodes
-            nodesToNotify = fileMetadata[filename];
-        }
-
-        if (fileMetadata.erase(filename)) {
-            std::cout << "File " << filename << " removed from metadata." << std::endl;
-            
-            Message msg;
-            msg._Type = MessageType::DeleteFile; // Correct message type
-            msg._Filename = filename;
-            msg._Content = "Instructing node to delete file.";
-
-            for (const auto& nodeID : nodesToNotify) { // Iterate nodes that HAD the file
-                // STUB: This is where you'd use the (missing) networking library
-                // to send the serialized message to the node `nodeID`.
-                // For now, we'll just log it.
-                std::string serializedMsg = Message::Serialize(msg);
-                std::cout << "[METASERVER_STUB] To " << nodeID << ": " << serializedMsg << std::endl;
-            }
-        } else {
-            std::cout << "File " << filename << " not found in metadata." << std::endl;
-        }
-    }
+    // The `bool removeFile(const std::string& filename);` declaration is already correctly placed above.
+    // The old implementation block is removed here.
 
     // Print all metadata (for debugging)
     /**
