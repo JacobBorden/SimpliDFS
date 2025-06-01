@@ -61,6 +61,13 @@ public:
     bool deleteFile(const std::string& _pFilename);
 
     /**
+     * @brief Checks if a file exists in the file system.
+     * @param filename The name of the file to check.
+     * @return True if the file exists, false otherwise.
+     */
+    bool fileExists(const std::string& filename) const;
+
+    /**
      * @brief Sets an extended attribute for a file.
      * @param filename The name of the file.
      * @param attrName The name of the attribute.

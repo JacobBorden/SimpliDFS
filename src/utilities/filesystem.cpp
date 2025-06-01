@@ -221,6 +221,14 @@ bool FileSystem::renameFile(const std::string& _pOldFilename, const std::string&
     return true;
 }
 
+bool FileSystem::fileExists(const std::string& filename) const {
+    // Cast away const for lock_guard, as map::count is a const method and doesn't modify the map.
+    // However, lock_guard requires a non-const mutex.
+    // A mutable mutex would be another way to handle this if strict const-correctness for the lock is desired.
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_Mutex));
+    return _Files.count(filename) > 0;
+}
+
 void FileSystem::setXattr(const std::string& filename, const std::string& attrName, const std::string& attrValue) {
     // This function is called internally by writeFile which already holds the lock and ensures file exists in _Files.
     if (_Files.find(filename) == _Files.end()) {
