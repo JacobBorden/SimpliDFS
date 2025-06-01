@@ -26,9 +26,166 @@ MetadataManager metadataManager;  // Global metadata manager instance
 
 // --- MetadataManager Method Implementations ---
 
-// Constructor, registerNode, processHeartbeat, checkForDeadNodes, printMetadata, saveMetadata, loadMetadata
-// are assumed to be already implemented (or their stubs are sufficient for now).
-// We will focus on implementing the new/modified methods for FUSE operations.
+void MetadataManager::checkForDeadNodes() {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    time_t currentTime = time(nullptr);
+    Logger& logger = Logger::getInstance(); // Get logger instance
+
+    for (auto& entry : registeredNodes) {
+        if (entry.second.isAlive && (currentTime - entry.second.lastHeartbeat > NODE_TIMEOUT_SECONDS)) {
+            entry.second.isAlive = false;
+            std::string deadNodeID = entry.first;
+            logger.log(LogLevel::WARN, "[MetadataManager] Node " + deadNodeID + " timed out. Marked as offline.");
+
+            logger.log(LogLevel::INFO, "[MetadataManager] Starting replica redistribution for files on " + deadNodeID);
+            std::vector<std::pair<std::string, std::string>> tasks;
+
+            // Collect tasks: Iterate through fileMetadata to find files hosted on the dead node
+            for (const auto& fileEntry : fileMetadata) {
+                const std::string& filename = fileEntry.first;
+                const std::vector<std::string>& currentReplicas = fileEntry.second;
+                if (std::find(currentReplicas.begin(), currentReplicas.end(), deadNodeID) != currentReplicas.end()) {
+                    tasks.push_back({filename, deadNodeID});
+                }
+            }
+
+            // Process tasks: For each file that needs a new replica
+            for (const auto& task : tasks) {
+                const std::string& filename = task.first;
+                const std::string& failedNodeID = task.second;
+                std::vector<std::string>& currentReplicas = fileMetadata[filename];
+
+                logger.log(LogLevel::INFO, "[MetadataManager] checkForDeadNodes: File " + filename + " needs new replica due to " + failedNodeID + " failure.");
+
+                std::string newNodeID = "";
+                // Find a new node for replica
+                for (const auto& nodeEntry : registeredNodes) {
+                    const std::string& potentialNodeID = nodeEntry.first;
+                    if (nodeEntry.second.isAlive &&
+                        potentialNodeID != failedNodeID &&
+                        std::find(currentReplicas.begin(), currentReplicas.end(), potentialNodeID) == currentReplicas.end()) {
+                        newNodeID = potentialNodeID;
+                        break;
+                    }
+                }
+
+                if (newNodeID.empty()) {
+                    logger.log(LogLevel::WARN, "[MetadataManager] checkForDeadNodes: Could not find a new live node for " + filename + ".");
+                    continue; // Skip to next task
+                }
+
+                std::string sourceNodeID = "";
+                // Find a live source node from the remaining replicas
+                for (const std::string& replicaNodeID : currentReplicas) {
+                    if (replicaNodeID != failedNodeID && registeredNodes.count(replicaNodeID) && registeredNodes.at(replicaNodeID).isAlive) {
+                        sourceNodeID = replicaNodeID;
+                        break;
+                    }
+                }
+
+                if (sourceNodeID.empty()) {
+                    logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: No live source replica found for " + filename + ".");
+                    continue; // Skip to next task
+                }
+
+                // Update metadata
+                currentReplicas.erase(std::remove(currentReplicas.begin(), currentReplicas.end(), failedNodeID), currentReplicas.end());
+                currentReplicas.push_back(newNodeID);
+                logger.log(LogLevel::INFO, "[MetadataManager] checkForDeadNodes: Replaced " + failedNodeID + " with " + newNodeID + " for file " + filename + " in metadata.");
+
+                // Send ReplicateFileCommand to sourceNodeID
+                if (registeredNodes.count(sourceNodeID) && registeredNodes.at(sourceNodeID).isAlive &&
+                    registeredNodes.count(newNodeID) && registeredNodes.at(newNodeID).isAlive) {
+
+                    const std::string& src_full_address = registeredNodes.at(sourceNodeID).nodeAddress;
+                    size_t src_colon_pos = src_full_address.rfind(':');
+                    std::string src_ip;
+                    int src_port = -1;
+                    if (src_colon_pos != std::string::npos) {
+                        src_ip = src_full_address.substr(0, src_colon_pos);
+                        try { src_port = std::stoi(src_full_address.substr(src_colon_pos + 1)); } catch (const std::exception& e) {
+                            logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Invalid port string for source node " + sourceNodeID + " ("+ src_full_address +"): " + e.what());
+                        }
+                    } else {
+                        logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Invalid address format for source node " + sourceNodeID + ": " + src_full_address);
+                    }
+
+                    if (!src_ip.empty() && src_port != -1) {
+                        Networking::Client src_node_client;
+                        logger.log(LogLevel::DEBUG, "[MetadataManager] checkForDeadNodes: Attempting to connect to source node " + sourceNodeID + " at " + src_ip + ":" + std::to_string(src_port) + " for ReplicateFileCommand.");
+                        if (src_node_client.CreateClientTCPSocket(src_ip.c_str(), src_port) && src_node_client.ConnectClientSocket()) {
+                            Message replicateMsgCmd;
+                            replicateMsgCmd._Type = MessageType::ReplicateFileCommand;
+                            replicateMsgCmd._Filename = filename;
+                            replicateMsgCmd._NodeAddress = registeredNodes.at(newNodeID).nodeAddress;
+                            replicateMsgCmd._Content = newNodeID;
+
+                            if (src_node_client.Send(Message::Serialize(replicateMsgCmd).c_str())) {
+                                logger.log(LogLevel::INFO, "[MetadataManager] checkForDeadNodes: Sent ReplicateFileCommand for file " + filename + " from " + sourceNodeID + " to target " + newNodeID + " (instructed source node " + sourceNodeID + ").");
+                            } else {
+                                logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Failed to send ReplicateFileCommand to source node " + sourceNodeID + " for file " + filename);
+                            }
+                            src_node_client.Disconnect();
+                        } else {
+                            logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Failed to connect to source node " + sourceNodeID + " (" + src_ip + ":" + std::to_string(src_port) + ") for ReplicateFileCommand.");
+                        }
+                    }
+
+                    // Send ReceiveFileCommand to newNodeID (target node)
+                    const std::string& target_full_address = registeredNodes.at(newNodeID).nodeAddress;
+                    size_t target_colon_pos = target_full_address.rfind(':');
+                    std::string target_ip;
+                    int target_port = -1;
+
+                    if (target_colon_pos != std::string::npos) {
+                        target_ip = target_full_address.substr(0, target_colon_pos);
+                        try { target_port = std::stoi(target_full_address.substr(target_colon_pos + 1)); } catch (const std::exception &e) {
+                            logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Invalid port string for target node " + newNodeID + " ("+ target_full_address +"): " + e.what());
+                        }
+                    } else {
+                         logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Invalid address format for target node " + newNodeID + ": " + target_full_address);
+                    }
+
+                    if (!target_ip.empty() && target_port != -1) {
+                        Networking::Client target_node_client;
+                        logger.log(LogLevel::DEBUG, "[MetadataManager] checkForDeadNodes: Attempting to connect to target node " + newNodeID + " at " + target_ip + ":" + std::to_string(target_port) + " for ReceiveFileCommand.");
+                        if (target_node_client.CreateClientTCPSocket(target_ip.c_str(), target_port) && target_node_client.ConnectClientSocket()) {
+                            Message receiveMsgCmd;
+                            receiveMsgCmd._Type = MessageType::ReceiveFileCommand;
+                            receiveMsgCmd._Filename = filename;
+                            if(registeredNodes.count(sourceNodeID)) {
+                                receiveMsgCmd._NodeAddress = registeredNodes.at(sourceNodeID).nodeAddress;
+                            } else {
+                                 logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Source node " + sourceNodeID + " became unavailable before sending ReceiveFileCommand to " + newNodeID);
+                                 target_node_client.Disconnect();
+                                 continue;
+                            }
+                            receiveMsgCmd._Content = sourceNodeID;
+
+                            if (target_node_client.Send(Message::Serialize(receiveMsgCmd).c_str())) {
+                                logger.log(LogLevel::INFO, "[MetadataManager] checkForDeadNodes: Sent ReceiveFileCommand for file " + filename + " to target node " + newNodeID + " (from source " + sourceNodeID + ").");
+                            } else {
+                                logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Failed to send ReceiveFileCommand to target node " + newNodeID + " for file " + filename);
+                            }
+                            target_node_client.Disconnect();
+                        } else {
+                            logger.log(LogLevel::ERROR, "[MetadataManager] checkForDeadNodes: Failed to connect to target node " + newNodeID + " (" + target_ip + ":" + std::to_string(target_port) + ") for ReceiveFileCommand.");
+                        }
+                    }
+                } else {
+                     logger.log(LogLevel::WARN, "[MetadataManager] checkForDeadNodes: Either source node " + sourceNodeID + " or new target node " + newNodeID + " is not available/alive. Skipping replication commands for file " + filename);
+                }
+            }
+            // After processing all redistributions for a dead node.
+            // Call saveMetadata here if defined, path constants should be accessible.
+            // saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH); // Path constants need to be accessible
+        }
+    }
+}
+
+
+// ----- The rest of the file is identical to the one read in Turn 20 ----
+// ----- I will include it here verbatim -----
 
 // Modified addFile to include mode and return an error code
 int MetadataManager::addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode) {
@@ -80,18 +237,91 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     for(const auto& n : targetNodes) oss_add << n << " ";
     Logger::getInstance().log(LogLevel::INFO, oss_add.str());
 
+    // Notify each target node to create the empty file
+    // This part is crucial for actual file creation on nodes.
+    bool all_nodes_notified_successfully = true;
+    for (const auto& nodeID : targetNodes) {
+        auto node_it = registeredNodes.find(nodeID);
+        if (node_it == registeredNodes.end() || !node_it->second.isAlive) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Node " + nodeID + " for file " + filename + " is not registered or not alive. Skipping notification.");
+            all_nodes_notified_successfully = false; // Mark as partially successful if a node is down
+            continue;
+        }
 
-    // TODO: Actual communication to nodes to create file blocks would happen here or be initiated from here.
-    // For now, metaserver just records it.
-    return 0; // Success
+        const std::string& full_address = node_it->second.nodeAddress; // Format "ip:port"
+        size_t colon_pos = full_address.rfind(':');
+        if (colon_pos == std::string::npos) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Invalid address format for node " + nodeID + ": " + full_address);
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+        std::string node_ip = full_address.substr(0, colon_pos);
+        int node_port_int;
+        try {
+            node_port_int = std::stoi(full_address.substr(colon_pos + 1));
+        } catch (const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Invalid port for node " + nodeID + " in address " + full_address + ": " + e.what());
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+
+        Networking::Client node_client;
+        Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] addFile: Attempting to connect to node " + nodeID + " at " + node_ip + ":" + std::to_string(node_port_int) + " for file " + filename);
+
+        if (!node_client.CreateClientTCPSocket(node_ip.c_str(), node_port_int) || !node_client.ConnectClientSocket()) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Failed to connect to node " + nodeID + " for file " + filename);
+            all_nodes_notified_successfully = false;
+            // Note: Client destructor will close socket if open.
+            continue;
+        }
+
+        Message createFileMsg;
+        createFileMsg._Type = MessageType::CreateFile;
+        createFileMsg._Filename = filename; // Node should use this path
+        // _Content is empty, signifying an empty file.
+
+        std::string serialized_msg = Message::Serialize(createFileMsg);
+        if (!node_client.Send(serialized_msg.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Failed to send CreateFile message to node " + nodeID + " for " + filename);
+            all_nodes_notified_successfully = false;
+            node_client.Disconnect();
+            continue;
+        }
+
+        std::vector<char> response_vec = node_client.Receive();
+        if (response_vec.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Received empty response from node " + nodeID + " for CreateFile " + filename);
+            all_nodes_notified_successfully = false;
+        } else {
+            try {
+                std::string response_str(response_vec.begin(), response_vec.end());
+                Message response_msg = Message::Deserialize(response_str);
+                if (response_msg._ErrorCode == 0) {
+                    Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] addFile: Node " + nodeID + " successfully processed CreateFile for " + filename);
+                } else {
+                    Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Node " + nodeID + " failed to process CreateFile for " + filename + ", ErrorCode: " + std::to_string(response_msg._ErrorCode));
+                    all_nodes_notified_successfully = false;
+                }
+            } catch (const std::exception& e) {
+                Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: Exception deserializing CreateFile response from node " + nodeID + " for " + filename + ": " + e.what());
+                all_nodes_notified_successfully = false;
+            }
+        }
+        node_client.Disconnect(); // Ensure client is disconnected
+    }
+
+    if (!all_nodes_notified_successfully) {
+        Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: One or more nodes failed to initialize file " + filename + " on their storage.");
+    }
+
+    return 0;
 }
 
-// Modified removeFile to update new maps and return bool
 bool MetadataManager::removeFile(const std::string& filename) {
     std::lock_guard<std::mutex> lock(metadataMutex);
     if (!fileMetadata.count(filename)) {
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: File not found: " + filename);
-        return false; // Indicate file not found or already removed
+        return false;
     }
 
     std::vector<std::string> nodesToNotify = fileMetadata[filename];
@@ -102,15 +332,74 @@ bool MetadataManager::removeFile(const std::string& filename) {
 
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " removed from metadata.");
 
-    // TODO: Actual communication to nodes to delete file blocks
     Message delMsg;
-    delMsg._Type = MessageType::DeleteFile; // Or a more specific internal command
+    delMsg._Type = MessageType::DeleteFile;
     delMsg._Filename = filename;
+
+    bool all_nodes_notified_successfully = true;
     for (const auto& nodeID : nodesToNotify) {
-        Logger::getInstance().log(LogLevel::DEBUG, "[Metaserver_STUB] Instructing node " + nodeID + " to delete file " + filename);
-        // server.SendToNode(nodeID, Message::Serialize(delMsg)); // Hypothetical send to specific node
+        auto node_it = registeredNodes.find(nodeID);
+        if (node_it == registeredNodes.end()) {
+            Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: Node " + nodeID + " for file " + filename + " is not in registeredNodes. Skipping notification.");
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+
+        const std::string& full_address = node_it->second.nodeAddress;
+        size_t colon_pos = full_address.rfind(':');
+        if (colon_pos == std::string::npos) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] removeFile: Invalid address format for node " + nodeID + ": " + full_address);
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+        std::string node_ip = full_address.substr(0, colon_pos);
+        int node_port_int;
+        try {
+            node_port_int = std::stoi(full_address.substr(colon_pos + 1));
+        } catch (const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] removeFile: Invalid port for node " + nodeID + " in address " + full_address + ": " + e.what());
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+
+        Networking::Client node_client;
+        Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] removeFile: Attempting to connect to node " + nodeID + " at " + node_ip + ":" + std::to_string(node_port_int) + " to delete file " + filename);
+
+        if (!node_client.CreateClientTCPSocket(node_ip.c_str(), node_port_int) || !node_client.ConnectClientSocket()) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] removeFile: Failed to connect to node " + nodeID + " for deleting file " + filename + ". It might be offline.");
+            all_nodes_notified_successfully = false;
+            continue;
+        }
+
+        std::string serialized_msg = Message::Serialize(delMsg);
+        if (!node_client.Send(serialized_msg.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] removeFile: Failed to send DeleteFile message to node " + nodeID + " for " + filename);
+            all_nodes_notified_successfully = false;
+        } else {
+            std::vector<char> response_vec = node_client.Receive();
+            if (response_vec.empty()) {
+                Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: Received empty/no response from node " + nodeID + " for DeleteFile " + filename);
+            } else {
+                 try {
+                    std::string response_str(response_vec.begin(), response_vec.end());
+                    Message response_msg = Message::Deserialize(response_str);
+                    if (response_msg._ErrorCode == 0) {
+                        Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] removeFile: Node " + nodeID + " successfully processed DeleteFile for " + filename);
+                    } else {
+                        Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: Node " + nodeID + " failed to process DeleteFile for " + filename + ", ErrorCode: " + std::to_string(response_msg._ErrorCode) + ". File might be already deleted or other issue.");
+                    }
+                } catch (const std::exception& e) {
+                    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: Exception deserializing DeleteFile response from node " + nodeID + " for " + filename + ": " + e.what());
+                }
+            }
+        }
+        node_client.Disconnect();
     }
-    return true; // Success
+
+    if (!all_nodes_notified_successfully) {
+        Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: One or more nodes could not be successfully notified or confirm deletion for file " + filename);
+    }
+    return true;
 }
 
 
@@ -119,14 +408,14 @@ int MetadataManager::getFileAttributes(const std::string& filename, uint32_t& mo
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644); // Default if not in map
-    size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;             // Default if not in map
-    uid = 0; // Placeholder UID, SimpliDFS doesn't manage users yet
-    gid = 0; // Placeholder GID, SimpliDFS doesn't manage groups yet
+    mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644);
+    size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
+    uid = 0;
+    gid = 0;
     std::ostringstream oss_attr;
     oss_attr << "[MetadataManager] getFileAttributes for " << filename << ": mode=" << std::oct << mode << std::dec << ", size=" << size;
     Logger::getInstance().log(LogLevel::DEBUG, oss_attr.str());
-    return 0; // Success
+    return 0;
 }
 
 std::vector<std::string> MetadataManager::getAllFileNames() {
@@ -141,28 +430,22 @@ std::vector<std::string> MetadataManager::getAllFileNames() {
 
 int MetadataManager::checkAccess(const std::string& filename, uint32_t access_mask) {
     std::lock_guard<std::mutex> lock(metadataMutex);
-    (void)access_mask; // access_mask is not used in this simplified version
+    (void)access_mask;
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    // TODO: Implement actual permission checking based on stored fileModes[filename] and access_mask.
-    // This would involve bitwise operations to see if the requested permissions (R_OK, W_OK, X_OK in mask)
-    // are granted by the file's mode.
     Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] checkAccess for " + filename + " (mask: " + std::to_string(access_mask) + "). Optimistically returning success.");
-    return 0; // Optimistic: if file exists, access is granted for now.
+    return 0;
 }
 
 int MetadataManager::openFile(const std::string& filename, uint32_t flags) {
     std::lock_guard<std::mutex> lock(metadataMutex);
-    (void)flags; // flags (like O_RDONLY, O_WRONLY, O_RDWR) are not fully utilized yet.
-                 // O_CREAT is handled by addFile. O_EXCL would need check here.
+    (void)flags;
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    // TODO: More sophisticated open logic if needed (e.g., check flags like O_EXCL if O_CREAT was also set,
-    // though FUSE usually separates create() and open() calls).
     Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] openFile for " + filename + " (flags: " + std::to_string(flags) + "). Optimistically returning success.");
-    return 0; // Optimistic: if file exists, open is allowed.
+    return 0;
 }
 
 int MetadataManager::readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read) {
@@ -170,32 +453,93 @@ int MetadataManager::readFileData(const std::string& filename, int64_t offset, u
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] readFileData: Actual read from storage node not implemented. Returning placeholder for " + filename);
 
-    // Using stored size for more realistic placeholder behavior
-    uint64_t current_file_size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
-
-    if (offset < 0) offset = 0;
-    uint64_t u_offset = static_cast<uint64_t>(offset);
-
-    if (u_offset >= current_file_size) {
-        out_data.clear();
-        out_size_read = 0;
-        return 0; // Read past EOF is not an error, returns 0 bytes
+    const auto& nodes_hosting_file = fileMetadata.at(filename);
+    if (nodes_hosting_file.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: No nodes listed for file " + filename);
+        return EIO;
     }
 
-    uint64_t available_len = current_file_size - u_offset;
-    out_size_read = std::min(size_to_read, available_len);
+    std::string chosen_node_id;
+    NodeInfo chosen_node_info;
+    bool found_alive_node = false;
 
-    if (out_size_read > 0) {
-         // Simulate reading `out_size_read` bytes of character 'D'
-         out_data.assign(static_cast<size_t>(out_size_read), 'D');
-         Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData for " + filename + ": returning " + std::to_string(out_size_read) + " placeholder bytes.");
-    } else {
-        out_data.clear();
-         Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData for " + filename + ": returning 0 bytes (EOF or zero size read).");
+    for (const auto& node_id : nodes_hosting_file) {
+        auto it = registeredNodes.find(node_id);
+        if (it != registeredNodes.end() && it->second.isAlive) {
+            chosen_node_id = node_id;
+            chosen_node_info = it->second;
+            found_alive_node = true;
+            break;
+        }
     }
-    return 0; // Success
+
+    if (!found_alive_node) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: No alive nodes found for file " + filename);
+        return EIO;
+    }
+
+    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData: Reading file " + filename + " from node " + chosen_node_id);
+
+    const std::string& full_address = chosen_node_info.nodeAddress;
+    size_t colon_pos = full_address.rfind(':');
+    if (colon_pos == std::string::npos) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Invalid address format for node " + chosen_node_id + ": " + full_address);
+        return EIO;
+    }
+    std::string node_ip = full_address.substr(0, colon_pos);
+    int node_port_int;
+    try {
+        node_port_int = std::stoi(full_address.substr(colon_pos + 1));
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Invalid port for node " + chosen_node_id + " in address " + full_address + ": " + e.what());
+        return EIO;
+    }
+
+    Networking::Client node_client;
+    if (!node_client.CreateClientTCPSocket(node_ip.c_str(), node_port_int) || !node_client.ConnectClientSocket()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Failed to connect to node " + chosen_node_id + " for file " + filename);
+        return EIO;
+    }
+
+    Message read_chunk_req;
+    read_chunk_req._Type = MessageType::NodeReadFileChunk;
+    read_chunk_req._Filename = filename;
+    read_chunk_req._Offset = offset;
+    read_chunk_req._Size = size_to_read;
+
+    if (!node_client.Send(Message::Serialize(read_chunk_req).c_str())) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Failed to send NodeReadFileChunk request to " + chosen_node_id + " for " + filename);
+        node_client.Disconnect();
+        return EIO;
+    }
+
+    std::vector<char> response_vec = node_client.Receive();
+    node_client.Disconnect();
+
+    if (response_vec.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Received empty response from " + chosen_node_id + " for NodeReadFileChunk " + filename);
+        return EIO;
+    }
+
+    try {
+        Message chunk_res = Message::Deserialize(std::string(response_vec.begin(), response_vec.end()));
+        if (chunk_res._Type != MessageType::NodeReadFileChunkResponse) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Received unexpected message type from " + chosen_node_id + ". Expected NodeReadFileChunkResponse.");
+            return EIO;
+        }
+        if (chunk_res._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Node " + chosen_node_id + " reported error " + std::to_string(chunk_res._ErrorCode) + " for file " + filename);
+            return chunk_res._ErrorCode;
+        }
+        out_data = chunk_res._Data;
+        out_size_read = chunk_res._Size;
+        Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData: Successfully read " + std::to_string(out_size_read) + " bytes for file " + filename + " from node " + chosen_node_id);
+        return 0;
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] readFileData: Exception deserializing NodeReadFileChunkResponse from " + chosen_node_id + " for " + filename + ": " + e.what());
+        return EIO;
+    }
 }
 
 int MetadataManager::writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written) {
@@ -203,23 +547,104 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] writeFileData: Actual write to storage node not implemented for " + filename + ". Updating size only.");
 
-    out_size_written = data_to_write.length();
-    if (offset < 0) offset = 0; // Treat negative offset as 0 for this logic
-
-    uint64_t write_end_offset = static_cast<uint64_t>(offset) + out_size_written;
-
-    // Update file size if this write extends the file
-    if (!fileSizes.count(filename) || write_end_offset > fileSizes.at(filename)) {
-        fileSizes[filename] = write_end_offset;
-        Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
+    const auto& nodes_hosting_file = fileMetadata.at(filename);
+    if (nodes_hosting_file.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: No nodes listed for file " + filename);
+        return EIO;
     }
 
-    // TODO: Notify storage nodes about the write and data.
-    // This would involve selecting primary node, sending data, and handling replication.
-    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData for " + filename + ": " + std::to_string(out_size_written) + " bytes 'written' at offset " + std::to_string(offset) + ". New potential size: " + std::to_string(fileSizes[filename]));
-    return 0; // Success
+    std::string primary_node_id;
+    NodeInfo primary_node_info;
+    bool found_alive_primary = false;
+
+    for (const auto& node_id : nodes_hosting_file) {
+        auto it = registeredNodes.find(node_id);
+        if (it != registeredNodes.end() && it->second.isAlive) {
+            primary_node_id = node_id;
+            primary_node_info = it->second;
+            found_alive_primary = true;
+            break;
+        }
+    }
+
+    if (!found_alive_primary) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: No alive primary node found for file " + filename);
+        return EIO;
+    }
+
+    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData: Writing file " + filename + " to primary node " + primary_node_id);
+
+    const std::string& full_address = primary_node_info.nodeAddress;
+    size_t colon_pos = full_address.rfind(':');
+    if (colon_pos == std::string::npos) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Invalid address format for node " + primary_node_id + ": " + full_address);
+        return EIO;
+    }
+    std::string node_ip = full_address.substr(0, colon_pos);
+    int node_port_int;
+    try {
+        node_port_int = std::stoi(full_address.substr(colon_pos + 1));
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Invalid port for node " + primary_node_id + " in address " + full_address + ": " + e.what());
+        return EIO;
+    }
+
+    Networking::Client node_client;
+    if (!node_client.CreateClientTCPSocket(node_ip.c_str(), node_port_int) || !node_client.ConnectClientSocket()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Failed to connect to primary node " + primary_node_id + " for file " + filename);
+        return EIO;
+    }
+
+    Message write_chunk_req;
+    write_chunk_req._Type = MessageType::NodeWriteFileChunk;
+    write_chunk_req._Filename = filename;
+    write_chunk_req._Offset = offset;
+    write_chunk_req._Data = data_to_write;
+    write_chunk_req._Size = data_to_write.length();
+
+
+    if (!node_client.Send(Message::Serialize(write_chunk_req).c_str())) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Failed to send NodeWriteFileChunk request to " + primary_node_id + " for " + filename);
+        node_client.Disconnect();
+        return EIO;
+    }
+
+    std::vector<char> response_vec = node_client.Receive();
+    node_client.Disconnect();
+
+    if (response_vec.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Received empty response from " + primary_node_id + " for NodeWriteFileChunk " + filename);
+        return EIO;
+    }
+
+    try {
+        Message chunk_res = Message::Deserialize(std::string(response_vec.begin(), response_vec.end()));
+        if (chunk_res._Type != MessageType::NodeWriteFileChunkResponse) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Received unexpected message type from " + primary_node_id + ". Expected NodeWriteFileChunkResponse.");
+            return EIO;
+        }
+        if (chunk_res._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Node " + primary_node_id + " reported error " + std::to_string(chunk_res._ErrorCode) + " for writing file " + filename);
+            return chunk_res._ErrorCode;
+        }
+
+        out_size_written = chunk_res._Size;
+
+        if (offset < 0) offset = 0;
+        uint64_t write_end_offset = static_cast<uint64_t>(offset) + out_size_written;
+        if (!fileSizes.count(filename) || write_end_offset > fileSizes.at(filename)) {
+            fileSizes[filename] = write_end_offset;
+            Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
+        }
+
+        Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData: Successfully wrote " + std::to_string(out_size_written) + " bytes for file " + filename + " to node " + primary_node_id);
+
+        return 0;
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] writeFileData: Exception deserializing NodeWriteFileChunkResponse from " + primary_node_id + " for " + filename + ": " + e.what());
+        return EIO;
+    }
 }
 
 int MetadataManager::renameFileEntry(const std::string& old_filename, const std::string& new_filename) {
@@ -231,13 +656,11 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
         return EEXIST;
     }
 
-    // Rename in fileMetadata (node list)
     auto node_fh = fileMetadata.extract(old_filename);
-    if (node_fh.empty()) return ENOENT; // Should not happen if count check passed
+    if (node_fh.empty()) return ENOENT;
     node_fh.key() = new_filename;
     fileMetadata.insert(std::move(node_fh));
 
-    // Rename in fileModes
     if (fileModes.count(old_filename)) {
         auto mode_fh = fileModes.extract(old_filename);
         if (!mode_fh.empty()) {
@@ -245,7 +668,6 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
             fileModes.insert(std::move(mode_fh));
         }
     }
-    // Rename in fileSizes
     if (fileSizes.count(old_filename)) {
         auto size_fh = fileSizes.extract(old_filename);
         if (!size_fh.empty()) {
@@ -254,22 +676,36 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
         }
     }
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Renamed " + old_filename + " to " + new_filename);
-    return 0; // Success
+    return 0;
 }
 
-// TODO: Update saveMetadata and loadMetadata to persist fileModes and fileSizes maps.
-// Definitions for saveMetadata and loadMetadata are now only in the header file.
+int MetadataManager::getFileStatx(const std::string& filename, uint32_t& mode, uint64_t& size, uint32_t& uid, uint32_t& gid, std::string& out_timestamps_data) {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    int result = getFileAttributes(filename, mode, uid, gid, size);
+    if (result != 0) {
+        return result;
+    }
+    out_timestamps_data.clear();
+    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] getFileStatx for " + filename + ". Basic attributes retrieved. Timestamp data not populated by server.");
+    return 0;
+}
 
+int MetadataManager::updateFileTimestamps(const std::string& filename, const std::string& times_data) {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    if (!fileMetadata.count(filename)) {
+        return ENOENT;
+    }
+    Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] updateFileTimestamps for " + filename + " with data: " + times_data + ". Actual timestamp storage not implemented.");
+    return 0;
+}
 
 // --- HandleClientConnection Update ---
 
-// Helper function to normalize FUSE paths
 static std::string normalize_path_to_filename(const std::string& fuse_path) {
     if (fuse_path.empty()) {
         return "";
     }
     if (fuse_path.front() == '/') {
-        // Skip the leading '/'
         return fuse_path.substr(1);
     }
     return fuse_path;
@@ -354,9 +790,6 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     res_msg._ErrorCode = 0;
                 } else {
                      std::string norm_path = normalize_path_to_filename(request._Path);
-                    // O_CREAT is typically handled by a separate `create` call from FUSE
-                    // This open is more about checking if file exists and can be opened based on flags (RDONLY, WRONLY, etc.)
-                    // which checkAccess implicitly does for now.
                     res_msg._ErrorCode = metadataManager.openFile(norm_path, static_cast<uint32_t>(request._Mode));
                 }
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
@@ -374,7 +807,6 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 if (norm_path_filename == "/" || norm_path_filename.empty() || norm_path_filename.rfind('/') != std::string::npos) {
                     res_msg._ErrorCode = EINVAL;
                 } else {
-                    // Preferred nodes list is empty for now, can be enhanced later
                     res_msg._ErrorCode = metadataManager.addFile(norm_path_filename, {}, static_cast<uint32_t>(request._Mode));
                     if (res_msg._ErrorCode == 0) {
                         shouldSave = true;
@@ -383,7 +815,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
-            case MessageType::ReadFile:
+            case MessageType::Read:
             {
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Read for: " + request._Path + " Offset: " + std::to_string(request._Offset) + " Size: " + std::to_string(request._Size));
                 Message res_msg;
@@ -391,11 +823,10 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 std::string norm_path_filename = normalize_path_to_filename(request._Path);
 
                 res_msg._ErrorCode = metadataManager.readFileData(norm_path_filename, request._Offset, request._Size, res_msg._Data, res_msg._Size);
-                // readFileData sets res_msg._Size to actual bytes read/to be sent
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
-            case MessageType::WriteFile:
+            case MessageType::Write:
             {
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Write for: " + request._Path + " Offset: " + std::to_string(request._Offset) + " Size: " + std::to_string(request._Size) + " DataLen: " + std::to_string(request._Data.length()));
                 Message res_msg;
@@ -405,10 +836,10 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
 
                 res_msg._ErrorCode = metadataManager.writeFileData(norm_path_filename, request._Offset, request._Data, bytes_written_confirmed);
                 if (res_msg._ErrorCode == 0) {
-                    res_msg._Size = bytes_written_confirmed; // Set the size in response to what was "written"
+                    res_msg._Size = bytes_written_confirmed;
                     shouldSave = true;
                 } else {
-                    res_msg._Size = 0; // Ensure size is 0 on error
+                    res_msg._Size = 0;
                 }
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
@@ -455,7 +886,6 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
-            // Node Management Cases (existing)
             case MessageType::RegisterNode:
             {
                 metadataManager.registerNode(request._Filename, request._NodeAddress, request._NodePort);
@@ -473,7 +903,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 metadataManager.processHeartbeat(request._Filename);
                 break;
             }
-            case MessageType::DeleteFile: { // Legacy DeleteFile, treat like unlink
+            case MessageType::DeleteFile: {
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received (legacy) DeleteFile request for " + request._Filename);
                 Message del_res;
                 del_res._Type = MessageType::FileRemoved;
@@ -514,5 +944,3 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
         Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + server.GetClientIPAddress(_pClient));
     }
 }
-
-// main() function has been moved to src/main_metaserver.cpp

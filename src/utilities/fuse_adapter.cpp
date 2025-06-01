@@ -141,8 +141,81 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
     //    if (xattrs_present) stxbuf->stx_attributes_mask |= STATX_ATTR_HAS_XATTRS;
     //    return 0;
 
-    Logger::getInstance().log(LogLevel::WARN, "simpli_statx: Statx not yet fully implemented for: " + filename + ". Returning ENOENT.");
-    return -ENOENT;
+    // For other paths, query the metaserver
+    Message req_msg;
+    req_msg._Type = MessageType::Statx;
+    req_msg._Path = path; // Send full path
+
+    try {
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: Sending Statx request for " + std::string(path));
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_statx: Failed to send Statx request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_statx = data->metadata_client->Receive();
+        if (received_vector_statx.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, "simpli_statx: Received empty response for Statx request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_statx.begin(), received_vector_statx.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: Received Statx response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        if (res_msg._ErrorCode != 0) {
+            return -res_msg._ErrorCode; // Return negative errno
+        }
+
+        // Populate stxbuf from res_msg
+        stxbuf->stx_mask = 0; // Start with a clear mask
+
+        stxbuf->stx_mode = static_cast<mode_t>(res_msg._Mode);
+        stxbuf->stx_mask |= STATX_MODE | STATX_TYPE;
+
+        stxbuf->stx_uid = static_cast<uid_t>(res_msg._Uid);
+        stxbuf->stx_mask |= STATX_UID;
+
+        stxbuf->stx_gid = static_cast<gid_t>(res_msg._Gid);
+        stxbuf->stx_mask |= STATX_GID;
+
+        stxbuf->stx_size = static_cast<off_t>(res_msg._Size);
+        stxbuf->stx_mask |= STATX_SIZE;
+
+        stxbuf->stx_nlink = (S_ISDIR(stxbuf->stx_mode)) ? 2 : 1;
+        stxbuf->stx_mask |= STATX_NLINK;
+
+
+        // Timestamps: Placeholder for now, as server doesn't provide detailed statx timestamps
+        // If server sent them back in _Data, we'd parse them here.
+        // For now, use current time for atime, mtime, ctime, btime like getattr fallback.
+        struct timespec current_timespec;
+        clock_gettime(CLOCK_REALTIME, &current_timespec);
+
+        stxbuf->stx_atime = current_timespec;
+        stxbuf->stx_mtime = current_timespec;
+        stxbuf->stx_ctime = current_timespec;
+        stxbuf->stx_btime = current_timespec; // Birth time, often same as ctime or mtime initially
+        stxbuf->stx_mask |= STATX_ATIME | STATX_MTIME | STATX_CTIME | STATX_BTIME;
+
+        // Required fields for FUSE to typically accept the statx call
+        stxbuf->stx_blksize = 4096; // Common block size
+        // stxbuf->stx_blocks needs to be calculated based on stx_size and stx_blksize.
+        // It's usually (stx_size + stx_blksize - 1) / stx_blksize, but for 512-byte blocks convention:
+        stxbuf->stx_blocks = (stxbuf->stx_size + 511) / 512;
+
+
+        if (S_ISDIR(stxbuf->stx_mode)) {
+            stxbuf->stx_attributes_mask |= STATX_ATTR_DIRECTORY;
+        }
+        // STATX_ATTR_HAS_XATTRS could be set if server indicates xattrs.
+
+        return 0; // Success
+
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "simpli_statx: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
 }
 #endif // SIMPLIDFS_HAS_STATX
 
@@ -572,8 +645,45 @@ int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_fi
     // Message msg_res = Message::Deserialize(response_str);
     // return -msg_res._ErrorCode;
 
-    logger.log(LogLevel::INFO, "simpli_utimens: Operation not yet fully implemented for " + std::string(path) + ". Optimistically succeeding.");
-    return 0;
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) { // data->metadata_client is checked by get_fuse_data
+        return -EIO;
+    }
+
+    Message req_msg;
+    req_msg._Type = MessageType::Utimens;
+    req_msg._Path = path;
+
+    // Serialize timespec tv[2] into msg._Data
+    // Format: "atime_sec:atime_nsec|mtime_sec:mtime_nsec"
+    std::ostringstream ts_stream;
+    ts_stream << tv[0].tv_sec << ":" << tv[0].tv_nsec << "|"
+              << tv[1].tv_sec << ":" << tv[1].tv_nsec;
+    req_msg._Data = ts_stream.str();
+
+    try {
+        logger.log(LogLevel::DEBUG, "simpli_utimens: Sending Utimens request for " + std::string(path) + " with data: " + req_msg._Data);
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            logger.log(LogLevel::ERROR, "simpli_utimens: Failed to send Utimens request for " + std::string(path));
+            return -EIO;
+        }
+
+        std::vector<char> received_vector_utimens = data->metadata_client->Receive();
+        if (received_vector_utimens.empty()) {
+            logger.log(LogLevel::ERROR, "simpli_utimens: Received empty response for Utimens request for " + std::string(path));
+            return -EIO;
+        }
+        std::string serialized_res(received_vector_utimens.begin(), received_vector_utimens.end());
+        Message res_msg = Message::Deserialize(serialized_res);
+        logger.log(LogLevel::DEBUG, "simpli_utimens: Received Utimens response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+
+        return -res_msg._ErrorCode; // Return 0 on success (ErrorCode=0), or negative errno
+
+    } catch (const std::exception& e) {
+        logger.log(LogLevel::ERROR, "simpli_utimens: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        return -EIO;
+    }
 }
 
 // main function for the FUSE adapter

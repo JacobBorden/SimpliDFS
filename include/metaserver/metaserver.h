@@ -244,6 +244,10 @@ public:
 
     int renameFileEntry(const std::string& old_filename, const std::string& new_filename);
 
+    // New methods for statx and utimens
+    int getFileStatx(const std::string& filename, uint32_t& mode, uint64_t& size, uint32_t& uid, uint32_t& gid, std::string& out_timestamps_data);
+    int updateFileTimestamps(const std::string& filename, const std::string& times_data);
+
     // Existing methods (signatures mostly unchanged, but implementations might need review for new members)
     bool removeFile(const std::string& filename);     // Declaration for bool return type
 

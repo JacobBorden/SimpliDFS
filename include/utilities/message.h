@@ -48,8 +48,18 @@ enum class MessageType{
     UnlinkResponse,
     Rename,
     RenameResponse,
+    // Utimens, // Already present
+    // UtimensResponse, // Already present
+    Statx,
+    StatxResponse,
     Utimens,
-    UtimensResponse
+    UtimensResponse,
+
+    // Metaserver to Node for direct I/O
+    NodeReadFileChunk,
+    NodeReadFileChunkResponse,
+    NodeWriteFileChunk,
+    NodeWriteFileChunkResponse
 };
 
 /**
