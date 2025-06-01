@@ -7,49 +7,29 @@ on:
     branches: [ "master", "development" ]
 
 env:
-  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
 
 jobs:
   build:
-    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
-    # You can convert this to a matrix build if you need cross-platform coverage.
-    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-24.04   # noble (libfuse 3.16.2 out of the box)
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-    - name: Install libsodium
-      run: sudo apt-get update && sudo apt-get install -y libsodium-dev pkg-config
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libsodium-dev pkg-config libfuse3-dev fuse3
 
-    - name: Install tool‑chain
-      run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build pkg-config
+      - name: Init submodules
+        run: git submodule update --init --recursive
 
-    - name: Install fuse
-      run: sudo apt-get update && sudo apt-get install -y libfuse3-dev=3.16.2 fuse3
-    
-    # - name: Checkout repository # This was a duplicate, removing
-    #   uses: actions/checkout@v3 # This was a duplicate, removing
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
 
-    - name: Initialize and update submodules
-      run: |
-        git submodule update --init --recursive
+      - name: Build
+        run: cmake --build build --config $BUILD_TYPE
 
-    - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-
-    - name: Build
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-    - name: Test
-      working-directory: ${{github.workspace}}/build
-      # Execute tests defined by the CMake configuration.
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest -C ${{env.BUILD_TYPE}}
-
+      - name: Test
+        working-directory: build
+        run: ctest -C $BUILD_TYPE --output-on-failure
