@@ -7,6 +7,7 @@
 #include <sodium.h> // For libsodium
 #include <array>    // For std::array
 #include <string>   // For std::string
+#include <zstd.h>   // For zstd compression
 
 // Define DigestResult struct
 struct DigestResult {
@@ -28,6 +29,20 @@ public:
 
     // Finalizes the hash and returns the digest and raw data.
     DigestResult finalize_hashed();
+
+    // Compression methods
+    std::vector<std::byte> compress_data(const std::vector<std::byte>& plaintext_data);
+    std::vector<std::byte> decompress_data(const std::vector<std::byte>& compressed_data, size_t original_size);
+
+    // Encryption methods
+    // Note: Using std::vector<unsigned char> for nonce as typically nonces are raw byte buffers.
+    // And std::array<unsigned char, KEYBYTES> for key for fixed size.
+    std::vector<std::byte> encrypt_data(const std::vector<std::byte>& plaintext_data,
+                                        const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
+                                        std::vector<unsigned char>& nonce_output);
+    std::vector<std::byte> decrypt_data(const std::vector<std::byte>& ciphertext_data,
+                                        const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
+                                        const std::vector<unsigned char>& nonce);
 
 private:
     std::vector<std::byte> buffer_;

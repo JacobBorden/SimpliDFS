@@ -26,8 +26,7 @@ target_link_libraries(SimpliDFSTests
     gtest_main
     gmock_main
     Threads::Threads
-    BlockIOLib      # Link against BlockIO library
-    SimpliDFS_Utils # Link against common utilities library
+    SimpliDFS_Utils # Link against common utilities library (now includes BlockIO)
 )
 
 # Include directories for the headers

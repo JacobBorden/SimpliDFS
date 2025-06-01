@@ -1,25 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Library for BlockIO
-project(BlockIOLib CXX) # Specify language for project command
-add_library(BlockIOLib
-    blockio.cpp
-)
-target_include_directories(BlockIOLib
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-        ${SODIUM_INCLUDE_DIRS}
-)
-# This allows consumers of BlockIOLib to find utilities/blockio.hpp
-
-# Link libsodium to BlockIOLib
-# target_link_libraries(BlockIOLib PUBLIC Sodium::libsodium) # Replaced by PkgConfig method
-target_link_libraries(BlockIOLib PUBLIC
-    ${SODIUM_LIBRARIES}
-    SimpliDFS_Utils # Added SimpliDFS_Utils as a dependency
-)
-
-# Library for other common utilities
+# Library for common utilities (SimpliDFS_Utils, now includes BlockIO functionality)
 project(SimpliDFSUtils CXX) # Specify language for project command
 add_library(SimpliDFS_Utils
     logger.cpp
@@ -29,17 +10,49 @@ add_library(SimpliDFS_Utils
     errorcodes.cpp
     message.cpp
     cid_utils.cpp  # Added cid_utils.cpp
+    blockio.cpp    # Moved from BlockIOLib
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
-        ${cppcodec_SOURCE_DIR} # Corrected cppcodec include directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include # For all public headers in include/utilities
+        ${cppcodec_SOURCE_DIR} # For cppcodec
+        ${SODIUM_INCLUDE_DIRS} # For libsodium
 )
-# This allows consumers of SimpliDFS_Utils to find, e.g., utilities/logger.h, utilities/message.h etc.
 
-# Link cppcodec to SimpliDFS_Utils
-target_link_libraries(SimpliDFS_Utils PUBLIC cppcodec)
+# Add ZSTD include directories for SimpliDFS_Utils
+if(ZSTD_INCLUDE_DIRS) # If ZSTD was found by find_package
+    target_include_directories(SimpliDFS_Utils PUBLIC ${ZSTD_INCLUDE_DIRS})
+endif()
+if(zstd_SOURCE_DIR) # If zstd was fetched by FetchContent (zstd_SOURCE_DIR is defined)
+    target_include_directories(SimpliDFS_Utils PUBLIC ${zstd_SOURCE_DIR}/lib)
+endif()
 
-# Optional: If SimpliDFS_Utils uses BlockIOLib, you might add:
-# target_link_libraries(SimpliDFS_Utils PRIVATE BlockIOLib)
-# For now, assume they are independent utility libraries.
+# This allows consumers of SimpliDFS_Utils to find all necessary headers.
+
+# Link dependencies to SimpliDFS_Utils
+target_link_libraries(SimpliDFS_Utils
+    PUBLIC
+        cppcodec
+        ${SODIUM_LIBRARIES}
+)
+
+# Link ZSTD to SimpliDFS_Utils (similar to how it was done for BlockIOLib)
+if(TARGET ZSTD::zstd)
+    target_link_libraries(SimpliDFS_Utils PUBLIC ZSTD::zstd)
+elseif(TARGET zstd::zstd_shared)
+    target_link_libraries(SimpliDFS_Utils PUBLIC zstd::zstd_shared)
+elseif(TARGET libzstd_shared)
+    target_link_libraries(SimpliDFS_Utils PUBLIC libzstd_shared)
+elseif(TARGET zstd_shared)
+    target_link_libraries(SimpliDFS_Utils PUBLIC zstd_shared)
+elseif(TARGET zstd::zstd_static)
+    target_link_libraries(SimpliDFS_Utils PUBLIC zstd::zstd_static)
+elseif(TARGET libzstd_static)
+    target_link_libraries(SimpliDFS_Utils PUBLIC libzstd_static)
+elseif(TARGET zstd_static)
+    target_link_libraries(SimpliDFS_Utils PUBLIC zstd_static)
+elseif(TARGET zstd)
+    target_link_libraries(SimpliDFS_Utils PUBLIC zstd)
+else()
+    message(WARNING "zstd target not found for linking to SimpliDFS_Utils. ZSTD_FOUND=${ZSTD_FOUND}")
+endif()

@@ -35,6 +35,26 @@ include(FetchContent)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED libsodium)
 
+# Find or fetch zstd
+find_package(ZSTD)
+if(NOT ZSTD_FOUND)
+  message(STATUS "ZSTD not found. Fetching from source...")
+  FetchContent_Declare(
+    zstd
+    GIT_REPOSITORY https://github.com/facebook/zstd.git
+    GIT_TAG v1.5.5 # Stable tag
+    SOURCE_SUBDIR build/cmake # Use the CMakeLists.txt in build/cmake as the top-level one
+  )
+  # Set options for zstd build. Using CACHE BOOL without FORCE initially.
+  set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs")
+  set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests")
+  set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Build zstd static library")
+  set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library")
+  FetchContent_MakeAvailable(zstd)
+else()
+  message(STATUS "Found ZSTD: ${ZSTD_LIBRARIES}")
+endif()
+
 # Fetch cpp-base32 (cppcodec)
 FetchContent_Declare(
   cppcodec
@@ -82,9 +102,9 @@ target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/includ
 target_link_libraries(metaserver 
     PRIVATE
     SimpliDFS_Utils 
-    BlockIOLib 
     Threads::Threads
 )
+
 
 # Define the node executable
 add_executable(node src/node/node.cpp) 
@@ -92,7 +112,6 @@ target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(node 
     PRIVATE
     SimpliDFS_Utils 
-    BlockIOLib 
     Threads::Threads
 )
 

@@ -208,3 +208,165 @@ TEST(BlockIOTest, FinalizeRawAfterFinalizeHashed) {
 //     ::testing::InitGoogleTest(&argc, argv);
 //     return RUN_ALL_TESTS();
 // }
+
+// --- New Tests for Compression and Encryption ---
+
+// Define a fixed key for encryption tests for reproducibility
+const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> FIXED_TEST_KEY = []{
+    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+    for(size_t i = 0; i < crypto_aead_aes256gcm_KEYBYTES; ++i) key[i] = static_cast<unsigned char>(i);
+    return key;
+}();
+
+
+TEST(BlockIOTest, CompressionDecompressionRoundTrip) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("This is some test data for compression. This string is repeated multiple times to ensure it's compressible. This is some test data for compression. This string is repeated multiple times to ensure it's compressible. This is some test data for compression. This string is repeated multiple times to ensure it's compressible.");
+
+    std::vector<std::byte> compressed = bio.compress_data(original_data);
+    ASSERT_FALSE(compressed.empty());
+    // Typically, compressed size should be less than original for compressible data
+    // For very short strings, it might be larger due to zstd overhead.
+    if (original_data.size() > 50) { // Heuristic for when to expect compression
+         EXPECT_LT(compressed.size(), original_data.size());
+    }
+
+    std::vector<std::byte> decompressed = bio.decompress_data(compressed, original_data.size());
+    ASSERT_EQ(decompressed.size(), original_data.size());
+    EXPECT_EQ(decompressed, original_data);
+}
+
+TEST(BlockIOTest, CompressEmptyData) {
+    BlockIO bio;
+    std::vector<std::byte> empty_data;
+    std::vector<std::byte> compressed = bio.compress_data(empty_data);
+    EXPECT_TRUE(compressed.empty());
+    std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
+    EXPECT_TRUE(decompressed.empty());
+}
+
+TEST(BlockIOTest, CompressIncompressibleData) {
+    BlockIO bio;
+    // Create data that is hard to compress (e.g., already compressed or random)
+    // For simplicity, using a short, somewhat random-looking string
+    std::vector<std::byte> incompressible_data = create_byte_vector(100); // pseudo-random bytes
+
+    std::vector<std::byte> compressed = bio.compress_data(incompressible_data);
+    // Size might be slightly larger due to zstd overhead for incompressible data
+    // EXPECT_GE(compressed.size(), incompressible_data.size() - 5); // Allow small variation
+
+    std::vector<std::byte> decompressed = bio.decompress_data(compressed, incompressible_data.size());
+    ASSERT_EQ(decompressed.size(), incompressible_data.size());
+    EXPECT_EQ(decompressed, incompressible_data);
+}
+
+TEST(BlockIOTest, DecompressWithZeroOriginalSizeKnownFromFrame) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("Test data for frame size detection.");
+    std::vector<std::byte> compressed = bio.compress_data(original_data);
+    ASSERT_FALSE(compressed.empty());
+
+    // Pass 0 for original_size, relying on ZSTD_getFrameContentSize
+    std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
+    ASSERT_EQ(decompressed.size(), original_data.size());
+    EXPECT_EQ(decompressed, original_data);
+}
+
+
+TEST(BlockIOTest, EncryptionDecryptionRoundTrip) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("Secret message for encryption!");
+    std::vector<unsigned char> nonce;
+
+    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+    ASSERT_FALSE(encrypted.empty());
+    ASSERT_NE(encrypted, original_data);
+    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+
+    std::vector<std::byte> decrypted = bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
+    ASSERT_EQ(decrypted.size(), original_data.size());
+    EXPECT_EQ(decrypted, original_data);
+}
+
+TEST(BlockIOTest, EncryptEmptyData) {
+    BlockIO bio;
+    std::vector<std::byte> empty_data;
+    std::vector<unsigned char> nonce;
+
+    std::vector<std::byte> encrypted = bio.encrypt_data(empty_data, FIXED_TEST_KEY, nonce);
+    // Encrypted data will not be empty due to AEAD tag
+    ASSERT_EQ(encrypted.size(), crypto_aead_aes256gcm_ABYTES);
+    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+
+    std::vector<std::byte> decrypted = bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
+    EXPECT_TRUE(decrypted.empty());
+}
+
+TEST(BlockIOTest, DecryptWithWrongKey) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
+    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> wrong_key = FIXED_TEST_KEY;
+    wrong_key[0]++; // Modify the key slightly
+    std::vector<unsigned char> nonce;
+
+    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+
+    EXPECT_THROW(bio.decrypt_data(encrypted, wrong_key, nonce), std::runtime_error);
+}
+
+TEST(BlockIOTest, DecryptWithWrongNonce) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
+    std::vector<unsigned char> nonce;
+    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+
+    std::vector<unsigned char> wrong_nonce = nonce;
+    wrong_nonce[0]++; // Modify the nonce slightly
+
+    EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, wrong_nonce), std::runtime_error);
+}
+
+TEST(BlockIOTest, DecryptWithTamperedCiphertext) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
+    std::vector<unsigned char> nonce;
+    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+
+    if (!encrypted.empty()) {
+        encrypted[0] = std::byte(static_cast<unsigned char>(encrypted[0]) + 1); // Tamper with ciphertext
+    } else {
+        // This case should ideally not happen for non-empty original_data due to AEAD tag
+        FAIL() << "Ciphertext is empty, cannot tamper for this test.";
+    }
+
+    EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce), std::runtime_error);
+}
+
+
+TEST(BlockIOTest, CombinedOperations) {
+    BlockIO bio;
+    std::vector<std::byte> original_data = string_to_byte_vector("This is a super secret message that will be encrypted and then compressed. It needs to be long enough to benefit from compression after encryption, though encryption often makes data look random and less compressible. This is a super secret message that will be encrypted and then compressed. It needs to be long enough to benefit from compression after encryption, though encryption often makes data look random and less compressible.");
+    std::vector<unsigned char> nonce;
+
+    // 1. Encrypt
+    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+    ASSERT_FALSE(encrypted.empty());
+    ASSERT_NE(encrypted, original_data);
+    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+
+    // 2. Compress
+    size_t encrypted_size = encrypted.size();
+    std::vector<std::byte> compressed_encrypted = bio.compress_data(encrypted);
+    // Encrypted data might not compress well.
+    // EXPECT_LT(compressed_encrypted.size(), encrypted.size()); // This might fail
+
+    // 3. Decompress
+    std::vector<std::byte> decompressed_encrypted = bio.decompress_data(compressed_encrypted, encrypted_size);
+    ASSERT_EQ(decompressed_encrypted.size(), encrypted_size);
+    EXPECT_EQ(decompressed_encrypted, encrypted);
+
+    // 4. Decrypt
+    std::vector<std::byte> decrypted = bio.decrypt_data(decompressed_encrypted, FIXED_TEST_KEY, nonce);
+    ASSERT_EQ(decrypted.size(), original_data.size());
+    EXPECT_EQ(decrypted, original_data);
+}
