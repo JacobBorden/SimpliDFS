@@ -5,7 +5,7 @@
 Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed _pLogFile and logger initialization
 {
 	serverType = _pServerType;
-    Logger::getInstance().log(LogLevel::INFO, "Server instance created. Port: " + std::to_string(_pPortNumber) + ", Type: " + std::to_string(_pServerType));
+    // Logger::getInstance().log(LogLevel::INFO, "Server instance created. Port: " + std::to_string(_pPortNumber) + ", Type: " + std::to_string(_pServerType)); // Logging removed from constructor
 	Networking::Server::InitServer();
 	Networking::Server::CreateServerSocket(_pPortNumber, _pServerType);
 

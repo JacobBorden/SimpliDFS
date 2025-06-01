@@ -54,16 +54,17 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Sending GetAttr request for " + std::string(path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Failed to send GetAttr request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_getattr = data->metadata_client->Receive();
+        if (received_vector_getattr.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Received empty response for GetAttr request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_getattr.begin(), received_vector_getattr.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Received GetAttr response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -166,16 +167,17 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Sending Readdir request for " + std::string(path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Failed to send Readdir request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_readdir = data->metadata_client->Receive();
+        if (received_vector_readdir.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Received empty response for Readdir request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_readdir.begin(), received_vector_readdir.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Received Readdir response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -223,16 +225,17 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Sending Open request for " + std::string(path) + " with flags " + std::to_string(fi->flags));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Failed to send Open request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_open = data->metadata_client->Receive();
+        if (received_vector_open.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Received empty response for Open request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_open.begin(), received_vector_open.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Received Open response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -268,16 +271,21 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Sending Read request for " + std::string(path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Failed to send Read request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty() && size > 0) { // Empty response is only OK if 0 bytes requested or EOF
-             Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Received empty response for Read request for " + std::string(path));
-             return -EIO;
+        std::vector<char> received_vector_read = data->metadata_client->Receive();
+        // Empty response can be valid if reading 0 bytes or at EOF.
+        // The metaserver should handle this by sending a response with _Data being empty and _ErrorCode = 0.
+        // A truly empty network response (e.g. connection closed by peer) might indicate an error.
+        // For now, we proceed if received_vector_read is empty, and Message::Deserialize will handle it.
+        // If size > 0 and it's a persistent empty response, it could be an issue.
+        if (received_vector_read.empty() && size > 0) {
+             Logger::getInstance().log(LogLevel::WARN, "simpli_read: Received completely empty (zero bytes) network response for " + std::string(path) + " when requesting " + std::to_string(size) + " bytes. This might be EOF or an issue.");
         }
+        std::string serialized_res(received_vector_read.begin(), received_vector_read.end());
         Message res_msg = Message::Deserialize(serialized_res);
          Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Received Read response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Data size: " + std::to_string(res_msg._Data.length()));
 
@@ -317,16 +325,17 @@ int simpli_access(const char *path, int mask) {
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Sending Access request for " + std::string(path) + " with mask " + std::to_string(mask));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Failed to send Access request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_access = data->metadata_client->Receive();
+        if (received_vector_access.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Received empty response for Access request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_access.begin(), received_vector_access.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Received Access response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -342,7 +351,9 @@ int simpli_access(const char *path, int mask) {
 }
 
 int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_create called for path: " + std::string(path) + " with mode: " + std::oct + mode + std::dec + ", flags: " + std::to_string(fi->flags));
+    std::ostringstream oss_create_log;
+    oss_create_log << "simpli_create called for path: " << path << " with mode: " << std::oct << mode << std::dec << ", flags: " << fi->flags;
+    Logger::getInstance().log(LogLevel::DEBUG, oss_create_log.str());
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) { // data->metadata_client is checked by get_fuse_data
@@ -360,18 +371,21 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     req_msg._Mode = static_cast<uint32_t>(mode);
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Sending CreateFile request for " + std::string(path) + " with mode " + std::oct + mode);
+        std::ostringstream oss_create_send_log;
+        oss_create_send_log << "simpli_create: Sending CreateFile request for " << path << " with mode " << std::oct << mode;
+        Logger::getInstance().log(LogLevel::DEBUG, oss_create_send_log.str());
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to send CreateFile request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_create = data->metadata_client->Receive();
+        if (received_vector_create.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Received empty response for CreateFile request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_create.begin(), received_vector_create.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Received CreateFile response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -408,16 +422,17 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Sending Write request for " + std::string(path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Failed to send Write request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_write = data->metadata_client->Receive();
+        if (received_vector_write.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Received empty response for Write request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_write.begin(), received_vector_write.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Received Write response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Size Confirmed: " + std::to_string(res_msg._Size));
 
@@ -454,16 +469,17 @@ int simpli_unlink(const char *path) {
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Sending Unlink request for " + std::string(path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Failed to send Unlink request for " + std::string(path));
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_unlink = data->metadata_client->Receive();
+        if (received_vector_unlink.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Received empty response for Unlink request for " + std::string(path));
             return -EIO;
         }
+        std::string serialized_res(received_vector_unlink.begin(), received_vector_unlink.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Received Unlink response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
@@ -501,16 +517,17 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Sending Rename request from " + std::string(from_path) + " to " + std::string(to_path));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req)) {
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Failed to send Rename request.");
             return -EIO;
         }
 
-        std::string serialized_res = data->metadata_client->Receive();
-        if (serialized_res.empty()) {
+        std::vector<char> received_vector_rename = data->metadata_client->Receive();
+        if (received_vector_rename.empty()) {
             Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Received empty response for Rename request.");
             return -EIO;
         }
+        std::string serialized_res(received_vector_rename.begin(), received_vector_rename.end());
         Message res_msg = Message::Deserialize(serialized_res);
         Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Received Rename response, ErrorCode: " + std::to_string(res_msg._ErrorCode));
 

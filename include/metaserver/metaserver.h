@@ -237,7 +237,7 @@ public:
     int openFile(const std::string& filename, uint32_t flags); // flags from FUSE open
 
     // Modified addFile signature and functionality
-    int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode);
+    int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode);
 
     int readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read);
     int writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written);
@@ -246,7 +246,6 @@ public:
 
     // Existing methods (signatures mostly unchanged, but implementations might need review for new members)
     bool removeFile(const std::string& filename);     // Declaration for bool return type
-    std::vector<std::string> getFileNodes(const std::string &filename);
 
     // Retrieve metadata for a given file
     /**
@@ -273,6 +272,7 @@ public:
      */
     // The `bool removeFile(const std::string& filename);` declaration is already correctly placed above.
     // The old implementation block is removed here.
+    // getFileNodes is defined below, so its separate declaration was removed.
 
     // Print all metadata (for debugging)
     /**
@@ -402,3 +402,8 @@ public:
         }
     }
 };
+
+// Forward declaration for the client connection handler function defined in metaserver.cpp
+// This function is used by the main server loop in main_metaserver.cpp
+namespace Networking { class ClientConnection; } // Forward declare ClientConnection if not already via includes
+void HandleClientConnection(Networking::ClientConnection _pClient);

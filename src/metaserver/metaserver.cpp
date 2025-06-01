@@ -31,7 +31,7 @@ MetadataManager metadataManager;  // Global metadata manager instance
 // We will focus on implementing the new/modified methods for FUSE operations.
 
 // Modified addFile to include mode and return an error code
-int MetadataManager::addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode) {
+int MetadataManager::addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode) {
     std::lock_guard<std::mutex> lock(metadataMutex);
     if (fileMetadata.count(filename)) {
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: File already exists: " + filename);
@@ -75,9 +75,11 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     fileModes[filename] = mode;
     fileSizes[filename] = 0; // Initial size is 0
 
-    Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " added with mode " + std::oct + mode + std::dec + ". Assigned to nodes: " + [&targetNodes](){
-        std::string s; for(const auto& n : targetNodes) s += (n + " "); return s;
-    }());
+    std::ostringstream oss_add;
+    oss_add << "[MetadataManager] File " << filename << " added with mode " << std::oct << mode << std::dec << ". Assigned to nodes: ";
+    for(const auto& n : targetNodes) oss_add << n << " ";
+    Logger::getInstance().log(LogLevel::INFO, oss_add.str());
+
 
     // TODO: Actual communication to nodes to create file blocks would happen here or be initiated from here.
     // For now, metaserver just records it.
@@ -121,7 +123,9 @@ int MetadataManager::getFileAttributes(const std::string& filename, uint32_t& mo
     size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;             // Default if not in map
     uid = 0; // Placeholder UID, SimpliDFS doesn't manage users yet
     gid = 0; // Placeholder GID, SimpliDFS doesn't manage groups yet
-    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] getFileAttributes for " + filename + ": mode=" + std::oct + mode + std::dec + ", size=" + std::to_string(size));
+    std::ostringstream oss_attr;
+    oss_attr << "[MetadataManager] getFileAttributes for " << filename << ": mode=" << std::oct << mode << std::dec << ", size=" << size;
+    Logger::getInstance().log(LogLevel::DEBUG, oss_attr.str());
     return 0; // Success
 }
 
@@ -254,33 +258,22 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
 }
 
 // TODO: Update saveMetadata and loadMetadata to persist fileModes and fileSizes maps.
-void MetadataManager::saveMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    // ... existing save logic for fileMetadata and registeredNodes ...
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] saveMetadata: Persistence for fileModes and fileSizes is not yet implemented.");
-    // TODO: Persist fileModes and fileSizes maps.
-    // Example for fileModes:
-    // std::ofstream fm_modes_ofs(fileMetadataPath + "_modes"); // Choose appropriate path
-    // if (fm_modes_ofs.is_open()) {
-    //     for (const auto& entry : fileModes) {
-    //         fm_modes_ofs << entry.first << METADATA_SEPARATOR << entry.second << std::endl;
-    //     }
-    //     fm_modes_ofs.close();
-    // } // Similar for fileSizes
-}
-
-void MetadataManager::loadMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    // ... existing load logic for fileMetadata and registeredNodes ...
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] loadMetadata: Loading for fileModes and fileSizes is not yet implemented.");
-    // TODO: Load fileModes and fileSizes maps.
-}
+// Definitions for saveMetadata and loadMetadata are now only in the header file.
 
 
 // --- HandleClientConnection Update ---
 
-// Helper function to normalize FUSE paths (already defined, ensure it's before HandleClientConnection)
-/* static std::string normalize_path_to_filename(const std::string& fuse_path) { ... } */
+// Helper function to normalize FUSE paths
+static std::string normalize_path_to_filename(const std::string& fuse_path) {
+    if (fuse_path.empty()) {
+        return "";
+    }
+    if (fuse_path.front() == '/') {
+        // Skip the leading '/'
+        return fuse_path.substr(1);
+    }
+    return fuse_path;
+}
 
 void HandleClientConnection(Networking::ClientConnection _pClient)
 {
@@ -314,7 +307,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.getFileAttributes(norm_path, res_msg._Mode, res_msg._Uid, res_msg._Gid, res_msg._Size);
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Readdir:
@@ -333,7 +326,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     res_msg._ErrorCode = ENOTDIR;
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Access:
@@ -348,7 +341,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.checkAccess(norm_path, static_cast<uint32_t>(request._Mode));
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Open:
@@ -366,12 +359,14 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     // which checkAccess implicitly does for now.
                     res_msg._ErrorCode = metadataManager.openFile(norm_path, static_cast<uint32_t>(request._Mode));
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::CreateFile:
             {
-                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received CreateFile for: " + request._Path + " with mode " + std::oct + request._Mode + std::dec);
+                std::ostringstream oss_create;
+                oss_create << "[Metaserver] Received CreateFile for: " << request._Path << " with mode " << std::oct << request._Mode << std::dec;
+                Logger::getInstance().log(LogLevel::INFO, oss_create.str());
                 Message res_msg;
                 res_msg._Type = MessageType::CreateFileResponse;
                 std::string norm_path_filename = normalize_path_to_filename(request._Path);
@@ -385,7 +380,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                         shouldSave = true;
                     }
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::ReadFile:
@@ -397,7 +392,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
 
                 res_msg._ErrorCode = metadataManager.readFileData(norm_path_filename, request._Offset, request._Size, res_msg._Data, res_msg._Size);
                 // readFileData sets res_msg._Size to actual bytes read/to be sent
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::WriteFile:
@@ -415,7 +410,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     res_msg._Size = 0; // Ensure size is 0 on error
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Unlink:
@@ -435,7 +430,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                         res_msg._ErrorCode = ENOENT;
                     }
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Rename:
@@ -457,7 +452,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                          shouldSave = true;
                      }
                 }
-                server.Send(Message::Serialize(res_msg), _pClient);
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             // Node Management Cases (existing)
@@ -468,7 +463,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 Message reg_res;
                 reg_res._Type = MessageType::RegisterNode;
                 reg_res._ErrorCode = 0;
-                server.Send(Message::Serialize(reg_res), _pClient);
+                server.Send(Message::Serialize(reg_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "Sent registration confirmation to node " + request._Filename);
                 break;
             }
@@ -492,7 +487,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     del_res._ErrorCode = ENOENT;
                 }
-                server.Send(Message::Serialize(del_res), _pClient);
+                server.Send(Message::Serialize(del_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
                 break;
             }
@@ -501,7 +496,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 Message err_res;
                 err_res._Type = request._Type;
                 err_res._ErrorCode = ENOSYS;
-                server.Send(Message::Serialize(err_res), _pClient);
+                server.Send(Message::Serialize(err_res).c_str(), _pClient);
                 break;
         }
 
@@ -520,43 +515,4 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
     }
 }
 
-int main()
-{
-    try {
-        Logger::init("metaserver.log", LogLevel::INFO); 
-    } catch (const std::exception& e) {
-        std::cerr << "FATAL: Logger initialization failed for metaserver: " << e.what() << std::endl;
-        return 1;
-    }
-
-    Logger::getInstance().log(LogLevel::INFO, "Metaserver starting up...");
-    Logger::getInstance().log(LogLevel::INFO, "Loading metadata from file_metadata.dat and node_registry.dat");
-    metadataManager.loadMetadata("file_metadata.dat", "node_registry.dat");
-
-    if (server.ServerIsRunning())
-    {
-        Logger::getInstance().log(LogLevel::INFO, "Metaserver is running and listening on port " + std::to_string(server.GetPort()));
-        while (true)
-        {
-            try {
-                Networking::ClientConnection client = server.Accept();
-                Logger::getInstance().log(LogLevel::INFO, "Accepted new client connection from " + server.GetClientIPAddress(client));
-                std::thread clientThread(HandleClientConnection, client);
-                clientThread.detach();
-                Logger::getInstance().log(LogLevel::DEBUG, "Detached thread to handle client " + server.GetClientIPAddress(client));
-            } catch (const Networking::NetworkException& ne) {
-                Logger::getInstance().log(LogLevel::ERROR, "Network exception in main server loop: " + std::string(ne.what()));
-            } catch (const std::exception& e) {
-                Logger::getInstance().log(LogLevel::FATAL, "Unhandled exception in main server loop: " + std::string(e.what()));
-                break;
-            } catch (...) {
-                Logger::getInstance().log(LogLevel::FATAL, "Unknown unhandled exception in main server loop.");
-                break;
-            }
-        }
-    } else {
-        Logger::getInstance().log(LogLevel::FATAL, "Metaserver failed to start listening (ServerIsRunning is false).");
-    }
-    Logger::getInstance().log(LogLevel::INFO, "Metaserver shutting down.");
-    return 0;
-}
+// main() function has been moved to src/main_metaserver.cpp
