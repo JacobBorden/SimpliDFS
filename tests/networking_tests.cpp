@@ -70,6 +70,75 @@ TEST_F(NetworkingTest, ClientInitializationAndConnection) { // Changed to TEST_F
     server.Shutdown();
 }
 
+TEST_F(NetworkingTest, ClientConnectWithRetryFailure) {
+    Networking::Client client; // Default constructor
+
+    // Attempt to connect to a port where no server is listening
+    // This should trigger the retry logic and eventually fail.
+    // Note: This test might take several seconds depending on kMaxRetries and backoff delays.
+    // kMaxRetries = 5, kBaseBackoffDelayMs = 200ms. Total time could be ~6.2s + overhead.
+    // Consider using a specific port known to be unused, e.g., from ephemeral range but unlikely to be in use.
+    const int unlikelyPort = 65530; 
+    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: Attempting connection to non-existent server 127.0.0.1:" + std::to_string(unlikelyPort));
+    
+    ASSERT_FALSE(client.connectWithRetry("127.0.0.1", unlikelyPort)) << "connectWithRetry should return false after all retries to a non-listening port.";
+    ASSERT_FALSE(client.IsConnected()) << "Client should not be connected after connectWithRetry failed.";
+    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: connectWithRetry correctly returned false.");
+}
+
+TEST_F(NetworkingTest, ClientConnectWithRetrySuccess) {
+    const int testPort = 12355; // Unique port for this test
+    Networking::Server server(testPort);
+    ASSERT_TRUE(server.InitServer()) << "Server failed to initialize for retry success test.";
+
+    std::atomic<bool> clientAccepted{false};
+    std::thread serverAcceptThread([&]() {
+        try {
+            Logger::getInstance().log(LogLevel::DEBUG, "S_RetrySuccessTest: Accept thread started, waiting for connection.");
+            Networking::ClientConnection conn = server.Accept();
+            if (conn.clientSocket != 0) {
+                clientAccepted = true;
+                Logger::getInstance().log(LogLevel::INFO, "S_RetrySuccessTest: Accepted client connection.");
+                // Keep connection alive briefly for client to verify, then disconnect.
+                std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                server.DisconnectClient(conn);
+            } else {
+                Logger::getInstance().log(LogLevel::WARN, "S_RetrySuccessTest: Accept returned invalid socket.");
+            }
+        } catch (const Networking::NetworkException& e) {
+            // Log if server accept fails, but primary assertions are on client side.
+             Logger::getInstance().log(LogLevel::ERROR, "S_RetrySuccessTest: NetworkException in server accept thread: " + std::string(e.what()));
+        }
+    });
+
+    // Give server a moment to start listening
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    Networking::Client client;
+    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Attempting connection to 127.0.0.1:" + std::to_string(testPort));
+    
+    ASSERT_TRUE(client.connectWithRetry("127.0.0.1", testPort)) << "connectWithRetry should return true when server is listening.";
+    ASSERT_TRUE(client.IsConnected()) << "Client should be connected after connectWithRetry succeeded.";
+    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: connectWithRetry correctly returned true and client is connected.");
+
+    // Wait for server to accept and process the client before client disconnects
+    int waitRetries = 0;
+    while(!clientAccepted.load() && waitRetries < 50) { // Max 5 seconds
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        waitRetries++;
+    }
+    ASSERT_TRUE(clientAccepted.load()) << "Server did not accept the client connection in time.";
+
+    client.Disconnect();
+    ASSERT_FALSE(client.IsConnected()) << "Client failed to disconnect.";
+
+    if (serverAcceptThread.joinable()) {
+        serverAcceptThread.join();
+    }
+    server.Shutdown();
+    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Completed.");
+}
+
 TEST_F(NetworkingTest, FuseMkdirSimulation) {
     const int testPort = 12391;
     std::map<std::string, uint32_t> mockDirectories; // path -> mode

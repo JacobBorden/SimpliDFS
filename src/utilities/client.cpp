@@ -2,6 +2,14 @@
 #include "utilities/networkexception.h" // Include the NetworkException header
 #include "utilities/logger.h" // Include the Logger header
 #include <string>   // Required for std::to_string
+#include <thread>         // For std::this_thread::sleep_for
+#include <chrono>         // For std::chrono::seconds, std::chrono::milliseconds
+#include <cmath>          // For std::pow
+
+namespace Networking {
+    static const int kMaxRetries = 5;
+    static const int kBaseBackoffDelayMs = 200; // Base delay for backoff in milliseconds
+} // namespace Networking
 
 // Constructor that initializes the client socket
 Networking::Client::Client()
@@ -579,4 +587,55 @@ std::string Networking::Client::GetRemoteIPAddress()
 
 	// Return the remote IP address of the server
 	return remoteIP;
+}
+
+// Connects to the server with retry logic.
+bool Networking::Client::connectWithRetry(PCSTR _pHost, int _pPortNumber, int start_attempt /*= 0*/) {
+    Logger::getInstance().log(LogLevel::INFO, "Attempting to connect to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber) + " with retries.");
+    for (int attempt = start_attempt; attempt < Networking::kMaxRetries; ++attempt) {
+        try {
+            // Ensure WSAStartup is called. If WSAStartup has already been called, this call does nothing.
+            // If a previous attempt failed and WSACleanup was called, this will reinitialize Winsock.
+            if (!InitClientSocket()) { // InitClientSocket should return true on success
+                 Logger::getInstance().log(LogLevel::ERROR, "WSAStartup failed during connectWithRetry attempt " + std::to_string(attempt + 1));
+                 // If WSAStartup fails, retrying might not help unless it's a transient system issue.
+                 // Consider a short sleep and retry or fail fast. For now, let it proceed to CreateClientTCPSocket which will also fail.
+            }
+
+            CreateClientTCPSocket(_pHost, _pPortNumber); // This sets up hostAddressInfo and creates the socket
+            ConnectClientSocket(); // This uses hostAddressInfo to connect
+
+            Logger::getInstance().log(LogLevel::INFO, "Successfully connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber) + " on attempt " + std::to_string(attempt + 1));
+            // clientIsConnected = true; // ConnectClientSocket already sets this
+            return true;
+        } catch (const Networking::NetworkException& e) {
+            Logger::getInstance().log(LogLevel::WARNING, "Connection attempt " + std::to_string(attempt + 1) + " of " + std::to_string(Networking::kMaxRetries) + " failed: " + e.what());
+            
+            // Cleanup is mostly handled by CreateClientTCPSocket and ConnectClientSocket on error.
+            // Ensure socket is closed if it was created. connectionSocket might be invalid or closed already.
+            // freeaddrinfo(hostAddressInfo) is called by CreateClientTCPSocket on error if hostAddressInfo was populated.
+            // WSACleanup() is also called by CreateClientTCPSocket on error.
+
+            if (attempt < Networking::kMaxRetries - 1) {
+                long long backoff_ms = Networking::kBaseBackoffDelayMs * static_cast<long long>(std::pow(2, attempt));
+                Logger::getInstance().log(LogLevel::INFO, "Retrying in " + std::to_string(backoff_ms) + " ms...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+            } else {
+                Logger::getInstance().log(LogLevel::ERROR, "Failed to connect to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber) + " after " + std::to_string(Networking::kMaxRetries) + " attempts.");
+                return false; // Or throw e;
+            }
+        } catch (const std::exception& ex) { // Catch other potential std exceptions
+            Logger::getInstance().log(LogLevel::ERROR, "An unexpected error occurred during connection attempt " + std::to_string(attempt + 1) + " of " + std::to_string(Networking::kMaxRetries) + ": " + ex.what());
+            // Similar cleanup considerations as above.
+            if (attempt < Networking::kMaxRetries - 1) {
+                 long long backoff_ms = Networking::kBaseBackoffDelayMs * static_cast<long long>(std::pow(2, attempt));
+                Logger::getInstance().log(LogLevel::INFO, "Retrying in " + std::to_string(backoff_ms) + " ms...");
+                std::this_thread::sleep_for(std::chrono::milliseconds(backoff_ms));
+            } else {
+                 Logger::getInstance().log(LogLevel::ERROR, "Failed to connect due to unexpected error after " + std::to_string(Networking::kMaxRetries) + " attempts.");
+                return false; // Or throw;
+            }
+        }
+    }
+    return false; // All retries failed
 }

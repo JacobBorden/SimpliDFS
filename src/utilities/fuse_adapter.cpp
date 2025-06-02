@@ -7,6 +7,11 @@
 #include <unistd.h> // for getuid, getgid
 #include <time.h>   // for time()
 #include <sys/stat.h> // For S_IFDIR, S_IFREG modes, and struct statx
+
+#ifndef STATX_ATTR_DIRECTORY
+#include <linux/stat.h>
+#endif
+
 #include <sys/xattr.h> // For XATTR_USER_PREFIX
 #include <string>       // For std::string, std::stoi, std::to_string
 #include <stdexcept>    // For std::invalid_argument, std::out_of_range, std::exception

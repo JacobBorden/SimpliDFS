@@ -84,6 +84,34 @@ void Networking::Server::CreateSocket()
 			// Throw an exception
 			ThrowSocketException(serverSocket, errorCode);
 		}
+
+        // Set SO_REUSEADDR option
+        int reuseaddr = 1;
+        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseaddr, sizeof(reuseaddr)) < 0) {
+            int errorCode = GETERROR();
+            Logger::getInstance().log(LogLevel::WARNING, "setsockopt(SO_REUSEADDR) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
+            // Depending on policy, this could be a fatal error, but often it's not.
+            // For now, just log and continue.
+        } else {
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEADDR on server socket.");
+        }
+
+        // Set SO_REUSEPORT option (more platform specific)
+        // SO_REUSEPORT allows multiple sockets to bind to the same IP address and port.
+        // This is particularly useful on Linux for load distribution or fast restarts.
+        // On Windows, SO_REUSEADDR effectively allows similar behavior for TCP sockets
+        // regarding quick restarts, but SO_REUSEPORT is not typically used or available in the same way.
+        #if defined(SO_REUSEPORT) && !defined(_WIN32)
+        int reuseport = 1;
+        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuseport, sizeof(reuseport)) < 0) {
+            int errorCode = GETERROR();
+            Logger::getInstance().log(LogLevel::WARNING, "setsockopt(SO_REUSEPORT) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
+            // Log and continue
+        } else {
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEPORT on server socket.");
+        }
+        #endif
+
 		retries =0;
 	}
 

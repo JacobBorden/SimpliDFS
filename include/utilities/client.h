@@ -116,6 +116,9 @@ std::string GetLocalIPAddress();
 // Get the remote IP address of the server
 std::string GetRemoteIPAddress();
 
+// Connects to the server with retry logic.
+bool connectWithRetry(PCSTR _pHost, int _pPortNumber, int attempt = 0);
+
 private:
 // Whether the client is currently connected to a host.
 bool clientIsConnected = false;
