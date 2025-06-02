@@ -900,8 +900,11 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
 
 TEST_F(NetworkingTest, FuseReadSimulation) {
     const int testPort = 12393;
+    std::cout << "[FRS_MAIN] Initializing server object..." << std::endl;
     Networking::Server server(testPort);
+    std::cout << "[FRS_MAIN] Asserting server InitServer..." << std::endl;
     ASSERT_TRUE(server.InitServer());
+    std::cout << "[FRS_MAIN] Server InitServer returned true." << std::endl;
 
     // Mock file content store for the Metaserver simulation
     std::map<std::string, std::string> mockFileContents;
@@ -915,11 +918,25 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     std::atomic<bool> serverLogicCompleted{false};
 
     std::thread serverThread([&]() {
+        std::cout << "[FRS_SVR] Thread started." << std::endl;
         try {
+            std::cout << "[FRS_SVR] Waiting for connection..." << std::endl;
             Networking::ClientConnection conn = server.Accept();
-            ASSERT_TRUE(conn.clientSocket != 0);
+            if (conn.clientSocket != 0) {
+                std::cout << "[FRS_SVR] Accepted connection. Socket: " << conn.clientSocket << std::endl;
+            } else {
+                std::cout << "[FRS_SVR] Accept failed or returned invalid socket." << std::endl;
+                ASSERT_TRUE(conn.clientSocket != 0); // Ensure test fails if accept fails
+            }
+            
+            std::cout << "[FRS_SVR] Attempting to receive request..." << std::endl;
+            std::vector<char> rawReq = server.Receive(conn);
+            std::cout << "[FRS_SVR] Received data size: " << rawReq.size() << std::endl;
+            ASSERT_FALSE(rawReq.empty()); // Assuming a read request should not be empty
 
-            Message reqMsg = Message::Deserialize(std::string(server.Receive(conn).begin(), server.Receive(conn).end()));
+            std::cout << "[FRS_SVR] Deserializing request..." << std::endl;
+            Message reqMsg = Message::Deserialize(std::string(rawReq.begin(), rawReq.end()));
+            std::cout << "[FRS_SVR] Deserialized request type: " << static_cast<int>(reqMsg._Type) << std::endl;
             ASSERT_EQ(reqMsg._Type, MessageType::Read);
 
             Message respMsg;
@@ -947,18 +964,29 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
                     respMsg._ErrorCode = 0;
                 }
             }
+            std::cout << "[FRS_SVR] Sending response..." << std::endl;
             server.Send(Message::Serialize(respMsg).c_str(), conn);
+            std::cout << "[FRS_SVR] Response sent." << std::endl;
+
+            std::cout << "[FRS_SVR] Disconnecting client..." << std::endl;
             server.DisconnectClient(conn);
+            std::cout << "[FRS_SVR] Client disconnected." << std::endl;
         } catch (const Networking::NetworkException& e) {
+            std::cout << "[FRS_SVR] EXCEPTION: NetworkException: " << e.what() << std::endl;
             FAIL() << "Server thread NetworkException: " << e.what();
         } catch (const std::exception& e) {
+            std::cout << "[FRS_SVR] EXCEPTION: StdException: " << e.what() << std::endl;
             FAIL() << "Server thread std::exception: " << e.what();
         }
+        std::cout << "[FRS_SVR] Logic completed." << std::endl;
         serverLogicCompleted = true;
     });
 
+    std::cout << "[FRS_CLI] Creating client..." << std::endl;
     Networking::Client client("127.0.0.1", testPort);
+    std::cout << "[FRS_CLI] Client created. Checking connection..." << std::endl;
     ASSERT_TRUE(client.IsConnected());
+    std::cout << "[FRS_CLI] Client connected." << std::endl;
 
     // Scenario 1: Successful Full Read
     {
@@ -969,8 +997,14 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
         readReq._Offset = 0;
         readReq._Size = fileContent.length();
         
+        std::cout << "[FRS_CLI_S1] Sending request..." << std::endl;
         client.Send(Message::Serialize(readReq).c_str());
-        Message readResp = Message::Deserialize(std::string(client.Receive().begin(), client.Receive().end()));
+        std::cout << "[FRS_CLI_S1] Request sent." << std::endl;
+
+        std::cout << "[FRS_CLI_S1] Attempting to receive response..." << std::endl;
+        std::vector<char> rawResp = client.Receive();
+        std::cout << "[FRS_CLI_S1] Received response data size: " << rawResp.size() << std::endl;
+        Message readResp = Message::Deserialize(std::string(rawResp.begin(), rawResp.end()));
 
         ASSERT_EQ(readResp._Type, MessageType::ReadResponse);
         ASSERT_EQ(readResp._Path, testFilePath);
@@ -1058,12 +1092,16 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     //     ASSERT_TRUE(readResp._Data.empty());
     // }
 
+    std::cout << "[FRS_CLI] Disconnecting client..." << std::endl;
     client.Disconnect();
+    std::cout << "[FRS_CLI] Client disconnected." << std::endl;
     ASSERT_FALSE(client.IsConnected());
 
+    std::cout << "[FRS_CLI] Joining server thread..." << std::endl;
     if (serverThread.joinable()) {
         serverThread.join();
     }
+    std::cout << "[FRS_CLI] Server thread joined." << std::endl;
     ASSERT_TRUE(serverLogicCompleted.load()) << "Server logic did not complete.";
     server.Shutdown();
 }
