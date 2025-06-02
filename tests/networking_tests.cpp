@@ -109,15 +109,35 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
                 
                 if (currentMockDirs.count(reqMsg._Path)) {
                     respMsg._ErrorCode = METASERVER_EEXIST;
-                } else if (!parentPath.empty() && parentPath != "/" && !currentMockDirs.count(parentPath)) {
-                    // Parent path doesn't exist, and it's not a root-level directory creation
-                    respMsg._ErrorCode = METASERVER_ENOENT;
-                } else if (parentPath.empty() && reqMsg._Path != "/") { // Trying to create e.g. "foo" not "/foo"
-                     respMsg._ErrorCode = METASERVER_ENOENT; // Invalid path if not absolute
-                }
-                else {
-                    currentMockDirs[reqMsg._Path] = reqMsg._Mode;
-                    Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " with mode " + std::to_string(reqMsg._Mode));
+                } else {
+                    // Path does not exist. Now check parent.
+                    if (reqMsg._Path == "/") { 
+                        // Case: Creating root directory "/" itself.
+                        // Parent path from get_parent_path("/") is "".
+                        currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
+                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created root " + reqMsg._Path + " with mode " + std::to_string(reqMsg._Mode));
+                    } else if (parentPath.empty()) {
+                        // Path is not "/" (checked above), but parentPath is empty.
+                        // This implies reqMsg._Path is a relative path (e.g., "foo") or an empty string.
+                        // Both are invalid for mkdir in this context.
+                        respMsg._ErrorCode = METASERVER_ENOENT; 
+                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied relative/empty path " + reqMsg._Path);
+                    } else if (parentPath == "/") {
+                        // Case: Creating a directory directly under root (e.g., "/foo").
+                        // The parent "/" is conceptually always present.
+                        currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
+                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent /) with mode " + std::to_string(reqMsg._Mode));
+                    } else {
+                        // Case: Creating a nested directory (e.g., "/foo/bar").
+                        // The parent (e.g., "/foo") must exist in currentMockDirs.
+                        if (currentMockDirs.count(parentPath)) {
+                            currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
+                            Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent " + parentPath + ") with mode " + std::to_string(reqMsg._Mode));
+                        } else {
+                            respMsg._ErrorCode = METASERVER_ENOENT; // Parent does not exist
+                            Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied " + reqMsg._Path + ", parent " + parentPath + " does not exist.");
+                        }
+                    }
                 }
                 
                 server->Send(Message::Serialize(respMsg).c_str(), conn);

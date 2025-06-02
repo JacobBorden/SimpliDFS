@@ -1,4 +1,5 @@
 #include "utilities/client.h" // include the header file for the client class
+#include "utilities/networkexception.h" // Include the NetworkException header
 #include "utilities/logger.h" // Include the Logger header
 #include <string>   // Required for std::to_string
 
@@ -12,9 +13,9 @@ Networking::Client::Client()
 	}
 
 	// Catch any exceptions that are thrown
-	catch(int errorCode) {
+	catch(const Networking::NetworkException& e) {
 		// Print the error code
-        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction. Error Code: " + std::to_string(errorCode));
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction: " + std::string(e.what()));
 		// std::cout<<"Exception thrown. Error Code"<<errorCode;
 	}
 }
@@ -32,9 +33,9 @@ Networking::Client::Client(PCSTR _pHost, int _pPortNumber)
         Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber));
 	}
 	// Catch any exceptions that are thrown
-	catch(int errorCode) {
+	catch(const Networking::NetworkException& e) {
 		// Print the error code
-        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port. Error Code: " + std::to_string(errorCode));
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port: " + std::string(e.what()));
 		// std::cout<<"Exception thrown. Error Code "<<errorCode;
 	}
 }
@@ -52,7 +53,7 @@ bool Networking::Client::InitClientSocket()
 	int errorCode = WSAStartup(VERSIONREQUESTED, &this->wsaData);
 	// If there was an error, throw an exception
 	if(errorCode)
-		throw errorCode;
+		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client Initialization failed (WSAStartup)");
     #endif
 	// If there was an error, throw an exception
 	return true;
@@ -82,7 +83,7 @@ bool Networking::Client::CreateClientTCPSocket(PCSTR _pHost, int _pPort)
     #ifdef _WIN32
         WSACleanup();
     #endif
-        throw errorCode;
+        throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client TCP socket creation failed (getaddrinfo)");
     }
 
     connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
@@ -93,7 +94,7 @@ bool Networking::Client::CreateClientTCPSocket(PCSTR _pHost, int _pPort)
     #ifdef _WIN32
         WSACleanup();
     #endif
-        throw errorCode;
+        throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client TCP socket creation failed (socket)");
     }
     return true;
 }
@@ -119,7 +120,7 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
 		WSACleanup();
     #endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client UDP socket creation failed (getaddrinfo)");
 	}
 
 	// Create the UDP socket
@@ -136,7 +137,7 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client UDP socket creation failed (socket)");
 	}
 	// Return true if the UDP socket was created successfully
 	return true;
@@ -152,7 +153,7 @@ bool Networking::Client::CreateClientSocket(PCSTR _pHost, int _pPort)
     #ifdef _WIN32
 		WSACleanup();
     #endif
-		throw errorCode;
+		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client socket creation failed (getaddrinfo)");
 	}
 
 	connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
@@ -163,7 +164,7 @@ bool Networking::Client::CreateClientSocket(PCSTR _pHost, int _pPort)
 	#ifdef _WIN32
 		WSACleanup();
 	#endif
-		throw errorCode;
+		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client socket creation failed (socket)");
 	}
 	return true;
 }
@@ -177,11 +178,12 @@ bool Networking::Client::ConnectClientSocket()
     if (errorCode)
     {
         errorCode = GETERROR();
+        SOCKET tempSocket = connectionSocket; // Store for exception before closing
         CLOSESOCKET(connectionSocket);
     #ifdef _WIN32
         WSACleanup();
     #endif
-        throw errorCode;
+        throw Networking::NetworkException(tempSocket, errorCode, "Client connect failed");
     }
     clientIsConnected = true;
     return true;
@@ -222,7 +224,7 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client send failed");
 	}
 
 	// Return  the number of bytes sent if the data was sent successfully
@@ -259,7 +261,7 @@ int Networking::Client::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client sendto failed");
 	}
 
 	// Return  the number of bytes sent if the data was sent successfully
@@ -324,7 +326,7 @@ std::vector <char> Networking::Client::Receive()
 		WSACleanup();
     #endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client receive failed");
 	}
 	// Return the vector containing the received data
 	return receiveBuffer;
@@ -378,7 +380,7 @@ std::vector<char> Networking::Client::ReceiveFrom(PCSTR _pAddress, int _pPort)
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client recvfrom failed");
 	}
 
 	// Return the received data
@@ -427,26 +429,26 @@ bool Networking::Client::Disconnect()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client disconnect failed (shutdown)");
 	}
 
 	// Close the client socket
+	SOCKET tempSocket = connectionSocket; // Store for exception before invalidating
 	errorCode = CLOSESOCKET(connectionSocket);
 
 	// If there was an error, throw an exception
 	if(errorCode)
 	{
 		// Get the error code
-		int errorCode = GETERROR();
+		int originalErrorCode = errorCode; // Store original error code from CLOSESOCKET
+		errorCode = GETERROR(); // Get more detailed error if available
 
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
 	#ifdef _WIN32
 		// Clean up the Windows Sockets DLL
 		WSACleanup();
 	#endif
-		// Throw the error code
-		throw errorCode;
+		// Throw the error code, prefer more detailed one if available, else original
+		throw Networking::NetworkException(tempSocket, errorCode ? errorCode : originalErrorCode, "Client disconnect failed (closesocket)");
 	}
 	clientIsConnected = false;
 	// Return true if the client was disconnected and the socket was closed successfully
@@ -476,7 +478,7 @@ std::string Networking::Client::GetHostName()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client gethostname failed");
 	}
 
 	// Return the hostname of the client
@@ -504,7 +506,7 @@ std::string Networking::Client::GetServerHostName()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client getnameinfo failed for server hostname");
 	}
 
 	// Return the hostname of the server
@@ -528,7 +530,7 @@ std::string Networking::Client::GetLocalIPAddress()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client getaddrinfo failed for local IP");
 	}
 
 	// Convert the local IP address to a string
@@ -545,7 +547,7 @@ std::string Networking::Client::GetLocalIPAddress()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client inet_ntop failed for local IP");
 	}
 
 	// Return the local IP address of the client
@@ -572,7 +574,7 @@ std::string Networking::Client::GetRemoteIPAddress()
 		WSACleanup();
 	#endif
 		// Throw the error code
-		throw errorCode;
+		throw Networking::NetworkException(connectionSocket, errorCode, "Client inet_ntop failed for remote IP");
 	}
 
 	// Return the remote IP address of the server

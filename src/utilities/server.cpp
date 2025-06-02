@@ -844,6 +844,27 @@ void Networking::Server::DisconnectClient(Networking::ClientConnection _pClient)
 // Shut down the server
 void Networking::Server::Shutdown()
 {
+    Logger::getInstance().log(LogLevel::INFO, "Server shutdown initiated.");
+
+    // First, disconnect all active clients
+    Logger::getInstance().log(LogLevel::INFO, "Starting disconnection of all clients...");
+    auto clients_copy = clients; // Create a copy to iterate safely
+    for (auto& client_conn : clients_copy) {
+        try {
+            Logger::getInstance().log(LogLevel::DEBUG, "Attempting to disconnect client: " + GetClientIPAddress(client_conn) + " on socket " + std::to_string(client_conn.clientSocket));
+            DisconnectClient(client_conn);
+            Logger::getInstance().log(LogLevel::INFO, "Successfully disconnected client: " + GetClientIPAddress(client_conn));
+        } catch (const Networking::NetworkException& e) {
+            Logger::getInstance().log(LogLevel::ERROR, "Error disconnecting client " + GetClientIPAddress(client_conn) + " during server shutdown: " + std::string(e.what()));
+        } catch (const std::exception& e) { // Catch any other standard exceptions
+            Logger::getInstance().log(LogLevel::ERROR, "Standard exception disconnecting client " + GetClientIPAddress(client_conn) + " during server shutdown: " + std::string(e.what()));
+        }
+        catch (...) { // Catch-all for any other unknown exceptions
+            Logger::getInstance().log(LogLevel::ERROR, "Unknown error disconnecting client " + GetClientIPAddress(client_conn) + " during server shutdown.");
+        }
+    }
+    Logger::getInstance().log(LogLevel::INFO, "All clients processed for disconnection.");
+
 	try{
 		// Disconnect the server socket
 		if (serverIsConnected)
@@ -871,14 +892,15 @@ void Networking::Server::Shutdown()
 
 			// Close the server socket
 			CLOSESOCKET(serverSocket);
+            Logger::getInstance().log(LogLevel::INFO, "Main server socket shut down and closed.");
 		}
 	}
 
 	catch (Networking::NetworkException &ex)
 	{
-        Logger::getInstance().log(LogLevel::ERROR, "Error during server Shutdown: " + std::string(ex.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Error during server socket shutdown: " + std::string(ex.what()));
 	}
-    Logger::getInstance().log(LogLevel::INFO, "Server shutdown initiated.");
+    // Logger::getInstance().log(LogLevel::INFO, "Server shutdown sequence complete."); // Moved this log to be more accurate
 
 	#ifdef _WIN32
 	// Clean up the Windows Sockets DLL
@@ -887,6 +909,7 @@ void Networking::Server::Shutdown()
 
 	// Set the server connected flag to false
 	serverIsConnected = false;
+    Logger::getInstance().log(LogLevel::INFO, "Server fully shut down and cleaned up.");
 }
 
 
