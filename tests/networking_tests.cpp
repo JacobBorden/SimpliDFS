@@ -27,11 +27,8 @@ protected:
 
     // Optional: Clean up shared resources
     void TearDown() override {
-        try {
-            Logger::init("dummy_net_cleanup.log", LogLevel::DEBUG);
-            std::remove("dummy_net_cleanup.log"); 
-            std::remove("dummy_net_cleanup.log.1"); // Clean up potential rotated dummy log
-        } catch (const std::runtime_error& e) { /* ignore */ }
+        // Removed dummy logger initialization and cleanup to prevent potential issues
+        // with global logger state.
         
         std::remove("networking_tests.log");
         for (int i = 1; i <= 5; ++i) {
