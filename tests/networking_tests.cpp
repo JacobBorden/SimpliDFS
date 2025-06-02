@@ -259,7 +259,7 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
                             Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive unblocked as expected (empty data).");
                         } else {
                             // This case should not happen if client doesn't send anything before shutdown.
-                            Logger::getInstance().log(LogLevel::WARNING, logPrefix + ": Receive unblocked unexpectedly with data size: " + std::to_string(data.size()));
+                            Logger::getInstance().log(LogLevel::WARN, logPrefix + ": Receive unblocked unexpectedly with data size: " + std::to_string(data.size()));
                         }
                     } catch (const Networking::NetworkException& e) {
                         Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive caught NetworkException as expected: " + std::string(e.what()));
@@ -348,10 +348,10 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
         if(serverShutdownCalled.load()) break; // Abort wait if shutdown already (e.g. server failed to init)
     }
     if(clientsSuccessfullyConnected.load() < numClients && !serverShutdownCalled.load()){
-         Logger::getInstance().log(LogLevel::WARNING, "Timeout or issue: Not all clients connected successfully before shutdown. Connected: " + std::to_string(clientsSuccessfullyConnected.load()));
+         Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all clients connected successfully before shutdown. Connected: " + std::to_string(clientsSuccessfullyConnected.load()));
     }
      if(serverHandlersStarted.load() < numClients && !serverShutdownCalled.load()){
-         Logger::getInstance().log(LogLevel::WARNING, "Timeout or issue: Not all server handlers started before shutdown. Started: " + std::to_string(serverHandlersStarted.load()));
+         Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all server handlers started before shutdown. Started: " + std::to_string(serverHandlersStarted.load()));
     }
     // Even if not all clients connect (e.g. if server accept loop is slow or has issues), proceed to test shutdown.
 
@@ -416,7 +416,7 @@ TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
                 // This case should not be reached if no client connects.
                 // If a client somehow connected, log it. This is unexpected for this test.
                 if (conn.clientSocket != 0) {
-                     Logger::getInstance().log(LogLevel::WARNING, "S_AcceptBlock: Accept unblocked and returned a valid client socket unexpectedly.");
+                     Logger::getInstance().log(LogLevel::WARN, "S_AcceptBlock: Accept unblocked and returned a valid client socket unexpectedly.");
                      server.DisconnectClient(conn); // Clean up if it happened
                 } else {
                     // Accept returned invalid socket without shutdown_in_progress: an error.
@@ -1248,7 +1248,7 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
                 if (!serverReadyToAccept.load()) break; // Stop if server is shutting down
                 Networking::ClientConnection conn = server.Accept();
                 if (conn.clientSocket == 0) { // Accept might return invalid if server is shutting down
-                     Logger::getInstance().log(LogLevel::WARNING, "S_MC: Accept failed or returned invalid socket, possibly due to shutdown.");
+                     Logger::getInstance().log(LogLevel::WARN, "S_MC: Accept failed or returned invalid socket, possibly due to shutdown.");
                     if (serverReadyToAccept.load()) { // Only assert if not expecting shutdown
                         FAIL() << "S_MC: Accept failed unexpectedly for client " << i;
                     }
@@ -1282,7 +1282,7 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
                     try {
                         server.DisconnectClient(conn);
                     } catch (const Networking::NetworkException& e) {
-                         Logger::getInstance().log(LogLevel::WARNING, threadIdStr + ": NetworkException during DisconnectClient: " + std::string(e.what()));
+                         Logger::getInstance().log(LogLevel::WARN, threadIdStr + ": NetworkException during DisconnectClient: " + std::string(e.what()));
                     }
                     connectedServerHandlers--;
                 });
@@ -1872,7 +1872,7 @@ TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
                     if (conn.clientSocket != 0) { // Still valid? Server might have closed it.
                         // Poll or use select for readability if we needed to do more here.
                         // For this test, server shutdown is the primary trigger.
-                        std::vector<char> quickCheckData = server.Receive(conn, 1, 10); // Non-blocking check or with timeout
+                        std::vector<char> quickCheckData = server.Receive(conn); // Non-blocking check or with timeout
                         if (!quickCheckData.empty() && quickCheckData[0] == 0x04) { // EOT or special signal
                             break; 
                         }
@@ -2001,7 +2001,7 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
                 // However, if client sent data then disconnected, server might receive it.
                 // For this test, we expect empty due to abrupt disconnect *during* server's receive wait.
                 std::string receivedStr(data.begin(), data.end());
-                Logger::getInstance().log(LogLevel::WARNING, "Server Receive got unexpected data: " + receivedStr);
+                Logger::getInstance().log(LogLevel::WARN, "Server Receive got unexpected data: " + receivedStr);
             }
         } catch (const Networking::NetworkException& e) {
             Logger::getInstance().log(LogLevel::INFO, "Server caught NetworkException during Receive, as expected: " + std::string(e.what()));
