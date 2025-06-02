@@ -89,7 +89,7 @@ void Networking::Server::CreateSocket()
         int reuseaddr = 1;
         if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseaddr, sizeof(reuseaddr)) < 0) {
             int errorCode = GETERROR();
-            Logger::getInstance().log(LogLevel::WARNING, "setsockopt(SO_REUSEADDR) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
+            Logger::getInstance().log(LogLevel::WARN, "setsockopt(SO_REUSEADDR) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
             // Depending on policy, this could be a fatal error, but often it's not.
             // For now, just log and continue.
         } else {
@@ -105,7 +105,7 @@ void Networking::Server::CreateSocket()
         int reuseport = 1;
         if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuseport, sizeof(reuseport)) < 0) {
             int errorCode = GETERROR();
-            Logger::getInstance().log(LogLevel::WARNING, "setsockopt(SO_REUSEPORT) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
+            Logger::getInstance().log(LogLevel::WARN, "setsockopt(SO_REUSEPORT) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
             // Log and continue
         } else {
             Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEPORT on server socket.");
