@@ -245,3 +245,8 @@ std::string FileSystem::getXattr(const std::string& filename, const std::string&
     // Logger::getInstance().log(LogLevel::INFO, "xattr not found for file: " + filename + ", Attribute: " + attrName);
     return "";
 }
+
+bool FileSystem::fileExists(const std::string& _pFilename) const {
+    std::lock_guard<std::mutex> lock(_Mutex); // _Mutex is now mutable in the header
+    return _Files.count(_pFilename);
+}

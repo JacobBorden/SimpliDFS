@@ -37,6 +37,13 @@ private:
 
 public:
     /**
+     * @brief Checks if a file exists on the node's local filesystem.
+     * @param filename The name of the file to check.
+     * @return True if the file exists, false otherwise.
+     */
+    bool checkFileExistsOnNode(const std::string& filename) const; // Made const again
+
+    /**
      * @brief Constructs a Node object.
      * @param name The unique name (identifier) for this node.
      * @param port The port number on which this node's server should listen.
@@ -115,11 +122,35 @@ public:
 
             switch (message._Type) {
                 case MessageType::WriteFile: {
-                    bool success = fileSystem.writeFile(message._Filename, message._Content);
-                    if (success) {
-                        server.Send(("File " + message._Filename + " written successfully.").c_str(), client);
-                    } else {
-                        server.Send(("Error: Unable to write file " + message._Filename + ".").c_str(), client);
+                    bool success = false;
+                    if (message._Content.empty()) { // Treat empty content write as create file
+                        success = fileSystem.createFile(message._Filename);
+                         if (success) {
+                            server.Send(("File " + message._Filename + " created successfully.").c_str(), client);
+                        } else {
+                            // createFile logs if it already exists or other errors.
+                            // Check if it already exists to send a different success message for idempotency.
+                            if (fileSystem.readFile(message._Filename).empty() && !fileSystem.getXattr(message._Filename, "user.cid").empty()) {
+                                // This is tricky: readFile returns "" for non-existent or for truly empty (but existing) files.
+                                // If it has xattrs, it must exist. A file created by createFile will have empty content and no xattrs.
+                                // A proper fileSystem.fileExists() would be better.
+                                // For now, if createFile fails, assume it might be due to already existing.
+                                // Let's refine: if createFile returns false, it means it already existed (as per its log).
+                                // This can be treated as success for "ensure exists".
+                                Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + ": WriteFile with empty content for existing file " + message._Filename + " (treated as success).");
+                                server.Send(("File " + message._Filename + " (already exists) processed successfully.").c_str(), client);
+                                success = true; // Idempotent success
+                            } else {
+                                server.Send(("Error: Unable to create file " + message._Filename + " (may already exist or other issue).").c_str(), client);
+                            }
+                        }
+                    } else { // Non-empty content, try to write (will fail if file doesn't exist)
+                        success = fileSystem.writeFile(message._Filename, message._Content);
+                        if (success) {
+                            server.Send(("File " + message._Filename + " written successfully.").c_str(), client);
+                        } else {
+                            server.Send(("Error: Unable to write file " + message._Filename + ".").c_str(), client);
+                        }
                     }
                     break;
                 }
@@ -220,7 +251,8 @@ public:
             if (!response_vector.empty()){
                 response = std::string(response_vector.begin(), response_vector.end());
             }
-            std::cout << "Response from MetadataManager: " << response << std::endl;
+            // Suppress noisy cout during tests, consider logging framework if complex logs needed
+            // std::cout << "Response from MetadataManager: " << response << std::endl;
         } catch (const Networking::NetworkException& ne) {
              std::cerr << "Network error sending message to MetadataManager: " << ne.what() << std::endl;
         } catch (const std::exception& e) { // Catching other potential exceptions

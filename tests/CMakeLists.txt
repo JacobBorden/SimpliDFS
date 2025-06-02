@@ -10,6 +10,7 @@ add_executable(SimpliDFSTests
     logger_tests.cpp      # Added new logger tests file
     blockio_test.cpp      # Added blockio tests
     cid_tests.cpp         # Added CID conversion tests
+    integration_tests.cpp # Added new integration tests file
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
@@ -28,6 +29,7 @@ target_link_libraries(SimpliDFSTests
     Threads::Threads
     SimpliDFS_Utils # Link against common utilities library (now includes BlockIO)
     SimpliDFS_MetaServerLib # Link against the new metaserver library
+    SimpliDFS_NodeLib       # Link against the new node library
 )
 
 # Include directories for the headers

@@ -274,13 +274,38 @@ public:
     // The old implementation block is removed here.
     // getFileNodes is defined below, so its separate declaration was removed.
 
+    /**
+     * @brief Checks if a node with the given identifier is registered.
+     * @param nodeIdentifier The unique identifier of the node.
+     * @return True if the node is registered, false otherwise.
+     */
+    bool isNodeRegistered(const std::string& nodeIdentifier) { // Removed const
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        return registeredNodes.count(nodeIdentifier);
+    }
+
+    /**
+     * @brief Retrieves NodeInfo for a given node identifier.
+     * @param nodeIdentifier The unique identifier of the node.
+     * @return A copy of NodeInfo if the node is found.
+     * @throw std::runtime_error if the node is not found.
+     */
+    NodeInfo getNodeInfo(const std::string& nodeIdentifier) { // Removed const
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        auto it = registeredNodes.find(nodeIdentifier);
+        if (it != registeredNodes.end()) {
+            return it->second;
+        }
+        throw std::runtime_error("Node not found in getNodeInfo: " + nodeIdentifier);
+    }
+
     // Print all metadata (for debugging)
     /**
      * @brief Prints all current metadata to the console for debugging purposes.
      * Lists all files and the nodes storing their replicas.
      */
     void printMetadata() {
-        std::lock_guard<std::mutex> lock(metadataMutex);
+        std::lock_guard<std::mutex> lock(metadataMutex); // Should be const if printMetadata is const
         std::cout << "Current Metadata: " << std::endl;
         for (const auto &entry : fileMetadata) {
             std::cout << "File: " << entry.first << " - Nodes: ";
@@ -340,7 +365,9 @@ public:
      *       `NODE_LIST_SEPARATOR` for parsing. Logs errors if files cannot be opened or if parsing fails.
      */
     void loadMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
-        std::lock_guard<std::mutex> lock(metadataMutex);
+        std::lock_guard<std::mutex> lock(metadataMutex); // metadataMutex should be mutable for lock_guard in const method
+                                                       // Or isNodeRegistered should not be const if metadataMutex is not mutable.
+                                                       // Making metadataMutex mutable.
 
         // Load fileMetadata
         std::ifstream fm_ifs(fileMetadataPath);
@@ -405,5 +432,18 @@ public:
 
 // Forward declaration for the client connection handler function defined in metaserver.cpp
 // This function is used by the main server loop in main_metaserver.cpp
+// No, HandleClientConnection is not what I need here.
+// The metaserver class itself doesn't seem to have a Networking::Server instance.
+// This means the main_metaserver.cpp is responsible for creating both Networking::Server and MetadataManager,
+// and then wiring them together.
+
+// For the test, I will create a MetadataManager instance, and a separate Networking::Server.
+// The server's handler will interact with the MetadataManager.
 namespace Networking { class ClientConnection; } // Forward declare ClientConnection if not already via includes
-void HandleClientConnection(Networking::ClientConnection _pClient);
+// void HandleClientConnection(Networking::ClientConnection _pClient); // This is likely part of main_metaserver.cpp
+// The actual Metaserver class here *is* MetadataManager. Let's adjust the plan.
+
+// The MetadataManager class IS the metaserver logic holder.
+// The `registerNode` method is part of it.
+// The Node object makes a network call. So the test needs a server that
+// can receive this call and then call the `registerNode` on the `MetadataManager` instance.
