@@ -38,7 +38,38 @@ void Logger::init(const std::string& logFile, LogLevel level, long long maxFileS
 
 Logger& Logger::getInstance() {
     if (!s_instance) {
-        throw std::runtime_error("Logger not initialized. Call Logger::init() first.");
+        std::cerr << "CRITICAL_WARNING: Logger::getInstance() called when s_instance is null. Attempting emergency initialization to 'emergency_default.log'." << std::endl;
+        try {
+            // Attempt to initialize the logger to an emergency default.
+            // Logger::init handles 'new Logger' which can throw std::bad_alloc.
+            Logger::init("emergency_default.log", LogLevel::WARN);
+            // If Logger::init was successful, s_instance is now (or should be) non-nullptr.
+        }
+        catch (const std::bad_alloc& e) {
+            // This catch is specifically if 'new Logger()' inside Logger::init fails due to memory.
+            // s_instance would remain nullptr if it was nullptr before, or become nullptr if init deleted an old one then failed to new.
+            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed during memory allocation: " << e.what() << std::endl;
+            // s_instance is confirmed to be nullptr or is effectively nullptr after this.
+        }
+        catch (const std::exception& e) {
+            // Catch any other unexpected std::exception if Logger::init or Logger constructor were to throw more.
+            // (Currently, Logger constructor only prints to cerr for file errors, doesn't throw for that).
+            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed with an unexpected standard exception: " << e.what() << std::endl;
+        }
+        catch (...) {
+            // Catch any other non-standard exception.
+            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed with an unknown exception." << std::endl;
+        }
+
+        // After attempting emergency initialization, re-check s_instance.
+        if (!s_instance) {
+            // If s_instance is still null, the emergency initialization failed catastrophically.
+            throw std::runtime_error("Logger not initialized. Call Logger::init() first. Emergency init also failed.");
+        }
+        // If we reach here, s_instance is now valid (pointing to an instance).
+        // That instance might have failed to open its log file ("emergency_default.log"), 
+        // but the Logger object itself exists, preventing a crash on dereferencing s_instance.
+        // The Logger::log method handles cases where its file stream isn't open.
     }
     return *s_instance;
 }
