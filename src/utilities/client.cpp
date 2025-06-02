@@ -90,19 +90,22 @@ bool Networking::Client::CreateClientTCPSocket(PCSTR _pHost, int _pPort)
     {
     #ifdef _WIN32
         WSACleanup();
-    #endif
         throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client TCP socket creation failed (getaddrinfo)");
+    #else
+        throw Networking::NetworkException(-1, errorCode, "Client TCP socket creation failed (getaddrinfo)");
+    #endif
     }
 
     connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
 
     if(INVALIDSOCKET(connectionSocket))
     {
-        int errorCode = GETERROR();
+        int socketErrorCode = GETERROR(); // Renamed to avoid conflict with outer errorCode
     #ifdef _WIN32
         WSACleanup();
     #endif
-        throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client TCP socket creation failed (socket)");
+        // Pass the actual failing socket descriptor
+        throw Networking::NetworkException(connectionSocket, socketErrorCode, "Client TCP socket creation failed (socket)");
     }
     return true;
 }
@@ -126,9 +129,10 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
     #ifdef _WIN32
 		// Clean up the Windows Sockets DLL
 		WSACleanup();
-    #endif
-		// Throw the error code
 		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client UDP socket creation failed (getaddrinfo)");
+    #else
+		throw Networking::NetworkException(-1, errorCode, "Client UDP socket creation failed (getaddrinfo)");
+    #endif
 	}
 
 	// Create the UDP socket
@@ -138,14 +142,14 @@ bool Networking::Client::CreateClientUDPSocket(PCSTR _pHost, int _pPort)
 	if(INVALIDSOCKET(connectionSocket))
 	{
 		// Get the error code
-		int errorCode = GETERROR();
+		int socketErrorCode = GETERROR(); // Renamed
 
 	#ifdef _WIN32
 		// Clean up the Windows Sockets DLL
 		WSACleanup();
 	#endif
-		// Throw the error code
-		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client UDP socket creation failed (socket)");
+		// Pass the actual failing socket descriptor
+		throw Networking::NetworkException(connectionSocket, socketErrorCode, "Client UDP socket creation failed (socket)");
 	}
 	// Return true if the UDP socket was created successfully
 	return true;
@@ -160,19 +164,22 @@ bool Networking::Client::CreateClientSocket(PCSTR _pHost, int _pPort)
 	{
     #ifdef _WIN32
 		WSACleanup();
-    #endif
 		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client socket creation failed (getaddrinfo)");
+    #else
+		throw Networking::NetworkException(-1, errorCode, "Client socket creation failed (getaddrinfo)");
+    #endif
 	}
 
 	connectionSocket = socket(hostAddressInfo->ai_family, hostAddressInfo->ai_socktype,  hostAddressInfo->ai_protocol);
 
 	if(INVALIDSOCKET(connectionSocket))
 	{
-		int errorCode = GETERROR();
+		int socketErrorCode = GETERROR(); // Renamed
 	#ifdef _WIN32
 		WSACleanup();
 	#endif
-		throw Networking::NetworkException(INVALID_SOCKET, errorCode, "Client socket creation failed (socket)");
+        // Pass the actual failing socket descriptor
+		throw Networking::NetworkException(connectionSocket, socketErrorCode, "Client socket creation failed (socket)");
 	}
 	return true;
 }
@@ -609,7 +616,7 @@ bool Networking::Client::connectWithRetry(PCSTR _pHost, int _pPortNumber, int st
             // clientIsConnected = true; // ConnectClientSocket already sets this
             return true;
         } catch (const Networking::NetworkException& e) {
-            Logger::getInstance().log(LogLevel::WARNING, "Connection attempt " + std::to_string(attempt + 1) + " of " + std::to_string(Networking::kMaxRetries) + " failed: " + e.what());
+            Logger::getInstance().log(LogLevel::WARN, "Connection attempt " + std::to_string(attempt + 1) + " of " + std::to_string(Networking::kMaxRetries) + " failed: " + e.what());
             
             // Cleanup is mostly handled by CreateClientTCPSocket and ConnectClientSocket on error.
             // Ensure socket is closed if it was created. connectionSocket might be invalid or closed already.
