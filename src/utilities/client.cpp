@@ -224,6 +224,13 @@ void Networking::Client::SetProtocol(int _pProtocol)
 int Networking::Client::Send(PCSTR _pSendBuffer)
 {
 	// Send the data to the server
+    if (!clientIsConnected) {
+        // Optionally, prevent send if not connected, though send() itself will fail.
+        // This depends on desired behavior: fail early or let OS detect.
+        // For now, let OS detect to be consistent with not checking before recv().
+        // Logger::getInstance().log(LogLevel::WARN, "Client::Send: Attempting to send when not connected.");
+        // throw Networking::NetworkException(connectionSocket, 0, "Client send failed: Not connected.");
+    }
 	int bytesSent = send(connectionSocket,_pSendBuffer, strlen(_pSendBuffer),0 );
 
 	// If there was an error, throw an exception
@@ -231,7 +238,8 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
 	{
 		// Get the error code
 		int errorCode = GETERROR();
-
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: send() failed with error: " + std::to_string(errorCode));
+        clientIsConnected = false; // Update state
 		// Close the socket
 		CLOSESOCKET(connectionSocket);
 	#ifdef _WIN32
@@ -311,39 +319,45 @@ void Networking::Client::SendFile(const std::string& _pFilePath)
 std::vector <char> Networking::Client::Receive()
 {
 	// Initialize the number of bytes received to 0
-	int bytesReceived =0;
-
-	// Create a vector to store the received data
-	std::vector<char> receiveBuffer;
+	int bytesReceived = 0; // Stores bytes received in the last recv call
+	std::vector<char> receiveBuffer; // Buffer to accumulate received data
 
 	// Receive data from the server in a loop
-	do{
-		// Get the current size of the receive buffer
-		int bufferStart = receiveBuffer.size();
-		// Resize the buffer to make room for more data
-		receiveBuffer.resize(bufferStart+512);
-		// Receive data from the server
-		bytesReceived = recv(connectionSocket, &receiveBuffer[bufferStart],512,0);
-		// Resize the buffer to the actual size of the received data
-		receiveBuffer.resize(bufferStart + bytesReceived);
-	} while (bytesReceived == 512);
+	do {
+		size_t bufferStart = receiveBuffer.size(); // Current end of buffer, where new data will be appended
+		receiveBuffer.resize(bufferStart + 512);   // Allocate space for next chunk
 
-// If there was an error, throw an exception
-	if (bytesReceived == SOCKET_ERROR)
-	{
-		// Get the error code
-		int errorCode = GETERROR();
+		bytesReceived = recv(connectionSocket, &receiveBuffer[bufferStart], 512, 0);
 
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
-    #ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-    #endif
-		// Throw the error code
-		throw Networking::NetworkException(connectionSocket, errorCode, "Client receive failed");
-	}
-	// Return the vector containing the received data
+		if (bytesReceived == 0) { // Graceful shutdown by peer
+            Logger::getInstance().log(LogLevel::INFO, "Client::Receive: Peer has performed an orderly shutdown.");
+            clientIsConnected = false;
+            CLOSESOCKET(connectionSocket); // Close our end of the socket
+            #ifdef _WIN32
+            // WSACleanup(); // Per existing pattern, but consider if this is too broad for one client instance
+            #endif
+            receiveBuffer.resize(bufferStart); // Truncate to actual data received before shutdown signal
+            break; // Exit loop, return potentially partially filled buffer
+        }
+		if (bytesReceived == SOCKET_ERROR) { // Error during recv
+            int errorCode = GETERROR();
+            Logger::getInstance().log(LogLevel::ERROR, "Client::Receive: recv() failed with error: " + std::to_string(errorCode));
+            clientIsConnected = false; // Update state
+            CLOSESOCKET(connectionSocket);
+            #ifdef _WIN32
+            WSACleanup(); // Per existing pattern
+            #endif
+            // Decide if to return partial data or throw. Current pattern is to throw.
+            // If throwing, any previously received data in receiveBuffer is lost to the caller.
+            throw Networking::NetworkException(connectionSocket, errorCode, "Client receive failed");
+        }
+
+        // Valid data received, resize buffer to actual new size
+        receiveBuffer.resize(bufferStart + bytesReceived);
+
+	} while (bytesReceived == 512); // Continue if a full 512-byte chunk was received
+
+	// Return the vector containing the accumulated received data
 	return receiveBuffer;
 }
 
