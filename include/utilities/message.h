@@ -49,7 +49,15 @@ enum class MessageType{
     Rename,
     RenameResponse,
     Utimens,
-    UtimensResponse
+    UtimensResponse,
+
+    // Operations for Mkdir, Rmdir, StatFs
+    Mkdir,
+    MkdirResponse,
+    Rmdir,
+    RmdirResponse,
+    StatFs,
+    StatFsResponse
 };
 
 /**
