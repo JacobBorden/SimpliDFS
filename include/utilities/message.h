@@ -49,7 +49,20 @@ enum class MessageType{
     Rename,
     RenameResponse,
     Utimens,
-    UtimensResponse
+    UtimensResponse,
+
+    // For FUSE adapter to Metaserver data operations
+    GetFileNodeLocations,         // FUSE -> MS to ask for node locations for a file
+    GetFileNodeLocationsResponse, // MS -> FUSE response with node locations (e.g., in _Data field)
+    PrepareWriteOperation,        // FUSE -> MS to inform about a write and get primary node
+    PrepareWriteOperationResponse, // MS -> FUSE response with primary node address (e.g., in _NodeAddress field)
+
+    // For Node to FUSE adapter during read
+    ReadFileResponse,             // Node -> FUSE response with file data or error
+
+    // For FUSE adapter to Metaserver after successful write to data node
+    UpdateFileMetadata,           // FUSE -> MS to update metadata (e.g. size) after a write
+    UpdateFileMetadataResponse    // MS -> FUSE confirmation for metadata update
 };
 
 /**

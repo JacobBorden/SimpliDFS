@@ -12,16 +12,314 @@
 #include <stdexcept>    // For std::invalid_argument, std::out_of_range, std::exception
 #include <sstream>      // For std::istringstream
 #include <algorithm>    // For std::min
+#include <vector>       // Required for std::vector in SimpliDfsFuseHandler
+
+// Forward declaration if SimpliDfsFuseHandler is defined later or in another file
+class SimpliDfsFuseHandler;
 
 // Helper to get SimpliDfsFuseData from FUSE context
+// Also initialize SimpliDfsFuseHandler if not already done (e.g. in fi->fh)
+// For global functions not having fi, we might need a global handler instance or pass fuse_data.
 static SimpliDfsFuseData* get_fuse_data() {
     SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(fuse_get_context()->private_data);
     if (!data || !data->metadata_client) {
         Logger::getInstance().log(LogLevel::ERROR, "FUSE private_data not configured correctly or metadata_client not accessible or configured.");
         return nullptr;
     }
+    // SimpliDfsFuseHandler might be better stored in fi->fh for open/read/write/release
+    // For other ops, if a global handler is needed:
+    // if (!data->fuse_handler) {
+    //    data->fuse_handler = new SimpliDfsFuseHandler(*(data->metadata_client));
+    // }
     return data;
 }
+
+
+// Definition of SimpliDfsFuseHandler (can be moved to a separate .h/.cpp if it grows)
+class SimpliDfsFuseHandler {
+public:
+    Networking::Client& ms_client; // Reference to metaserver client from SimpliDfsFuseData
+    Logger& logger;
+
+    SimpliDfsFuseHandler(Networking::Client& metaserver_client)
+        : ms_client(metaserver_client), logger(Logger::getInstance()) {}
+
+    // Core logic extracted from simpli_read
+    int process_read(const std::string& path, char *buf, size_t size, off_t offset) {
+        logger.log(LogLevel::DEBUG, "[FuseHandler] process_read for path: " + path + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+
+        // Phase 1: Get node locations from Metaserver
+        Message loc_req_msg;
+        loc_req_msg._Type = MessageType::GetFileNodeLocations;
+        loc_req_msg._Path = path;
+
+        std::string node_addresses_str;
+        try {
+            logger.log(LogLevel::DEBUG, "[FuseHandler] Sending GetFileNodeLocations request for " + path);
+            std::string serialized_loc_req = Message::Serialize(loc_req_msg);
+            if (!ms_client.Send(serialized_loc_req.c_str())) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Failed to send GetFileNodeLocations request for " + path);
+                return -EIO;
+            }
+
+            std::vector<char> received_vec_loc = ms_client.Receive();
+            if (received_vec_loc.empty()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Received empty response for GetFileNodeLocations from Metaserver for " + path);
+                return -EIO;
+            }
+            std::string serialized_loc_res(received_vec_loc.begin(), received_vec_loc.end());
+            Message loc_res_msg = Message::Deserialize(serialized_loc_res);
+
+            if (loc_res_msg._ErrorCode != 0) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Metaserver returned error " + std::to_string(loc_res_msg._ErrorCode) + " for GetFileNodeLocations for " + path);
+                return -loc_res_msg._ErrorCode;
+            }
+            if (loc_res_msg._Data.empty()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Metaserver returned no node locations for " + path);
+                return -ENOENT;
+            }
+            node_addresses_str = loc_res_msg._Data;
+            logger.log(LogLevel::INFO, "[FuseHandler] Received node locations for " + path + ": " + node_addresses_str);
+
+        } catch (const std::exception& e) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] Exception communicating with Metaserver for GetFileNodeLocations " + path + ": " + std::string(e.what()));
+            return -EIO;
+        }
+
+        // Phase 2: Iterate through available nodes and attempt to read data
+        std::istringstream iss_nodes(node_addresses_str);
+        std::string current_node_address;
+        bool read_successful = false;
+        ssize_t bytes_read_from_node = -EIO;
+
+        while (std::getline(iss_nodes, current_node_address, ',')) {
+            if (current_node_address.empty()) continue;
+            logger.log(LogLevel::DEBUG, "[FuseHandler] Attempting to read from node: " + current_node_address + " for path " + path);
+
+            size_t colon_pos = current_node_address.find(':');
+            if (colon_pos == std::string::npos) {
+                logger.log(LogLevel::WARN, "[FuseHandler] Invalid node address format '" + current_node_address + "'. Skipping.");
+                bytes_read_from_node = -EIO;
+                continue;
+            }
+            std::string node_ip = current_node_address.substr(0, colon_pos);
+            int node_port;
+            try {
+                node_port = std::stoi(current_node_address.substr(colon_pos + 1));
+            } catch (const std::exception& e) {
+                logger.log(LogLevel::WARN, "[FuseHandler] Invalid port in node address '" + current_node_address + "': " + e.what() + ". Skipping.");
+                bytes_read_from_node = -EIO;
+                continue;
+            }
+
+            Networking::Client data_node_client; // Create a new client for each attempt
+            try {
+                logger.log(LogLevel::INFO, "[FuseHandler] Connecting to data node " + node_ip + ":" + std::to_string(node_port) + " for file " + path);
+                if (!data_node_client.CreateClientTCPSocket(node_ip.c_str(), node_port) || !data_node_client.ConnectClientSocket()) {
+                     logger.log(LogLevel::WARN, "[FuseHandler] Failed to connect to data node " + current_node_address + ". Trying next node if available.");
+                     bytes_read_from_node = -EHOSTUNREACH;
+                     continue;
+                }
+
+                Message data_req_msg;
+                data_req_msg._Type = MessageType::ReadFile;
+                data_req_msg._Filename = path;
+                data_req_msg._Offset = static_cast<int64_t>(offset);
+                data_req_msg._Size = static_cast<uint64_t>(size);
+
+                std::string serialized_data_req = Message::Serialize(data_req_msg);
+                if (!data_node_client.Send(serialized_data_req.c_str())) {
+                    logger.log(LogLevel::WARN, "[FuseHandler] Failed to send ReadFile request to data node " + current_node_address + ". Trying next node if available.");
+                    data_node_client.Disconnect();
+                    bytes_read_from_node = -EIO;
+                    continue;
+                }
+
+                std::vector<char> received_vec_data = data_node_client.Receive();
+                data_node_client.Disconnect();
+
+                if (received_vec_data.empty() && size > 0) {
+                     logger.log(LogLevel::WARN, "[FuseHandler] Received empty (zero bytes) network response from data node " + current_node_address + " for " + path);
+                }
+
+                std::string serialized_data_res(received_vec_data.begin(), received_vec_data.end());
+                Message data_res_msg = Message::Deserialize(serialized_data_res);
+
+                if (data_res_msg._Type == MessageType::ReadFileResponse && data_res_msg._ErrorCode == 0) {
+                    size_t bytes_to_copy = std::min(size, static_cast<size_t>(data_res_msg._Data.length()));
+                    memcpy(buf, data_res_msg._Data.data(), bytes_to_copy);
+                    logger.log(LogLevel::INFO, "[FuseHandler] Successfully read " + std::to_string(bytes_to_copy) + " bytes from data node " + current_node_address + " for " + path);
+                    bytes_read_from_node = static_cast<ssize_t>(bytes_to_copy);
+                    read_successful = true;
+                    break;
+                } else {
+                    logger.log(LogLevel::WARN, "[FuseHandler] Data node " + current_node_address + " returned error " + std::to_string(data_res_msg._ErrorCode) + " (Type: " + std::to_string(static_cast<int>(data_res_msg._Type)) + ") for " + path + ". Trying next node.");
+                    bytes_read_from_node = - (data_res_msg._ErrorCode != 0 ? data_res_msg._ErrorCode : EIO) ;
+                }
+            } catch (const Networking::NetworkException& ne) {
+                logger.log(LogLevel::WARN, "[FuseHandler] NetworkException with data node " + current_node_address + " for " + path + ": " + ne.what() + ". Trying next node.");
+                if(data_node_client.IsConnected()) data_node_client.Disconnect();
+                bytes_read_from_node = -EIO;
+            } catch (const std::exception& e) {
+                logger.log(LogLevel::WARN, "[FuseHandler] Exception with data node " + current_node_address + " for " + path + ": " + e.what() + ". Trying next node.");
+                if(data_node_client.IsConnected()) data_node_client.Disconnect();
+                bytes_read_from_node = -EIO;
+            }
+        }
+
+        if (!read_successful) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] Failed to read from all available nodes for path " + path + ". Last error: " + std::to_string(bytes_read_from_node));
+        }
+        return bytes_read_from_node;
+    }
+
+    // Core logic extracted from simpli_write
+    int process_write(const std::string& path, const char *buf, size_t size, off_t offset) {
+        logger.log(LogLevel::DEBUG, "[FuseHandler] process_write for path: " + path + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+
+        // Phase 1: Prepare write operation with Metaserver (get primary data node)
+        Message prep_req_msg;
+        prep_req_msg._Type = MessageType::PrepareWriteOperation;
+        prep_req_msg._Path = path;
+        prep_req_msg._Offset = static_cast<int64_t>(offset);
+        prep_req_msg._Size = static_cast<uint64_t>(size);
+
+        std::string primary_node_address;
+        try {
+            logger.log(LogLevel::DEBUG, "[FuseHandler] Sending PrepareWriteOperation request for " + path);
+            std::string serialized_prep_req = Message::Serialize(prep_req_msg);
+            if (!ms_client.Send(serialized_prep_req.c_str())) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Failed to send PrepareWriteOperation request for " + path);
+                return -EIO;
+            }
+
+            std::vector<char> received_vec_prep = ms_client.Receive();
+            if (received_vec_prep.empty()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Received empty response for PrepareWriteOperation from Metaserver for " + path);
+                return -EIO;
+            }
+            std::string serialized_prep_res(received_vec_prep.begin(), received_vec_prep.end());
+            Message prep_res_msg = Message::Deserialize(serialized_prep_res);
+
+            if (prep_res_msg._ErrorCode != 0) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Metaserver returned error " + std::to_string(prep_res_msg._ErrorCode) + " for PrepareWriteOperation for " + path);
+                return -prep_res_msg._ErrorCode;
+            }
+            if (prep_res_msg._NodeAddress.empty()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Metaserver returned no primary node address for " + path);
+                return -EHOSTUNREACH;
+            }
+            primary_node_address = prep_res_msg._NodeAddress;
+            logger.log(LogLevel::INFO, "[FuseHandler] Received primary data node " + primary_node_address + " for " + path);
+
+        } catch (const std::exception& e) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] Exception communicating with Metaserver for PrepareWriteOperation " + path + ": " + std::string(e.what()));
+            return -EIO;
+        }
+
+        // Phase 2: Write data to the primary data node
+        size_t colon_pos = primary_node_address.find(':');
+        if (colon_pos == std::string::npos) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] Invalid primary node address format: " + primary_node_address);
+            return -EIO;
+        }
+        std::string node_ip = primary_node_address.substr(0, colon_pos);
+        int node_port;
+        try {
+            node_port = std::stoi(primary_node_address.substr(colon_pos + 1));
+        } catch (const std::exception& e) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] Invalid port in primary node address " + primary_node_address + ": " + e.what());
+            return -EIO;
+        }
+
+        Networking::Client data_node_client;
+        ssize_t bytes_written_on_node = 0;
+        try {
+            logger.log(LogLevel::INFO, "[FuseHandler] Connecting to primary data node " + node_ip + ":" + std::to_string(node_port) + " for file " + path);
+            if (!data_node_client.CreateClientTCPSocket(node_ip.c_str(), node_port) || !data_node_client.ConnectClientSocket()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Failed to connect to primary data node " + primary_node_address);
+                return -EHOSTUNREACH;
+            }
+
+            Message data_write_msg;
+            data_write_msg._Type = MessageType::WriteFile;
+            data_write_msg._Filename = path;
+            data_write_msg._Offset = static_cast<int64_t>(offset);
+            data_write_msg._Size = static_cast<uint64_t>(size);
+            data_write_msg._Content.assign(buf, size);
+            // _Data field is also available, _Content is used by current Node::processWriteFileRequest
+            data_write_msg._Data.assign(buf, size);
+
+
+            std::string serialized_data_write = Message::Serialize(data_write_msg);
+            if (!data_node_client.Send(serialized_data_write.c_str())) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Failed to send WriteFile request to data node " + primary_node_address);
+                data_node_client.Disconnect();
+                return -EIO;
+            }
+
+            std::vector<char> received_vec_confirm = data_node_client.Receive();
+            data_node_client.Disconnect();
+
+            if (received_vec_confirm.empty()) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Received empty confirmation from data node " + primary_node_address + " for " + path);
+                return -EIO;
+            }
+
+            std::string serialized_confirm_res(received_vec_confirm.begin(), received_vec_confirm.end());
+            Message confirm_res_msg = Message::Deserialize(serialized_confirm_res);
+
+            if (confirm_res_msg._ErrorCode != 0) {
+                logger.log(LogLevel::ERROR, "[FuseHandler] Data node " + primary_node_address + " returned error " + std::to_string(confirm_res_msg._ErrorCode) + " on write for " + path);
+                return -confirm_res_msg._ErrorCode;
+            }
+
+            bytes_written_on_node = static_cast<ssize_t>(confirm_res_msg._Size);
+            logger.log(LogLevel::INFO, "[FuseHandler] Successfully wrote " + std::to_string(bytes_written_on_node) + " bytes to data node " + primary_node_address + " for " + path);
+
+            if (bytes_written_on_node >= 0) {
+                Message update_meta_req;
+                update_meta_req._Type = MessageType::UpdateFileMetadata;
+                update_meta_req._Path = path;
+                update_meta_req._Offset = static_cast<int64_t>(offset);
+                update_meta_req._Size = static_cast<uint64_t>(bytes_written_on_node);
+
+                logger.log(LogLevel::DEBUG, "[FuseHandler] Sending UpdateFileMetadata to Metaserver for " + path);
+                try {
+                    std::string serialized_update_req = Message::Serialize(update_meta_req);
+                    if (!ms_client.Send(serialized_update_req.c_str())) {
+                        logger.log(LogLevel::ERROR, "[FuseHandler] Failed to send UpdateFileMetadata request to Metaserver for " + path);
+                    } else {
+                        std::vector<char> received_vec_update_meta = ms_client.Receive();
+                        if (received_vec_update_meta.empty()) {
+                            logger.log(LogLevel::WARN, "[FuseHandler] Received empty response for UpdateFileMetadata from Metaserver for " + path);
+                        } else {
+                            Message update_meta_res = Message::Deserialize(std::string(received_vec_update_meta.begin(), received_vec_update_meta.end()));
+                            if (update_meta_res._ErrorCode != 0) {
+                                logger.log(LogLevel::WARN, "[FuseHandler] Metaserver failed to update metadata for " + path + ". Error: " + std::to_string(update_meta_res._ErrorCode));
+                            } else {
+                                logger.log(LogLevel::INFO, "[FuseHandler] Metaserver successfully updated metadata for " + path);
+                            }
+                        }
+                    }
+                } catch (const std::exception& e_meta_update) {
+                    logger.log(LogLevel::WARN, "[FuseHandler] Exception sending UpdateFileMetadata to Metaserver for " + path + ": " + std::string(e_meta_update.what()));
+                }
+            }
+            return bytes_written_on_node;
+
+        } catch (const Networking::NetworkException& ne) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] NetworkException with data node " + primary_node_address + " for " + path + ": " + ne.what());
+            if(data_node_client.IsConnected()) data_node_client.Disconnect();
+            return -EIO;
+        } catch (const std::exception& e) {
+            logger.log(LogLevel::ERROR, "[FuseHandler] General std::exception for " + path + ": " + std::string(e.what()));
+            if(data_node_client.IsConnected()) data_node_client.Disconnect();
+            return -EIO;
+        }
+    }
+};
+
 
 int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
     (void)fi;
@@ -254,55 +552,19 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 }
 
 int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void)fi; // fi->fh could be used if server manages file handles
+    (void)fi;
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_read called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+    SimpliDfsFuseData* fuse_data_ptr = get_fuse_data();
+    if (!fuse_data_ptr) return -EIO;
 
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) {
-        return -EIO;
-    }
-
-    Message req_msg;
-    req_msg._Type = MessageType::Read;
-    req_msg._Path = path;
-    req_msg._Offset = static_cast<int64_t>(offset);
-    req_msg._Size = static_cast<uint64_t>(size);
-
-    try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Sending Read request for " + std::string(path));
-        std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Failed to send Read request for " + std::string(path));
-            return -EIO;
-        }
-
-        std::vector<char> received_vector_read = data->metadata_client->Receive();
-        // Empty response can be valid if reading 0 bytes or at EOF.
-        // The metaserver should handle this by sending a response with _Data being empty and _ErrorCode = 0.
-        // A truly empty network response (e.g. connection closed by peer) might indicate an error.
-        // For now, we proceed if received_vector_read is empty, and Message::Deserialize will handle it.
-        // If size > 0 and it's a persistent empty response, it could be an issue.
-        if (received_vector_read.empty() && size > 0) {
-             Logger::getInstance().log(LogLevel::WARN, "simpli_read: Received completely empty (zero bytes) network response for " + std::string(path) + " when requesting " + std::to_string(size) + " bytes. This might be EOF or an issue.");
-        }
-        std::string serialized_res(received_vector_read.begin(), received_vector_read.end());
-        Message res_msg = Message::Deserialize(serialized_res);
-         Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Received Read response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Data size: " + std::to_string(res_msg._Data.length()));
-
-
-        if (res_msg._ErrorCode != 0) {
-            return -res_msg._ErrorCode;
-        }
-
-        size_t bytes_to_copy = std::min(size, static_cast<size_t>(res_msg._Data.length()));
-        memcpy(buf, res_msg._Data.data(), bytes_to_copy);
-
-        return static_cast<ssize_t>(bytes_to_copy); // FUSE read returns ssize_t
-
-    } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Exception for " + std::string(path) + ": " + std::string(e.what()));
-        return -EIO;
-    }
+    // It's better to store the handler in SimpliDfsFuseData if it's needed across multiple FUSE ops
+    // or if its construction is expensive. For now, stack allocating if only used here.
+    // If SimpliDfsFuseData had SimpliDfsFuseHandler* fuse_handler;
+    // SimpliDfsFuseHandler* handler = fuse_data_ptr->fuse_handler;
+    // if (!handler) { Logger::getInstance().log(LogLevel::ERROR, "FUSE handler not initialized in fuse_data."); return -EIO;}
+    // For now, create on stack if SimpliDfsFuseData only holds the client:
+    SimpliDfsFuseHandler handler(*(fuse_data_ptr->metadata_client));
+    return handler.process_read(path, buf, size, offset);
 }
 
 int simpli_access(const char *path, int mask) {
@@ -404,49 +666,13 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 }
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void)fi; // fi->fh could be used if server manages file handles
+    (void)fi;
     Logger::getInstance().log(LogLevel::DEBUG, "simpli_write called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+    SimpliDfsFuseData* fuse_data_ptr = get_fuse_data();
+    if (!fuse_data_ptr) return -EIO;
 
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) {
-        return -EIO;
-    }
-
-    Message req_msg;
-    req_msg._Type = MessageType::Write;
-    req_msg._Path = path;
-    req_msg._Offset = static_cast<int64_t>(offset);
-    req_msg._Size = static_cast<uint64_t>(size);
-    req_msg._Data.assign(buf, size);
-
-    try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Sending Write request for " + std::string(path));
-        std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Failed to send Write request for " + std::string(path));
-            return -EIO;
-        }
-
-        std::vector<char> received_vector_write = data->metadata_client->Receive();
-        if (received_vector_write.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Received empty response for Write request for " + std::string(path));
-            return -EIO;
-        }
-        std::string serialized_res(received_vector_write.begin(), received_vector_write.end());
-        Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Received Write response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Size Confirmed: " + std::to_string(res_msg._Size));
-
-        if (res_msg._ErrorCode != 0) {
-            return -res_msg._ErrorCode;
-        }
-
-        // Server confirms the number of bytes written in res_msg._Size
-        return static_cast<ssize_t>(res_msg._Size);
-
-    } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Exception for " + std::string(path) + ": " + std::string(e.what()));
-        return -EIO;
-    }
+    SimpliDfsFuseHandler handler(*(fuse_data_ptr->metadata_client));
+    return handler.process_write(path, buf, size, offset);
 }
 
 int simpli_unlink(const char *path) {

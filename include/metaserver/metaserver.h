@@ -8,6 +8,9 @@
  */
 #include "utilities/filesystem.h" // Included for context, though not directly used in this header
 #include "utilities/message.h"    // For Message struct and MessageType enum
+#include "utilities/client.h"       // For Networking::Client
+#include "utilities/networkexception.h" // For Networking::NetworkException
+#include "utilities/logger.h"     // For Logger
 #include <vector>
 #include <string>
 #include <iostream>
@@ -91,7 +94,7 @@ public:
         newNodeInfo.isAlive = true;
 
         registeredNodes[nodeIdentifier] = newNodeInfo;
-        std::cout << "Node " << nodeIdentifier << " registered from " << nodeAddr << ":" << nodePrt << std::endl;
+        Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Node " + nodeIdentifier + " registered from " + nodeAddr + ":" + std::to_string(nodePrt));
     }
 
     // Process a heartbeat message from a node
@@ -101,11 +104,44 @@ public:
         if (it != registeredNodes.end()) {
             it->second.lastHeartbeat = time(nullptr);
             it->second.isAlive = true;
-            std::cout << "Heartbeat received from node " << nodeIdentifier << std::endl;
+            Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Heartbeat received from node " + nodeIdentifier);
         } else {
-            std::cout << "Heartbeat from unregistered node " << nodeIdentifier << std::endl;
+            Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] Heartbeat from unregistered node " + nodeIdentifier);
             // Optionally, register the node if it sends a heartbeat but is not in the map
             // For now, we just log it.
+        }
+    }
+
+    /**
+     * @brief Retrieves the NodeInfo struct for a specific registered node.
+     * @param nodeID The unique identifier of the node.
+     * @return The NodeInfo struct if the node is found.
+     * @throw std::runtime_error if the nodeID is not found.
+     */
+    NodeInfo getNodeInfo(const std::string& nodeID) {
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        auto it = registeredNodes.find(nodeID);
+        if (it != registeredNodes.end()) {
+            return it->second;
+        } else {
+            throw std::runtime_error("Node ID not found in registered nodes: " + nodeID);
+        }
+    }
+
+
+    /**
+     * @brief Retrieves the network address ("ip:port") of a specific registered node.
+     * @param nodeID The unique identifier of the node.
+     * @return The network address string if the node is found and registered.
+     * @throw std::runtime_error if the nodeID is not found in the registered nodes map.
+     */
+    std::string getNodeAddress(const std::string& nodeID) {
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        auto it = registeredNodes.find(nodeID);
+        if (it != registeredNodes.end()) {
+            return it->second.nodeAddress;
+        } else {
+            throw std::runtime_error("Node ID not found in registered nodes: " + nodeID);
         }
     }
 
@@ -123,12 +159,14 @@ public:
         std::lock_guard<std::mutex> lock(metadataMutex);
         time_t currentTime = time(nullptr);
         for (auto& entry : registeredNodes) {
+            // Get logger instance once for the loop if possible, or use getLogger() directly
+            Logger& logger_cfdn = Logger::getInstance();
             if (entry.second.isAlive && (currentTime - entry.second.lastHeartbeat > NODE_TIMEOUT_SECONDS)) {
                 entry.second.isAlive = false;
                 std::string deadNodeID = entry.first;
-                std::cout << "Node " << deadNodeID << " timed out. Marked as offline." << std::endl;
+                logger_cfdn.log(LogLevel::WARN, "[MetadataManager::checkForDeadNodes] Node " + deadNodeID + " timed out. Marked as offline.");
                 
-                std::cout << "Starting replica redistribution for files on " << deadNodeID << std::endl;
+                logger_cfdn.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] Starting replica redistribution for files on " + deadNodeID);
                 std::vector<std::pair<std::string, std::string>> tasks;
 
                 // Collect tasks: Iterate through fileMetadata to find files hosted on the dead node
@@ -146,7 +184,7 @@ public:
                     const std::string& failedNodeID = task.second; // Renamed for clarity within this loop
                     std::vector<std::string>& currentReplicas = fileMetadata[filename];
 
-                    std::cout << "File " << filename << " needs new replica due to " << failedNodeID << " failure." << std::endl;
+                    logger_cfdn.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] File " + filename + " needs new replica due to " + failedNodeID + " failure.");
 
                     std::string newNodeID = "";
                     // Find a new node for replica
@@ -161,7 +199,7 @@ public:
                     }
 
                     if (newNodeID.empty()) {
-                        std::cout << "Warning: Could not find a new live node for " << filename << "." << std::endl;
+                        logger_cfdn.log(LogLevel::WARN, "[MetadataManager::checkForDeadNodes] Warning: Could not find a new live node for " + filename + " after failure of " + failedNodeID);
                         continue; // Skip to next task
                     }
 
@@ -175,23 +213,47 @@ public:
                     }
 
                     if (sourceNodeID.empty()) {
-                        std::cout << "Error: No live source replica found for " << filename << "." << std::endl;
+                        logger_cfdn.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] Error: No live source replica found for " + filename + " after failure of " + failedNodeID);
                         continue; // Skip to next task
                     }
 
                     // Update metadata
                     currentReplicas.erase(std::remove(currentReplicas.begin(), currentReplicas.end(), failedNodeID), currentReplicas.end());
                     currentReplicas.push_back(newNodeID);
-                    std::cout << "Replaced " << failedNodeID << " with " << newNodeID << " for file " << filename << "." << std::endl;
+                    logger_cfdn.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] Replaced " + failedNodeID + " with " + newNodeID + " for file " + filename);
 
-                    // Log commands (simulating sending messages)
+                    // Actual network communication for file replication uses 'logger' alias from previous change which is fine.
+                    // Logger& logger = Logger::getInstance(); // This line is redundant if logger_cfdn is used or logger is already defined
+
                     Message replicateMsg;
                     replicateMsg._Type = MessageType::ReplicateFileCommand;
                     replicateMsg._Filename = filename;
                     replicateMsg._NodeAddress = registeredNodes[newNodeID].nodeAddress; // Target for replica
                     replicateMsg._Content = sourceNodeID; // Informing who is the source
                     std::string serRepMsg = Message::Serialize(replicateMsg);
-                    std::cout << "[METASERVER_STUB] To " << sourceNodeID << " (source): " << serRepMsg << std::endl;
+
+                    // Send ReplicateFileCommand to source node
+                    try {
+                        std::string sourceNodeAddrStr = registeredNodes[sourceNodeID].nodeAddress;
+                        size_t colon_pos_source = sourceNodeAddrStr.find(':');
+                        if (colon_pos_source == std::string::npos) {
+                            logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] Invalid address format for source node " + sourceNodeID + ": " + sourceNodeAddrStr);
+                        } else {
+                            std::string sourceIP = sourceNodeAddrStr.substr(0, colon_pos_source);
+                            int sourcePort = std::stoi(sourceNodeAddrStr.substr(colon_pos_source + 1));
+
+                            Networking::Client sourceClient(sourceIP, sourcePort);
+                            logger.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] Connecting to source node " + sourceNodeID + " at " + sourceIP + ":" + std::to_string(sourcePort) + " to send ReplicateFileCommand for " + filename);
+                            sourceClient.Connect();
+                            sourceClient.Send(serRepMsg.c_str());
+                            sourceClient.Disconnect();
+                            logger.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] ReplicateFileCommand sent to source node " + sourceNodeID + " for file " + filename);
+                        }
+                    } catch (const Networking::NetworkException& ne) {
+                        logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] NetworkException while sending ReplicateFileCommand to source node " + sourceNodeID + " for file " + filename + ": " + std::string(ne.what()));
+                    } catch (const std::exception& e) { // Catch other potential errors like std::stoi
+                        logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] Std::exception while preparing to send ReplicateFileCommand to source node " + sourceNodeID + " for file " + filename + ": " + std::string(e.what()));
+                    }
 
                     Message receiveMsg;
                     receiveMsg._Type = MessageType::ReceiveFileCommand;
@@ -199,7 +261,29 @@ public:
                     receiveMsg._NodeAddress = registeredNodes[sourceNodeID].nodeAddress; // Source of replica
                     receiveMsg._Content = newNodeID; // Informing who is the target
                     std::string serRecMsg = Message::Serialize(receiveMsg);
-                    std::cout << "[METASERVER_STUB] To " << newNodeID << " (target): " << serRecMsg << std::endl;
+
+                    // Send ReceiveFileCommand to new/target node
+                    try {
+                        std::string targetNodeAddrStr = registeredNodes[newNodeID].nodeAddress;
+                        size_t colon_pos_target = targetNodeAddrStr.find(':');
+                        if (colon_pos_target == std::string::npos) {
+                            logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] Invalid address format for target node " + newNodeID + ": " + targetNodeAddrStr);
+                        } else {
+                            std::string targetIP = targetNodeAddrStr.substr(0, colon_pos_target);
+                            int targetPort = std::stoi(targetNodeAddrStr.substr(colon_pos_target + 1));
+
+                            Networking::Client targetClient(targetIP, targetPort);
+                            logger.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] Connecting to target node " + newNodeID + " at " + targetIP + ":" + std::to_string(targetPort) + " to send ReceiveFileCommand for " + filename);
+                            targetClient.Connect();
+                            targetClient.Send(serRecMsg.c_str());
+                            targetClient.Disconnect();
+                            logger.log(LogLevel::INFO, "[MetadataManager::checkForDeadNodes] ReceiveFileCommand sent to target node " + newNodeID + " for file " + filename);
+                        }
+                    } catch (const Networking::NetworkException& ne) {
+                        logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] NetworkException while sending ReceiveFileCommand to target node " + newNodeID + " for file " + filename + ": " + std::string(ne.what()));
+                    } catch (const std::exception& e) { // Catch other potential errors like std::stoi
+                        logger.log(LogLevel::ERROR, "[MetadataManager::checkForDeadNodes] Std::exception while preparing to send ReceiveFileCommand to target node " + newNodeID + " for file " + filename + ": " + std::string(e.what()));
+                    }
                 }
                 // After processing all redistributions for a dead node.
                 // Call saveMetadata here if defined, path constants should be accessible.
@@ -247,6 +331,29 @@ public:
     // Existing methods (signatures mostly unchanged, but implementations might need review for new members)
     bool removeFile(const std::string& filename);     // Declaration for bool return type
 
+    int updateFileSizePostWrite(const std::string& filename, int64_t offset, uint64_t bytes_written) {
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        if (!fileMetadata.count(filename)) {
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] updateFileSizePostWrite: File not found: " + filename);
+            return ENOENT;
+        }
+
+        uint64_t new_potential_size = static_cast<uint64_t>(offset) + bytes_written;
+
+        // Update file size if this write extends the file or if it's the first write setting the size.
+        // This logic is similar to what's in writeFileData, but more direct for size update.
+        if (!fileSizes.count(filename) || new_potential_size > fileSizes.at(filename)) {
+            fileSizes[filename] = new_potential_size;
+            Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] updateFileSizePostWrite: File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
+        } else {
+            // If writing within existing boundaries, size might not change, but log for debug if needed.
+            Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] updateFileSizePostWrite: File " + filename + " write within existing size. Current size: " + std::to_string(fileSizes[filename]) + ", write end offset: " + std::to_string(new_potential_size));
+        }
+        // This method primarily updates metadata; actual data is on nodes.
+        // No direct data involved here, just confirming size based on FUSE write.
+        return 0; // Success
+    }
+
     // Retrieve metadata for a given file
     /**
      * @brief Retrieves the list of node identifiers that store replicas of a given file.
@@ -281,13 +388,17 @@ public:
      */
     void printMetadata() {
         std::lock_guard<std::mutex> lock(metadataMutex);
-        std::cout << "Current Metadata: " << std::endl;
+        Logger& logger_pm = Logger::getInstance();
+        logger_pm.log(LogLevel::DEBUG, "[MetadataManager] Current Metadata:");
         for (const auto &entry : fileMetadata) {
-            std::cout << "File: " << entry.first << " - Nodes: ";
-            for (const auto &node : entry.second) {
-                std::cout << node << " ";
+            std::string nodeListStr;
+            for (size_t i = 0; i < entry.second.size(); ++i) {
+                nodeListStr += entry.second[i];
+                if (i < entry.second.size() - 1) {
+                    nodeListStr += ", ";
+                }
             }
-            std::cout << std::endl;
+            logger_pm.log(LogLevel::DEBUG, "[MetadataManager] File: " + entry.first + " - Nodes: " + nodeListStr);
         }
     }
 
@@ -313,7 +424,7 @@ public:
             }
             fm_ofs.close();
         } else {
-            std::cerr << "Error: Could not open " << fileMetadataPath << " for writing." << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] Error: Could not open " + fileMetadataPath + " for writing.");
         }
 
         // Save registeredNodes
@@ -328,7 +439,7 @@ public:
             }
             nr_ofs.close();
         } else {
-            std::cerr << "Error: Could not open " << nodeRegistryPath << " for writing." << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] Error: Could not open " + nodeRegistryPath + " for writing.");
         }
     }
 
@@ -365,7 +476,7 @@ public:
             }
             fm_ifs.close();
         } else {
-            std::cerr << "Info: Could not open " << fileMetadataPath << " for reading. Starting fresh or assuming no prior state." << std::endl;
+            Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Info: Could not open " + fileMetadataPath + " for reading. Starting fresh or assuming no prior state.");
         }
 
         // Load registeredNodes
@@ -390,7 +501,7 @@ public:
                         info.lastHeartbeat = std::stol(lastHbStr);     // string to long
                         info.isAlive = (isAliveStr == "1");
                     } catch (const std::invalid_argument& ia) {
-                        std::cerr << "Error parsing numeric value for node " << nodeID << ": " << ia.what() << std::endl;
+                        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] Error parsing numeric value for node " + nodeID + " from registry: " + ia.what());
                         continue; // Skip this record
                     }
                     registeredNodes[nodeID] = info;
@@ -398,7 +509,7 @@ public:
             }
             nr_ifs.close();
         } else {
-            std::cerr << "Info: Could not open " << nodeRegistryPath << " for reading. Starting fresh or assuming no prior state." << std::endl;
+            Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Info: Could not open " + nodeRegistryPath + " for reading. Starting fresh or assuming no prior state.");
         }
     }
 };

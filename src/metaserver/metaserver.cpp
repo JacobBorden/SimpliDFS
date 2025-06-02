@@ -11,6 +11,7 @@
 #include <sstream>
 #include "metaserver/metaserver.h"
 #include "utilities/server.h"
+#include "utilities/client.h" // Added for Networking::Client
 #include "utilities/networkexception.h"
 #include <thread>
 #include <string>        // Required for std::string, std::to_string
@@ -310,6 +311,26 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
+            case MessageType::UpdateFileMetadata:
+            {
+                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received UpdateFileMetadata for: " + request._Path + ", Offset: " + std::to_string(request._Offset) + ", Size: " + std::to_string(request._Size));
+                Message res_msg;
+                res_msg._Type = MessageType::UpdateFileMetadataResponse;
+                std::string norm_path = normalize_path_to_filename(request._Path);
+
+                // The _Size field in the request here means bytes_written from FUSE adapter's perspective for this segment.
+                // The _Offset is where the write started.
+                res_msg._ErrorCode = metadataManager.updateFileSizePostWrite(norm_path, request._Offset, request._Size);
+
+                if (res_msg._ErrorCode == 0) {
+                    shouldSave = true; // File metadata (size) changed, persist it.
+                    Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Successfully updated metadata for " + norm_path);
+                } else {
+                    Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Failed to update metadata for " + norm_path + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+                }
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                break;
+            }
             case MessageType::Readdir:
             {
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Readdir for: " + request._Path);
@@ -489,6 +510,134 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 }
                 server.Send(Message::Serialize(del_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
+                break;
+            }
+            case MessageType::GetFileNodeLocations:
+            {
+                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received GetFileNodeLocations for: " + request._Path);
+                Message res_msg;
+                res_msg._Type = MessageType::GetFileNodeLocationsResponse;
+                std::string norm_path = normalize_path_to_filename(request._Path);
+                try {
+                    std::vector<std::string> node_ids = metadataManager.getFileNodes(norm_path);
+                    if (node_ids.empty()) {
+                        res_msg._ErrorCode = ENOENT; // Or some other error indicating no nodes have this file
+                        Logger::getInstance().log(LogLevel::WARN, "[Metaserver] No nodes found for file: " + norm_path);
+                    } else {
+                        std::string addresses_str;
+                        for (size_t i = 0; i < node_ids.size(); ++i) {
+                            try {
+                                addresses_str += metadataManager.getNodeAddress(node_ids[i]);
+                                if (i < node_ids.size() - 1) {
+                                    addresses_str += ",";
+                                }
+                            } catch (const std::runtime_error& e_node) {
+                                // Log error if a specific node ID isn't found in registeredNodes (should be rare if metadata is consistent)
+                                Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Error getting address for node ID " + node_ids[i] + " for file " + norm_path + ": " + e_node.what());
+                                // Potentially skip this address or mark error
+                            }
+                        }
+                        if (addresses_str.empty() && !node_ids.empty()){
+                             Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Node IDs found for " + norm_path + " but could not retrieve any addresses.");
+                             res_msg._ErrorCode = EHOSTUNREACH; // Cannot find addresses for listed nodes
+                        } else {
+                            res_msg._Data = addresses_str;
+                            res_msg._ErrorCode = 0;
+                             Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sending node locations for " + norm_path + ": " + addresses_str);
+                        }
+                    }
+                } catch (const std::runtime_error& e_file) { // Catch error from getFileNodes (file not found)
+                    Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Error getting file nodes for " + norm_path + ": " + e_file.what());
+                    res_msg._ErrorCode = ENOENT;
+                }
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                break;
+            }
+            case MessageType::PrepareWriteOperation:
+            {
+                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received PrepareWriteOperation for: " + request._Path + " Offset: " + std::to_string(request._Offset) + " Size: " + std::to_string(request._Size));
+                Message res_msg;
+                res_msg._Type = MessageType::PrepareWriteOperationResponse;
+                std::string norm_path = normalize_path_to_filename(request._Path);
+                uint64_t updated_size_dummy; // Not strictly needed for response, but writeFileData expects it
+
+                try {
+                    std::vector<std::string> node_ids = metadataManager.getFileNodes(norm_path);
+                    if (node_ids.empty()) {
+                        // This case might mean it's a new file.
+                        // However, FUSE usually calls create then write. If create assigned nodes, getFileNodes should find them.
+                        // If it's truly a write to a non-existent file without prior create, Metaserver needs robust addFile logic here or rely on prior create.
+                        // For now, assume create has happened or getFileNodes would throw.
+                        // If getFileNodes can return empty for a known file with no nodes (e.g. all nodes died), then this is a problem.
+                        Logger::getInstance().log(LogLevel::WARN, "[Metaserver] PrepareWriteOperation: No nodes found for existing file: " + norm_path + ". This might indicate data loss or issues.");
+                        res_msg._ErrorCode = ENOENT; // Or appropriate error
+                    } else {
+                        // Select primary node (e.g., first one)
+                        // Ensure node ID is valid and get its address
+                        std::string primary_node_address;
+                        bool primary_node_found = false;
+                        for(const auto& node_id : node_ids){ // Iterate to find a live one
+                             try {
+                                NodeInfo node_info = metadataManager.getNodeInfo(node_id); // Assuming getNodeInfo exists to check liveness
+                                if(node_info.isAlive){
+                                    primary_node_address = node_info.nodeAddress;
+                                    primary_node_found = true;
+                                    break;
+                                }
+                             } catch (const std::runtime_error& e_node_info){
+                                 Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] PrepareWriteOperation: Error getting info for node ID " + node_id + ": " + e_node_info.what());
+                             }
+                        }
+
+                        if (!primary_node_found) {
+                             Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] PrepareWriteOperation: No live primary node found for file " + norm_path);
+                             res_msg._ErrorCode = EHOSTUNREACH; // No live node to write to
+                        } else {
+                            res_msg._NodeAddress = primary_node_address;
+                            // Update metadata size. Pass empty data string for data_to_write, as we are only preparing.
+                            // The actual data length to be written is in request._Size.
+                            // The offset is request._Offset.
+                            // The writeFileData method will calculate the new total file size based on offset + data_to_write.length().
+                            // We need to ensure it correctly calculates new total size if data_to_write is empty but a size is given.
+                            // Let's assume writeFileData is smart or add a specific metadata update function.
+                            // For now, we'll use it by passing a dummy string of request._Size to represent the new data segment.
+                            // This is not ideal. A specific function like metadataManager.updateFileSize(path, offset, length) would be better.
+                            // Let's assume current writeFileData updates based on offset + length of string.
+                            // If request._Size is the *new* total size, that's different. FUSE write provides data to be written.
+                            // The size of data to write is request._Size from the FUSE client.
+                            // The metaserver's writeFileData takes the actual data to calculate new size.
+                            // So, we pass a dummy string of that size or rely on metaserver to use request._Size from FUSE.
+                            // The current Message struct doesn't pass the *data buffer* from FUSE to metaserver for PrepareWrite.
+                            // It passes the *length* of the buffer in request._Size.
+                            // MetadataManager::writeFileData needs to correctly interpret this.
+                            // The current MM::writeFileData: out_size_written = data_to_write.length(); write_end_offset = offset + out_size_written;
+                            // This is problematic if data_to_write is empty for PrepareWrite.
+                            //
+                            // TEMPORARY WORKAROUND: For PrepareWriteOperation, we'll let writeFileData only update if the new calculated size
+                            // based on offset + request._Size (from FUSE, indicating data to be written) is larger.
+                            // This means writeFileData needs to be aware of request._Size if data_to_write is empty.
+                            // Or, more simply, Metaserver just provides the node, and FUSE adapter updates Metaserver with final size *after* node write.
+                            // Let's go with: Metaserver provides primary node. Fuse writes to node. Fuse then tells Metaserver "I wrote X bytes at offset Y to file Z".
+                            // So, PrepareWriteOperation doesn't need to call writeFileData itself. The FUSE client will send a separate UpdateSize/WriteFile msg to MS.
+                            // For now, the problem states "It updates its internal file size metadata (metadataManager.writeFileData can still do this part)."
+                            // This is tricky. Let's assume writeFileData is called but with empty data, and it has logic to use offset+size from request.
+                            // This means changing writeFileData slightly or adding a new method.
+                            // The current `writeFileData` uses `data_to_write.length()`. If `data_to_write` is empty (as it would be for `PrepareWriteOperation`), `out_size_written` becomes 0.
+                            // Then `write_end_offset` is just `offset`. This would only update `fileSizes` if `offset` itself is greater than current size. This is NOT what we want for pre-allocation or size update based on intent.
+                            //
+                            // Let's defer complex size update in Metaserver during PrepareWrite. FUSE adapter will do the write to DataNode, then send WriteFile to Metaserver which WILL have the data.
+                            // So, PrepareWriteOperation in MS only needs to provide the primary node. The existing WriteFile case will handle size update later.
+                            // This simplifies Metaserver's PrepareWriteOperation.
+
+                            Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sending primary node " + primary_node_address + " for write to " + norm_path);
+                            res_msg._ErrorCode = 0;
+                        }
+                    }
+                } catch (const std::runtime_error& e_file) { // Catch error from getFileNodes (file not found)
+                    Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Error getting file nodes for " + norm_path + " in PrepareWrite: " + e_file.what());
+                    res_msg._ErrorCode = ENOENT;
+                }
+                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             default:
