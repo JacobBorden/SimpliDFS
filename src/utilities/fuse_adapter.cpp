@@ -1,5 +1,4 @@
 #include "utilities/fuse_adapter.h"
-#include <fuse_opt.h>
 #include "utilities/logger.h"
 #include <sstream> // For std::ostringstream
 #include <chrono>    // For timestamps
@@ -673,18 +672,21 @@ int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_fi
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
     try {
-        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG); // Initialize logger early
+        Logger::init("/tmp/fuse_adapter_main.log", LogLevel::DEBUG); // Initialize logger early with absolute path
     } catch (const std::exception& e) {
         fprintf(stderr, "%s [FUSE_ADAPTER] FATAL: Failed to initialize logger: %s\n", getCurrentTimestamp().c_str(), e.what());
         return 1;
     }
 
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Starting SimpliDFS FUSE adapter.");
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: main() started.\n", getCurrentTimestamp().c_str());
 
     if (argc < 4) {
         Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Usage: " + std::string(argv[0]) + " <metaserver_host> <metaserver_port> <mountpoint> [FUSE options]");
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Not enough arguments.\n", getCurrentTimestamp().c_str());
         return 1;
     }
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Arguments parsed: host=%s, port_str=%s\n", getCurrentTimestamp().c_str(), argv[1], argv[2]);
 
     SimpliDfsFuseData fuse_data;
     fuse_data.metaserver_host = argv[1];
@@ -728,23 +730,20 @@ int main(int argc, char *argv[]) {
             return 1;
         }
         Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Successfully connected to metaserver.");
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Successfully connected to metaserver.\n", getCurrentTimestamp().c_str());
     } catch (const std::exception& e) {
         Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Exception during metaserver connection: " + std::string(e.what()));
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Exception during metaserver connection: %s\n", getCurrentTimestamp().c_str(), e.what());
         if (fuse_data.metadata_client && !connect_socket_success) { // Ensure cleanup if ConnectClientSocket failed after allocation
             delete fuse_data.metadata_client;
             fuse_data.metadata_client = nullptr;
         }
         return 1;
     }
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Preparing FUSE arguments.\n", getCurrentTimestamp().c_str());
 
-    char** fuse_argv_for_init = new char*[argc - 2];
-    fuse_argv_for_init[0] = argv[0];
-    for (int i = 3; i < argc; ++i) {
-        fuse_argv_for_init[i - 2] = argv[i];
-    }
-    int fuse_argc_for_init = argc - 2;
-
-    struct fuse_args args = FUSE_ARGS_INIT(fuse_argc_for_init, fuse_argv_for_init);
+    // Use FUSE_ARGS_INIT to handle FUSE-specific arguments correctly
+    struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
     struct fuse_operations simpli_ops;
     memset(&simpli_ops, 0, sizeof(struct fuse_operations));
@@ -766,21 +765,28 @@ int main(int argc, char *argv[]) {
 #endif
 
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Passing control to fuse_main.");
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: About to call fuse_main with %d args.\n", getCurrentTimestamp().c_str(), args.argc);
+    for(int i=0; i<args.argc; ++i) {
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: fuse_argv[%d] = %s\n", getCurrentTimestamp().c_str(), i, args.argv[i]);
+    }
 
     int fuse_ret = fuse_main(args.argc, args.argv, &simpli_ops, &fuse_data);
 
-    fuse_opt_free_args(&args);
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: fuse_main returned %d.\n", getCurrentTimestamp().c_str(), fuse_ret);
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] fuse_main returned " + std::to_string(fuse_ret) + ". Cleaning up.");
-    delete[] fuse_argv_for_init;
+    fuse_opt_free_args(&args); // Free arguments allocated by FUSE_ARGS_INIT
     // Note: simpli_destroy will be called by FUSE to clean up fuse_data.metadata_client
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: Exiting main() with code %d.\n", getCurrentTimestamp().c_str(), fuse_ret);
 
     return fuse_ret;
 }
 
 void simpli_destroy(void* private_data) {
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy called.\n", getCurrentTimestamp().c_str());
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Entry.");
     if (!private_data) {
         Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: private_data is null.");
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: private_data is null.\n", getCurrentTimestamp().c_str());
         Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exit (private_data null).");
         return;
     }
@@ -789,17 +795,23 @@ void simpli_destroy(void* private_data) {
         if (data->metadata_client->IsConnected()) {
             try {
                 Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Before Disconnect.");
+                fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: Disconnecting metadata_client.\n", getCurrentTimestamp().c_str());
                 data->metadata_client->Disconnect();
                 Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Disconnected from metaserver.");
+                fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: Disconnected metadata_client.\n", getCurrentTimestamp().c_str());
             } catch (const std::exception& e) {
                 Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exception during disconnect from metaserver: " + std::string(e.what()));
+                fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: Exception during disconnect: %s.\n", getCurrentTimestamp().c_str(), e.what());
             }
         }
         delete data->metadata_client;
         data->metadata_client = nullptr;
         Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Metadata client deleted.");
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: Metadata client deleted.\n", getCurrentTimestamp().c_str());
     } else {
         Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: metadata_client was already null.");
+        fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: metadata_client was already null.\n", getCurrentTimestamp().c_str());
     }
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exit.");
+    fprintf(stderr, "%s [FUSE_ADAPTER] DEBUG: simpli_destroy: Exiting function.\n", getCurrentTimestamp().c_str());
 }

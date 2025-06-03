@@ -7,17 +7,28 @@
 #include "utilities/logger.h" // For Logger
 #include "metaserver/metaserver.h" // For MetadataManager (declaration)
 
+#include <cstdlib> // For std::atoi
+
 // Declare global instances that will be defined in SimpliDFS_MetaServerLib (metaserver.cpp)
 // This allows main() to use them.
-extern Networking::Server server;
+// extern Networking::Server server; // REMOVED
 extern MetadataManager metadataManager;
 
 // Declare HandleClientConnection which is defined in SimpliDFS_MetaServerLib (metaserver.cpp)
 // Alternatively, this declaration could be in a header file (e.g., metaserver.h if it's a free function related to the metaserver operations)
-void HandleClientConnection(Networking::ClientConnection _pClient);
+void HandleClientConnection(Networking::Server& server_instance, Networking::ClientConnection _pClient);
 
-int main()
+int main(int argc, char* argv[])
 {
+    int port = 50505; // Default port
+    if (argc > 1) {
+        port = std::atoi(argv[1]);
+        if (port == 0) { // Basic error check for atoi
+            std::cerr << "FATAL: Invalid port number provided: " << argv[1] << std::endl;
+            return 1;
+        }
+    }
+
     try {
         Logger::init("metaserver.log", LogLevel::INFO);
     } catch (const std::exception& e) {
@@ -31,24 +42,26 @@ int main()
     Logger::getInstance().log(LogLevel::INFO, "Loading metadata from file_metadata.dat and node_registry.dat");
     metadataManager.loadMetadata("file_metadata.dat", "node_registry.dat");
 
+    Networking::Server local_server(port); // Create server instance with parsed port
+
     // Attempt to start the server
-    if (!server.startListening()) {
-        Logger::getInstance().log(LogLevel::FATAL, "Metaserver failed to start listening (startListening returned false). Port: " + std::to_string(server.GetPort()));
+    if (!local_server.startListening()) {
+        Logger::getInstance().log(LogLevel::FATAL, "Metaserver failed to start listening (startListening returned false). Port: " + std::to_string(local_server.GetPort()));
         return 1; // Exit if server cannot start
     }
 
-    // server.ServerIsRunning() should now be true if startListening succeeded
-    if (server.ServerIsRunning())
+    // local_server.ServerIsRunning() should now be true if startListening succeeded
+    if (local_server.ServerIsRunning())
     {
-        Logger::getInstance().log(LogLevel::INFO, "Metaserver is running and listening on port " + std::to_string(server.GetPort()));
+        Logger::getInstance().log(LogLevel::INFO, "Metaserver is running and listening on port " + std::to_string(local_server.GetPort()));
         while (true)
         {
             try {
-                Networking::ClientConnection client = server.Accept();
-                Logger::getInstance().log(LogLevel::INFO, "Accepted new client connection from " + server.GetClientIPAddress(client));
-                std::thread clientThread(HandleClientConnection, client);
+                Networking::ClientConnection client = local_server.Accept();
+                Logger::getInstance().log(LogLevel::INFO, "Accepted new client connection from " + local_server.GetClientIPAddress(client));
+                std::thread clientThread(HandleClientConnection, std::ref(local_server), client);
                 clientThread.detach();
-                Logger::getInstance().log(LogLevel::DEBUG, "Detached thread to handle client " + server.GetClientIPAddress(client));
+                Logger::getInstance().log(LogLevel::DEBUG, "Detached thread to handle client " + local_server.GetClientIPAddress(client));
             } catch (const Networking::NetworkException& ne) {
                 Logger::getInstance().log(LogLevel::ERROR, "Network exception in main server loop: " + std::string(ne.what()));
             } catch (const std::exception& e) {

@@ -91,10 +91,14 @@ void writer_thread_func(int thread_id) {
 
 bool check_mount_point_ready() {
     struct stat sb;
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Checking mount point " << MOUNT_POINT << std::endl;
+    // Add a small delay and extra logging before the first interaction
+    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Pausing for 1 second before checking mount point..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Checking mount point " << MOUNT_POINT << " via stat()." << std::endl;
     if (stat(MOUNT_POINT.c_str(), &sb) == 0 && S_ISDIR(sb.st_mode)) {
+        std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: stat() successful. Mount point is a directory. Checking access..." << std::endl;
         if (access(MOUNT_POINT.c_str(), R_OK | W_OK | X_OK) == 0) {
-            std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Mount point " << MOUNT_POINT << " is ready." << std::endl;
+            std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Mount point " << MOUNT_POINT << " is ready (stat and access OK)." << std::endl;
             return true;
         }
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Error: Mount point " << MOUNT_POINT << " found but not accessible (R/W/X)." << std::endl;

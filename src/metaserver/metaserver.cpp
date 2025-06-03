@@ -21,7 +21,7 @@
 
 // Define persistence file paths and separators (already in metaserver.h)
 
-Networking::Server server(50505); // Global server instance
+// Networking::Server server(50505); // Global server instance REMOVED
 MetadataManager metadataManager;  // Global metadata manager instance
 
 // --- MetadataManager Method Implementations ---
@@ -275,17 +275,17 @@ static std::string normalize_path_to_filename(const std::string& fuse_path) {
     return fuse_path;
 }
 
-void HandleClientConnection(Networking::ClientConnection _pClient)
+void HandleClientConnection(Networking::Server& server_instance, Networking::ClientConnection _pClient)
 {
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + server.GetClientIPAddress(_pClient));
-        std::vector<char> received_vector = server.Receive(_pClient);
+        Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + server_instance.GetClientIPAddress(_pClient));
+        std::vector<char> received_vector = server_instance.Receive(_pClient);
         if (received_vector.empty()) {
-            Logger::getInstance().log(LogLevel::WARN, "Received empty data from client " + server.GetClientIPAddress(_pClient));
+            Logger::getInstance().log(LogLevel::WARN, "Received empty data from client " + server_instance.GetClientIPAddress(_pClient));
             return; 
         }
         std::string received_data_str(received_vector.begin(), received_vector.end());
-        Logger::getInstance().log(LogLevel::DEBUG, "Received data from " + server.GetClientIPAddress(_pClient) + ": " + received_data_str);
+        Logger::getInstance().log(LogLevel::DEBUG, "Received data from " + server_instance.GetClientIPAddress(_pClient) + ": " + received_data_str);
         Message request = Message::Deserialize(received_data_str);
         bool shouldSave = false;
 
@@ -307,7 +307,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.getFileAttributes(norm_path, res_msg._Mode, res_msg._Uid, res_msg._Gid, res_msg._Size);
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Readdir:
@@ -326,7 +326,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     res_msg._ErrorCode = ENOTDIR;
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Access:
@@ -341,7 +341,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.checkAccess(norm_path, static_cast<uint32_t>(request._Mode));
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Open:
@@ -359,7 +359,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                     // which checkAccess implicitly does for now.
                     res_msg._ErrorCode = metadataManager.openFile(norm_path, static_cast<uint32_t>(request._Mode));
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::CreateFile:
@@ -380,7 +380,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                         shouldSave = true;
                     }
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::ReadFile:
@@ -392,7 +392,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
 
                 res_msg._ErrorCode = metadataManager.readFileData(norm_path_filename, request._Offset, request._Size, res_msg._Data, res_msg._Size);
                 // readFileData sets res_msg._Size to actual bytes read/to be sent
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::WriteFile:
@@ -410,7 +410,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     res_msg._Size = 0; // Ensure size is 0 on error
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Unlink:
@@ -430,7 +430,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                         res_msg._ErrorCode = ENOENT;
                     }
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Rename:
@@ -452,7 +452,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                          shouldSave = true;
                      }
                 }
-                server.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             // Node Management Cases (existing)
@@ -463,7 +463,7 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 Message reg_res;
                 reg_res._Type = MessageType::RegisterNode;
                 reg_res._ErrorCode = 0;
-                server.Send(Message::Serialize(reg_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(reg_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "Sent registration confirmation to node " + request._Filename);
                 break;
             }
@@ -487,16 +487,16 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
                 } else {
                     del_res._ErrorCode = ENOENT;
                 }
-                server.Send(Message::Serialize(del_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(del_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
                 break;
             }
             default:
-                Logger::getInstance().log(LogLevel::WARN, "Received unhandled or unknown message type: " + std::to_string(static_cast<int>(request._Type)) + " from client " + server.GetClientIPAddress(_pClient));
+                Logger::getInstance().log(LogLevel::WARN, "Received unhandled or unknown message type: " + std::to_string(static_cast<int>(request._Type)) + " from client " + server_instance.GetClientIPAddress(_pClient));
                 Message err_res;
                 err_res._Type = request._Type;
                 err_res._ErrorCode = ENOSYS;
-                server.Send(Message::Serialize(err_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(err_res).c_str(), _pClient);
                 break;
         }
 
@@ -505,13 +505,13 @@ void HandleClientConnection(Networking::ClientConnection _pClient)
         metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
     }
     } catch (const Networking::NetworkException& ne) {
-        Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + server.GetClientIPAddress(_pClient) + ": " + std::string(ne.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(ne.what()));
     } catch (const std::runtime_error& re) {
-        Logger::getInstance().log(LogLevel::ERROR, "Runtime error (e.g., deserialization) in HandleClientConnection for " + server.GetClientIPAddress(_pClient) + ": " + std::string(re.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Runtime error (e.g., deserialization) in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(re.what()));
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "Generic exception in HandleClientConnection for " + server.GetClientIPAddress(_pClient) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Generic exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(e.what()));
     }  catch (...) {
-        Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + server.GetClientIPAddress(_pClient));
+        Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient));
     }
 }
 
