@@ -9,24 +9,43 @@
 #include "utilities/logger.h" // Add this include
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
+#include <iomanip>  // For std::put_time (timestamps)
+#include <sstream>  // For std::ostringstream (timestamps)
 #include "metaserver/metaserver.h" // For MetadataManager
 #include "node/node.h"             // For Node
 #include "utilities/message.h"     // For Message, MessageType
+
+// Helper for timestamp logging in tests
+static std::string getTestTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream oss;
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm bt = *std::localtime(&t);
+    oss << std::put_time(&bt, "%H:%M:%S");
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return oss.str();
+}
 
 // Basic test fixture for networking tests if needed, or just use TEST directly.
 class NetworkingTest : public ::testing::Test {
 protected:
     // Optional: Set up resources shared by tests in this fixture
     void SetUp() override {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::SetUp Starting." << std::endl;
         try {
             Logger::init("networking_tests.log", LogLevel::DEBUG);
         } catch (const std::exception& e) {
+            std::cerr << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::SetUp Logger init failed: " << e.what() << std::endl;
             // Handle or log if SetUp itself fails critically
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::SetUp Finished." << std::endl;
     }
 
     // Optional: Clean up shared resources
     void TearDown() override {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::TearDown Starting." << std::endl;
         // Removed dummy logger initialization and cleanup to prevent potential issues
         // with global logger state.
         
@@ -34,40 +53,52 @@ protected:
         for (int i = 1; i <= 5; ++i) {
             std::remove(("networking_tests.log." + std::to_string(i)).c_str());
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::TearDown Finished." << std::endl;
     }
 };
 
-TEST_F(NetworkingTest, ServerInitialization) { // Changed to TEST_F
+TEST_F(NetworkingTest, ServerInitialization) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerInitialization: Starting." << std::endl;
     Networking::Server server(12345);
-    ASSERT_TRUE(server.InitServer()); // Assuming InitServer is the main initialization step
-    ASSERT_TRUE(server.ServerIsRunning()); // Or a similar check
+    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.ServerIsRunning());
     ASSERT_EQ(server.GetPort(), 12345);
     server.Shutdown(); // Ensure server is properly closed
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerInitialization: Finished." << std::endl;
 }
 
-TEST_F(NetworkingTest, ClientInitializationAndConnection) { // Changed to TEST_F
+TEST_F(NetworkingTest, ClientInitializationAndConnection) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientInitializationAndConnection: Starting." << std::endl;
     Networking::Server server(12346);
     ASSERT_TRUE(server.InitServer());
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] ServerThread (ClientInit): Started, attempting Accept." << std::endl;
         server.Accept(); // Accept one connection
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] ServerThread (ClientInit): Accept completed." << std::endl;
     });
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientInit): Server thread started, sleeping." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Increased delay to ensure server is listening
-
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientInit): Attempting client connection." << std::endl;
     Networking::Client client("127.0.0.1", 12346);
     int retries = 0;
     while (!client.IsConnected() && retries < 20) { // More retries
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientInit): Connection attempt " << retries << " failed, retrying." << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         client = Networking::Client("127.0.0.1", 12346);
         retries++;
     }
     ASSERT_TRUE(client.IsConnected());
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientInit): Client connected. Disconnecting." << std::endl;
     client.Disconnect();
     ASSERT_FALSE(client.IsConnected());
     if (serverThread.joinable()) serverThread.join();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientInit): Server thread joined. Shutting down server." << std::endl;
     server.Shutdown();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientInitializationAndConnection: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, ClientConnectWithRetryFailure) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetryFailure: Starting." << std::endl;
     Networking::Client client; // Default constructor
 
     // Attempt to connect to a port where no server is listening
@@ -76,47 +107,58 @@ TEST_F(NetworkingTest, ClientConnectWithRetryFailure) {
     // kMaxRetries = 5, kBaseBackoffDelayMs = 200ms. Total time could be ~6.2s + overhead.
     // Consider using a specific port known to be unused, e.g., from ephemeral range but unlikely to be in use.
     const int unlikelyPort = 65530; 
-    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: Attempting connection to non-existent server 127.0.0.1:" + std::to_string(unlikelyPort));
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetryFailure: Attempting connection to non-existent server 127.0.0.1:" + std::to_string(unlikelyPort) << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: Attempting connection to non-existent server 127.0.0.1:" + std::to_string(unlikelyPort)); // Old log
     
     ASSERT_FALSE(client.connectWithRetry("127.0.0.1", unlikelyPort)) << "connectWithRetry should return false after all retries to a non-listening port.";
     ASSERT_FALSE(client.IsConnected()) << "Client should not be connected after connectWithRetry failed.";
-    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: connectWithRetry correctly returned false.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetryFailure: connectWithRetry correctly returned false. Finished." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetryFailure: connectWithRetry correctly returned false."); // Old log
 }
 
 TEST_F(NetworkingTest, ClientConnectWithRetrySuccess) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetrySuccess: Starting." << std::endl;
     const int testPort = 12355; // Unique port for this test
     Networking::Server server(testPort);
     ASSERT_TRUE(server.InitServer()) << "Server failed to initialize for retry success test.";
 
     std::atomic<bool> clientAccepted{false};
     std::thread serverAcceptThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_RetrySuccessTest: Accept thread started, waiting for connection." << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "S_RetrySuccessTest: Accept thread started, waiting for connection."); // Old Log
         try {
-            Logger::getInstance().log(LogLevel::DEBUG, "S_RetrySuccessTest: Accept thread started, waiting for connection.");
             Networking::ClientConnection conn = server.Accept();
             if (conn.clientSocket != 0) {
                 clientAccepted = true;
-                Logger::getInstance().log(LogLevel::INFO, "S_RetrySuccessTest: Accepted client connection.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_RetrySuccessTest: Accepted client connection." << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, "S_RetrySuccessTest: Accepted client connection."); // Old Log
                 // Keep connection alive briefly for client to verify, then disconnect.
                 std::this_thread::sleep_for(std::chrono::milliseconds(200));
                 server.DisconnectClient(conn);
             } else {
-                Logger::getInstance().log(LogLevel::WARN, "S_RetrySuccessTest: Accept returned invalid socket.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_RetrySuccessTest: Accept returned invalid socket." << std::endl;
+                // Logger::getInstance().log(LogLevel::WARN, "S_RetrySuccessTest: Accept returned invalid socket."); // Old Log
             }
         } catch (const Networking::NetworkException& e) {
             // Log if server accept fails, but primary assertions are on client side.
-             Logger::getInstance().log(LogLevel::ERROR, "S_RetrySuccessTest: NetworkException in server accept thread: " + std::string(e.what()));
+             std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_RetrySuccessTest: NetworkException in server accept thread: " + std::string(e.what()) << std::endl;
+             // Logger::getInstance().log(LogLevel::ERROR, "S_RetrySuccessTest: NetworkException in server accept thread: " + std::string(e.what())); // Old Log
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_RetrySuccessTest: Accept thread finished." << std::endl;
     });
 
     // Give server a moment to start listening
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (RetrySuccess): Server thread started, sleeping." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     Networking::Client client;
-    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Attempting connection to 127.0.0.1:" + std::to_string(testPort));
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (RetrySuccess): Attempting connection to 127.0.0.1:" + std::to_string(testPort) << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Attempting connection to 127.0.0.1:" + std::to_string(testPort)); // Old Log
     
     ASSERT_TRUE(client.connectWithRetry("127.0.0.1", testPort)) << "connectWithRetry should return true when server is listening.";
     ASSERT_TRUE(client.IsConnected()) << "Client should be connected after connectWithRetry succeeded.";
-    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: connectWithRetry correctly returned true and client is connected.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (RetrySuccess): connectWithRetry correctly returned true and client is connected." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: connectWithRetry correctly returned true and client is connected."); // Old Log
 
     // Wait for server to accept and process the client before client disconnects
     int waitRetries = 0;
@@ -125,6 +167,7 @@ TEST_F(NetworkingTest, ClientConnectWithRetrySuccess) {
         waitRetries++;
     }
     ASSERT_TRUE(clientAccepted.load()) << "Server did not accept the client connection in time.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (RetrySuccess): Server accepted client. Disconnecting client." << std::endl;
 
     client.Disconnect();
     ASSERT_FALSE(client.IsConnected()) << "Client failed to disconnect.";
@@ -132,11 +175,14 @@ TEST_F(NetworkingTest, ClientConnectWithRetrySuccess) {
     if (serverAcceptThread.joinable()) {
         serverAcceptThread.join();
     }
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (RetrySuccess): Server thread joined. Shutting down server." << std::endl;
     server.Shutdown();
-    Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Completed.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetrySuccess: Finished." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "Test ClientConnectWithRetrySuccess: Completed."); // Old Log
 }
 
 TEST_F(NetworkingTest, FuseMkdirSimulation) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test FuseMkdirSimulation: Starting." << std::endl;
     const int testPort = 12391;
     std::map<std::string, uint32_t> mockDirectories; // path -> mode
 
@@ -144,6 +190,7 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
     const int METASERVER_ENOENT = 2;  // Standard ENOENT
 
     auto get_parent_path = [](const std::string& path) -> std::string {
+        // This lambda is part of the test logic, no verbose logs inside typically unless debugging the test itself.
         if (path.empty() || path == "/") return ""; // No parent for root or empty
         size_t last_slash = path.find_last_of('/');
         if (last_slash == 0) return "/"; // Parent is root, e.g., for "/foo"
@@ -155,16 +202,21 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         [&](std::map<std::string, uint32_t>& currentMockDirs) -> Networking::Server* {
         Networking::Server* server = new Networking::Server(testPort);
         EXPECT_TRUE(server->InitServer());
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_server_for_mkdir_scenario: Server initialized for port " << testPort << std::endl;
 
         std::thread([server, &currentMockDirs, get_parent_path]() {
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Started." << std::endl;
             try {
                 Networking::ClientConnection conn = server->Accept();
                 EXPECT_TRUE(conn.clientSocket != 0);
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Accepted connection." << std::endl;
 
                 std::vector<char> rawReq = server->Receive(conn);
                 EXPECT_FALSE(rawReq.empty());
                 Message reqMsg = Message::Deserialize(std::string(rawReq.begin(), rawReq.end()));
                 EXPECT_EQ(reqMsg._Type, MessageType::Mkdir);
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Received Mkdir for " << reqMsg._Path << std::endl;
+
 
                 Message respMsg;
                 respMsg._Type = MessageType::MkdirResponse;
@@ -178,34 +230,25 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
                 } else {
                     // Path does not exist. Now check parent.
                     if (reqMsg._Path == "/") { 
-                        // Case: Creating root directory "/" itself.
-                        // Parent path from get_parent_path("/") is "".
                         currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
-                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created root " + reqMsg._Path + " with mode " + std::to_string(reqMsg._Mode));
+                        // Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created root " + reqMsg._Path + " with mode " + std::to_string(reqMsg._Mode));
                     } else if (parentPath.empty()) {
-                        // Path is not "/" (checked above), but parentPath is empty.
-                        // This implies reqMsg._Path is a relative path (e.g., "foo") or an empty string.
-                        // Both are invalid for mkdir in this context.
                         respMsg._ErrorCode = METASERVER_ENOENT; 
-                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied relative/empty path " + reqMsg._Path);
+                        // Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied relative/empty path " + reqMsg._Path);
                     } else if (parentPath == "/") {
-                        // Case: Creating a directory directly under root (e.g., "/foo").
-                        // The parent "/" is conceptually always present.
                         currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
-                        Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent /) with mode " + std::to_string(reqMsg._Mode));
+                        // Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent /) with mode " + std::to_string(reqMsg._Mode));
                     } else {
-                        // Case: Creating a nested directory (e.g., "/foo/bar").
-                        // The parent (e.g., "/foo") must exist in currentMockDirs.
                         if (currentMockDirs.count(parentPath)) {
                             currentMockDirs[reqMsg._Path] = reqMsg._Mode; // Success
-                            Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent " + parentPath + ") with mode " + std::to_string(reqMsg._Mode));
+                            // Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Created " + reqMsg._Path + " (parent " + parentPath + ") with mode " + std::to_string(reqMsg._Mode));
                         } else {
                             respMsg._ErrorCode = METASERVER_ENOENT; // Parent does not exist
-                            Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied " + reqMsg._Path + ", parent " + parentPath + " does not exist.");
+                            // Logger::getInstance().log(LogLevel::DEBUG, "S_MKDIR: Denied " + reqMsg._Path + ", parent " + parentPath + " does not exist.");
                         }
                     }
                 }
-                
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Processed Mkdir for " << reqMsg._Path << ", ErrorCode: " << respMsg._ErrorCode << ". Sending response." << std::endl;
                 server->Send(Message::Serialize(respMsg).c_str(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
@@ -213,12 +256,14 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
             } catch (const std::exception& e) {
                 ADD_FAILURE() << "Server thread std::exception: " << e.what();
             }
-        }).detach();
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Finished." << std::endl;
+        }).detach(); // Detached threads need careful handling in real apps
         return server;
     };
 
     auto run_client_for_mkdir_scenario = 
         [&](const std::string& path, uint32_t mode, int expectedErrorCode) {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_client_for_mkdir_scenario: Client attempting Mkdir for " << path << std::endl;
         Networking::Client client("127.0.0.1", testPort);
         EXPECT_TRUE(client.IsConnected());
 
@@ -228,10 +273,12 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         mkdirReq._Mode = mode;
 
         client.Send(Message::Serialize(mkdirReq).c_str());
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_client_for_mkdir_scenario: Sent Mkdir for " << path << ". Awaiting response." << std::endl;
         
         std::vector<char> rawResp = client.Receive();
         EXPECT_FALSE(rawResp.empty());
         Message mkdirResp = Message::Deserialize(std::string(rawResp.begin(), rawResp.end()));
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_client_for_mkdir_scenario: Received response for " << path << ", ErrorCode: " << mkdirResp._ErrorCode << std::endl;
 
         EXPECT_EQ(mkdirResp._Type, MessageType::MkdirResponse);
         EXPECT_EQ(mkdirResp._Path, path);
@@ -241,11 +288,12 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
     };
     
     Networking::Server* currentServer = nullptr;
-    const uint32_t testMode = 0755; // S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+    const uint32_t testMode = 0755;
 
-    // Scenario 1: Successful creation of a root-level directory
+    // Scenario 1
     {
-        Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 1 - Successful create /testdir");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] FuseMkdirSimulation: Scenario 1 - Successful create /testdir" << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 1 - Successful create /testdir"); // Old log
         mockDirectories.clear();
         currentServer = run_server_for_mkdir_scenario(mockDirectories);
         run_client_for_mkdir_scenario("/testdir", testMode, 0);
@@ -257,21 +305,21 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         }
     }
 
-    // Scenario 2: Attempt to create existing directory
+    // Scenario 2
     {
-        Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 2 - Create existing /testdir");
-        // mockDirectories already has "/testdir" from Scenario 1
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] FuseMkdirSimulation: Scenario 2 - Create existing /testdir" << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 2 - Create existing /testdir"); // Old log
         currentServer = run_server_for_mkdir_scenario(mockDirectories);
         run_client_for_mkdir_scenario("/testdir", testMode, METASERVER_EEXIST);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         currentServer->Shutdown(); delete currentServer;
-        ASSERT_TRUE(mockDirectories.count("/testdir")); // Should still be there
+        ASSERT_TRUE(mockDirectories.count("/testdir"));
     }
 
-    // Scenario 3: Successful creation of a nested directory
+    // Scenario 3
     {
-        Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 3 - Successful create /testdir/subdir");
-        // mockDirectories has "/testdir"
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] FuseMkdirSimulation: Scenario 3 - Successful create /testdir/subdir" << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 3 - Successful create /testdir/subdir"); // Old log
         currentServer = run_server_for_mkdir_scenario(mockDirectories);
         run_client_for_mkdir_scenario("/testdir/subdir", testMode, 0);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -282,9 +330,10 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         }
     }
     
-    // Scenario 4: Attempt to create in a non-existent parent path
+    // Scenario 4
     {
-        Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 4 - Create /nonexistentparent/newdir");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] FuseMkdirSimulation: Scenario 4 - Create /nonexistentparent/newdir" << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 4 - Create /nonexistentparent/newdir"); // Old log
         currentServer = run_server_for_mkdir_scenario(mockDirectories);
         run_client_for_mkdir_scenario("/nonexistentparent/newdir", testMode, METASERVER_ENOENT);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -292,18 +341,21 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         ASSERT_FALSE(mockDirectories.count("/nonexistentparent/newdir"));
     }
     
-    // Scenario 5: Attempt to create a directory that is not absolute (e.g. "relative_dir")
+    // Scenario 5
     {
-        Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 5 - Create relative_dir");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] FuseMkdirSimulation: Scenario 5 - Create relative_dir" << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "C_MKDIR: Scenario 5 - Create relative_dir"); // Old log
         currentServer = run_server_for_mkdir_scenario(mockDirectories);
-        run_client_for_mkdir_scenario("relative_dir", testMode, METASERVER_ENOENT); // Or a different error for invalid path format
+        run_client_for_mkdir_scenario("relative_dir", testMode, METASERVER_ENOENT);
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         currentServer->Shutdown(); delete currentServer;
         ASSERT_FALSE(mockDirectories.count("relative_dir"));
     }
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test FuseMkdirSimulation: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerShutdownWithActiveClients: Starting." << std::endl;
     const int testPort = 12389;
     const int numClients = 3;
     Networking::Server server(testPort);
@@ -317,65 +369,77 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
 
     std::vector<std::thread> serverWorkerThreads;
     std::thread serverAcceptLoopThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Started." << std::endl;
         try {
             for (int i = 0; i < numClients; ++i) {
-                if (serverShutdownCalled.load()) break; // Stop trying to accept if shutdown initiated
-                
-                Logger::getInstance().log(LogLevel::DEBUG, "S_ACCEPT: Waiting for client " + std::to_string(i));
+                if (serverShutdownCalled.load()) {
+                    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Shutdown called, exiting loop." << std::endl;
+                    break;
+                }
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Waiting for client " << i << std::endl;
+                // Logger::getInstance().log(LogLevel::DEBUG, "S_ACCEPT: Waiting for client " + std::to_string(i)); // Old log
                 Networking::ClientConnection conn = server.Accept();
                 if (conn.clientSocket == 0) {
                     if (serverShutdownCalled.load()) {
-                        Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept returned invalid socket during shutdown.");
+                        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accept returned invalid socket during shutdown." << std::endl;
+                        // Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept returned invalid socket during shutdown."); // Old log
                         break;
                     }
                     FAIL() << "S_ACCEPT: Accept failed for client " << i << " unexpectedly.";
                     break; 
                 }
-                Logger::getInstance().log(LogLevel::DEBUG, "S_ACCEPT: Accepted client " + std::to_string(i));
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accepted client " << i << ". Spawning worker." << std::endl;
+                // Logger::getInstance().log(LogLevel::DEBUG, "S_ACCEPT: Accepted client " + std::to_string(i)); // Old log
                 
                 serverWorkerThreads.emplace_back([&server, conn, i, &serverHandlersStarted, &serverHandlersUnblocked, &serverShutdownCalled]() {
-                    std::string logPrefix = "S_WORKER_C" + std::to_string(i);
+                    std::string logPrefix = "[TEST LOG " + getTestTimestamp() + " TID: " + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id())) + "] S_WORKER_C" + std::to_string(i);
                     serverHandlersStarted++;
-                    Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Started, attempting blocking Receive.");
+                    std::cout << logPrefix << ": Started, attempting blocking Receive." << std::endl;
+                    // Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Started, attempting blocking Receive."); // Old log
                     try {
                         std::vector<char> data = server.Receive(conn);
-                        // Expect Receive to unblock due to shutdown, returning empty or throwing.
                         if (serverShutdownCalled.load()) {
                             ASSERT_TRUE(data.empty()) << logPrefix << ": Receive unblocked but returned data during shutdown.";
-                            Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive unblocked as expected (empty data).");
+                            std::cout << logPrefix << ": Receive unblocked as expected (empty data)." << std::endl;
+                            // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive unblocked as expected (empty data)."); // Old log
                         } else {
-                            // This case should not happen if client doesn't send anything before shutdown.
-                            Logger::getInstance().log(LogLevel::WARN, logPrefix + ": Receive unblocked unexpectedly with data size: " + std::to_string(data.size()));
+                            std::cout << logPrefix << ": Receive unblocked unexpectedly with data size: " << data.size() << std::endl;
+                            // Logger::getInstance().log(LogLevel::WARN, logPrefix + ": Receive unblocked unexpectedly with data size: " + std::to_string(data.size())); // Old log
                         }
                     } catch (const Networking::NetworkException& e) {
-                        Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive caught NetworkException as expected: " + std::string(e.what()));
+                        std::cout << logPrefix << ": Receive caught NetworkException as expected: " << std::string(e.what()) << std::endl;
+                        // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Receive caught NetworkException as expected: " + std::string(e.what())); // Old log
                     } catch (const std::exception& e) {
                         FAIL() << logPrefix << ": Receive caught unexpected std::exception: " << e.what();
                     }
                     serverHandlersUnblocked++;
-                    Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Unblocked and completed.");
-                    // Server worker might try to DisconnectClient, which could also throw if socket is already closed by shutdown
+                    std::cout << logPrefix << ": Unblocked and completed." << std::endl;
+                    // Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Unblocked and completed."); // Old log
                     try {
                         server.DisconnectClient(conn);
                     } catch (const Networking::NetworkException& e) {
-                         Logger::getInstance().log(LogLevel::INFO, logPrefix + ": DisconnectClient caught NetworkException (potentially expected): " + std::string(e.what()));
+                         std::cout << logPrefix << ": DisconnectClient caught NetworkException (potentially expected): " + std::string(e.what()) << std::endl;
+                         // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": DisconnectClient caught NetworkException (potentially expected): " + std::string(e.what())); // Old log
                     }
                 });
             }
         } catch (const Networking::NetworkException& e) {
             if (serverShutdownCalled.load()) {
-                Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept loop caught NetworkException during/after shutdown (expected): " + std::string(e.what()));
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accept loop caught NetworkException during/after shutdown (expected): " << std::string(e.what()) << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept loop caught NetworkException during/after shutdown (expected): " + std::string(e.what())); // Old log
             } else {
                 FAIL() << "S_ACCEPT: NetworkException in Accept loop: " << e.what();
             }
         }
-        Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept loop finished.");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accept loop finished." << std::endl;
+        // Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept loop finished."); // Old log
     });
 
     std::vector<std::thread> clientThreads;
     for (int i = 0; i < numClients; ++i) {
         clientThreads.emplace_back([i, testPort, &clientsSuccessfullyConnected, &clientsUnblocked, &serverShutdownCalled]() {
-            std::string logPrefix = "CLIENT_C" + std::to_string(i);
+            std::string logPrefix = "[TEST LOG " + getTestTimestamp() + " TID: " + std::to_string(std::hash<std::thread::id>{}(std::this_thread::get_id())) + "] CLIENT_C" + std::to_string(i);
+            std::cout << logPrefix << ": Thread started. Attempting connection." << std::endl;
             Networking::Client client("127.0.0.1", testPort);
             int retries = 0;
             while(!client.IsConnected() && retries < 10 && !serverShutdownCalled.load()) {
@@ -385,10 +449,10 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
             }
 
             if (!client.IsConnected()) {
-                 // If server shutdown happened before client could connect, this is not a test failure for this client.
                 if(serverShutdownCalled.load()){
-                    Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Could not connect, server already shutting down.");
-                    clientsUnblocked++; // Count as "processed" for joining purposes
+                    std::cout << logPrefix << ": Could not connect, server already shutting down." << std::endl;
+                    // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Could not connect, server already shutting down."); // Old log
+                    clientsUnblocked++;
                     return;
                 }
                 FAIL() << logPrefix << ": Failed to connect.";
@@ -397,87 +461,89 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
             }
             ASSERT_TRUE(client.IsConnected()) << logPrefix << ": Failed to connect.";
             clientsSuccessfullyConnected++;
-            Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Connected. Attempting blocking Receive.");
+            std::cout << logPrefix << ": Connected. Attempting blocking Receive." << std::endl;
+            // Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Connected. Attempting blocking Receive."); // Old log
 
             try {
-                std::vector<char> data = client.Receive(); // Should block then unblock on server shutdown
-                // After changes to Client::Receive, if it returns (not throws), it means peer shutdown (bytesReceived == 0).
-                // In this case, Client::Receive itself should have set clientIsConnected to false.
-                // And data should be empty.
+                std::vector<char> data = client.Receive();
                 ASSERT_TRUE(data.empty()) << logPrefix << ": Client Receive unblocked but returned non-empty data. Size: " << data.size();
-                Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Receive unblocked, data empty as expected (graceful shutdown).");
+                std::cout << logPrefix << ": Client Receive unblocked, data empty as expected (graceful shutdown)." << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Receive unblocked, data empty as expected (graceful shutdown)."); // Old log
             } catch (const Networking::NetworkException& e) {
-                // This path is taken if Client::Receive encounters a socket error and throws.
-                // Client::Receive should have set clientIsConnected to false in this case too.
-                Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Receive caught NetworkException as expected: " + std::string(e.what()));
+                std::cout << logPrefix << ": Client Receive caught NetworkException as expected: " << std::string(e.what()) << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Receive caught NetworkException as expected: " + std::string(e.what())); // Old log
             }
-            // The generic std::exception catch that called FAIL() is removed.
-            // If any other std::exception occurs, it will propagate and fail the test, which is appropriate.
 
             ASSERT_FALSE(client.IsConnected()) << logPrefix << ": IsConnected should be false after server shutdown was detected by Receive.";
 
             bool sendFailedAsExpected = false;
             try {
-                client.Send("post-shutdown"); // Should fail
+                client.Send("post-shutdown");
             } catch (const Networking::NetworkException& e) {
                 sendFailedAsExpected = true;
-                Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Send failed as expected after shutdown: " + std::string(e.what()));
+                std::cout << logPrefix << ": Client Send failed as expected after shutdown: " << std::string(e.what()) << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Send failed as expected after shutdown: " + std::string(e.what())); // Old log
             }
             ASSERT_TRUE(sendFailedAsExpected) << logPrefix << ": Client Send did not fail as expected after shutdown.";
             ASSERT_FALSE(client.IsConnected()) << logPrefix << ": IsConnected should remain false.";
             
             clientsUnblocked++;
-            Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Completed.");
+            std::cout << logPrefix << ": Completed." << std::endl;
+            // Logger::getInstance().log(LogLevel::DEBUG, logPrefix + ": Completed."); // Old log
         });
     }
 
-    // Wait for all clients to connect and server handlers to start their blocking receive
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): All client threads launched. Waiting for connections/handlers to start." << std::endl;
     int wait_retries = 0;
-    while((clientsSuccessfullyConnected.load() < numClients || serverHandlersStarted.load() < numClients) && wait_retries < 100) { // Max 10s
+    while((clientsSuccessfullyConnected.load() < numClients || serverHandlersStarted.load() < numClients) && wait_retries < 100) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         wait_retries++;
-        if(serverShutdownCalled.load()) break; // Abort wait if shutdown already (e.g. server failed to init)
+        if(serverShutdownCalled.load()) break;
     }
     if(clientsSuccessfullyConnected.load() < numClients && !serverShutdownCalled.load()){
-         Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all clients connected successfully before shutdown. Connected: " + std::to_string(clientsSuccessfullyConnected.load()));
+         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): WARN - Not all clients connected successfully before shutdown. Connected: " + std::to_string(clientsSuccessfullyConnected.load()) << std::endl;
+         // Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all clients connected successfully before shutdown. Connected: " + std::to_string(clientsSuccessfullyConnected.load())); // Old log
     }
      if(serverHandlersStarted.load() < numClients && !serverShutdownCalled.load()){
-         Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all server handlers started before shutdown. Started: " + std::to_string(serverHandlersStarted.load()));
+         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): WARN - Not all server handlers started before shutdown. Started: " + std::to_string(serverHandlersStarted.load()) << std::endl;
+         // Logger::getInstance().log(LogLevel::WARN, "Timeout or issue: Not all server handlers started before shutdown. Started: " + std::to_string(serverHandlersStarted.load())); // Old log
     }
-    // Even if not all clients connect (e.g. if server accept loop is slow or has issues), proceed to test shutdown.
 
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Calling server.Shutdown().");
-    serverShutdownCalled = true; // Signal all threads that shutdown is in progress
-    server.Shutdown(); // This is the main call being tested for its behavior
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): Calling server.Shutdown()." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Calling server.Shutdown()."); // Old log
+    serverShutdownCalled = true;
+    server.Shutdown();
     ASSERT_FALSE(server.ServerIsRunning()) << "ServerIsRunning should be false after Shutdown.";
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: server.Shutdown() completed.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): server.Shutdown() completed." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: server.Shutdown() completed."); // Old log
 
-    // Join server accept thread first
     if (serverAcceptLoopThread.joinable()) {
         serverAcceptLoopThread.join();
     }
-     Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Server accept loop thread joined.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): Server accept loop thread joined." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Server accept loop thread joined."); // Old log
 
-    // Join server worker threads
     for (auto& t : serverWorkerThreads) {
         if (t.joinable()) {
             t.join();
         }
     }
     ASSERT_EQ(serverHandlersUnblocked.load(), clientsSuccessfullyConnected.load()) << "Not all server handlers unblocked or an incorrect number of handlers were started.";
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Server worker threads joined.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): Server worker threads joined." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Server worker threads joined."); // Old log
 
-    // Join client threads
     for (auto& t : clientThreads) {
         if (t.joinable()) {
             t.join();
         }
     }
     ASSERT_EQ(clientsUnblocked.load(), numClients) << "Not all clients unblocked or completed.";
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Client threads joined.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownTest): Client threads joined. Test Finished." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Client threads joined."); // Old log
 }
 
 TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerShutdownWhileBlockedInAccept: Starting." << std::endl;
     const int testPort = 12388;
     Networking::Server server(testPort);
     ASSERT_TRUE(server.InitServer());
@@ -488,38 +554,39 @@ TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
     std::atomic<bool> serverThreadCorrectlyHandledUnblock{false};
 
     std::thread serverAcceptBlockThread([&]() {
-        Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Thread started.");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Thread started." << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Thread started."); // Old log
         serverAttemptingAccept = true;
         try {
-            Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Calling Accept().");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Calling Accept()." << std::endl;
+            // Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Calling Accept()."); // Old log
             Networking::ClientConnection conn = server.Accept();
-            acceptCallUnblocked = true; // Accept returned
+            acceptCallUnblocked = true;
 
             if (serverShutdownInProgress.load()) {
-                // If shutdown was called, Accept should ideally return an invalid socket or throw.
-                // A valid socket here means Accept didn't get interrupted correctly or a late client connected.
                 ASSERT_EQ(conn.clientSocket, 0) << "S_AcceptBlock: Accept unblocked during shutdown but returned a valid socket.";
                 if (conn.clientSocket == 0) {
                     serverThreadCorrectlyHandledUnblock = true;
-                    Logger::getInstance().log(LogLevel::INFO, "S_AcceptBlock: Accept unblocked as expected during shutdown, returning invalid socket.");
+                    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Accept unblocked as expected during shutdown, returning invalid socket." << std::endl;
+                    // Logger::getInstance().log(LogLevel::INFO, "S_AcceptBlock: Accept unblocked as expected during shutdown, returning invalid socket."); // Old log
                 }
             } else {
-                // This case should not be reached if no client connects.
-                // If a client somehow connected, log it. This is unexpected for this test.
                 if (conn.clientSocket != 0) {
-                     Logger::getInstance().log(LogLevel::WARN, "S_AcceptBlock: Accept unblocked and returned a valid client socket unexpectedly.");
-                     server.DisconnectClient(conn); // Clean up if it happened
+                     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Accept unblocked and returned a valid client socket unexpectedly." << std::endl;
+                     // Logger::getInstance().log(LogLevel::WARN, "S_AcceptBlock: Accept unblocked and returned a valid client socket unexpectedly."); // Old log
+                     server.DisconnectClient(conn);
                 } else {
-                    // Accept returned invalid socket without shutdown_in_progress: an error.
-                     Logger::getInstance().log(LogLevel::ERROR, "S_AcceptBlock: Accept returned invalid socket without shutdown signal.");
+                     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Accept returned invalid socket without shutdown signal." << std::endl;
+                     // Logger::getInstance().log(LogLevel::ERROR, "S_AcceptBlock: Accept returned invalid socket without shutdown signal."); // Old log
                 }
                 FAIL() << "S_AcceptBlock: Accept unblocked unexpectedly without server shutdown signal or with a valid client.";
             }
         } catch (const Networking::NetworkException& e) {
-            acceptCallUnblocked = true; // Exception means it also unblocked
+            acceptCallUnblocked = true;
             if (serverShutdownInProgress.load()) {
                 serverThreadCorrectlyHandledUnblock = true;
-                Logger::getInstance().log(LogLevel::INFO, "S_AcceptBlock: Accept caught NetworkException as expected during shutdown: " + std::string(e.what()));
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Accept caught NetworkException as expected during shutdown: " + std::string(e.what()) << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, "S_AcceptBlock: Accept caught NetworkException as expected during shutdown: " + std::string(e.what())); // Old log
             } else {
                 FAIL() << "S_AcceptBlock: Accept caught NetworkException unexpectedly: " << e.what();
             }
@@ -527,25 +594,27 @@ TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
             acceptCallUnblocked = true;
             FAIL() << "S_AcceptBlock: Accept caught unexpected std::exception: " << e.what();
         }
-        Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Thread finished.");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_AcceptBlock (ShutdownAcceptTest): Thread finished." << std::endl;
+        // Logger::getInstance().log(LogLevel::DEBUG, "S_AcceptBlock: Thread finished."); // Old log
     });
 
-    // Wait for the server thread to be in the Accept call
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownAcceptTest): Server thread launched. Waiting for it to attempt accept." << std::endl;
     int retries = 0;
-    while (!serverAttemptingAccept.load() && retries < 50) { // Max 5 seconds
+    while (!serverAttemptingAccept.load() && retries < 50) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         retries++;
     }
     ASSERT_TRUE(serverAttemptingAccept.load()) << "Server thread did not signal that it's attempting to accept.";
-    // Add a very small delay to increase likelihood of Accept() being called and blocked.
     std::this_thread::sleep_for(std::chrono::milliseconds(200)); 
 
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Setting shutdown flag and calling server.Shutdown().");
-    serverShutdownInProgress = true; // Signal that shutdown is intentional
-    server.Shutdown(); // This should cause Accept() to unblock
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownAcceptTest): Setting shutdown flag and calling server.Shutdown()." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: Setting shutdown flag and calling server.Shutdown()."); // Old log
+    serverShutdownInProgress = true;
+    server.Shutdown();
 
     ASSERT_FALSE(server.ServerIsRunning()) << "ServerIsRunning should be false after Shutdown call.";
-    Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: server.Shutdown() completed.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ShutdownAcceptTest): server.Shutdown() completed." << std::endl;
+    // Logger::getInstance().log(LogLevel::INFO, "TEST_MAIN: server.Shutdown() completed."); // Old log
 
     if (serverAcceptBlockThread.joinable()) {
         serverAcceptBlockThread.join();
@@ -553,6 +622,7 @@ TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
     
     ASSERT_TRUE(acceptCallUnblocked.load()) << "Accept call did not unblock after server shutdown.";
     ASSERT_TRUE(serverThreadCorrectlyHandledUnblock.load()) << "Server thread did not correctly handle the unblocking of Accept.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerShutdownWhileBlockedInAccept: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, FuseRmdirSimulation) {

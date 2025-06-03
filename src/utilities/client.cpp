@@ -5,6 +5,26 @@
 #include <thread>         // For std::this_thread::sleep_for
 #include <chrono>         // For std::chrono::seconds, std::chrono::milliseconds
 #include <cmath>          // For std::pow
+#include <iostream>       // For std::cout (verbose logging)
+#include <iomanip>        // For std::put_time
+#include <sstream>        // For std::ostringstream
+
+// Helper for timestamp logging in client.cpp and server.cpp
+static std::string getNetworkTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream oss;
+    // oss << std::put_time(std::localtime(&now_c), "%Y-%m-%d %H:%M:%S");
+    // Using a simpler timestamp format for verbose network logs to reduce clutter if needed
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+    // Convert to std::tm (broken down time)
+    std::tm bt = *std::localtime(&t);
+    oss << std::put_time(&bt, "%H:%M:%S");
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return oss.str();
+}
+
 
 namespace Networking {
     static const int kMaxRetries = 5;
@@ -14,23 +34,26 @@ namespace Networking {
 // Constructor that initializes the client socket
 Networking::Client::Client()
 {
+    std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(): Constructor Entry." << std::endl;
 	try {
 		// Initialize the client socket
 		Networking::Client::InitClientSocket();
-        Logger::getInstance().log(LogLevel::INFO, "Client initialized.");
+        Logger::getInstance().log(LogLevel::INFO, "Client initialized."); // Existing log
 	}
 
 	// Catch any exceptions that are thrown
 	catch(const Networking::NetworkException& e) {
 		// Print the error code
-        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction: " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction: " + std::string(e.what())); // Existing log
 		// std::cout<<"Exception thrown. Error Code"<<errorCode;
 	}
+    std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(): Constructor Exit." << std::endl;
 }
 
 // Constructor that initializes the client socket and connects to the server
 Networking::Client::Client(PCSTR _pHost, int _pPortNumber)
 {
+    std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(host, port): Constructor Entry. Host: " << _pHost << " Port: " << _pPortNumber << std::endl;
 	try{
 		// Initialize the client socket
 		Networking::Client::InitClientSocket();
@@ -38,22 +61,26 @@ Networking::Client::Client(PCSTR _pHost, int _pPortNumber)
 		Networking::Client::CreateClientTCPSocket(_pHost, _pPortNumber);
 		// Connect to the server
 		Networking::Client::ConnectClientSocket();
-        Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber));
+        Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber)); // Existing log
 	}
 	// Catch any exceptions that are thrown
 	catch(const Networking::NetworkException& e) {
 		// Print the error code
-        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port: " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port: " + std::string(e.what())); // Existing log
 		// std::cout<<"Exception thrown. Error Code "<<errorCode;
 	}
+    std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(host, port): Constructor Exit." << std::endl;
 }
 
 // Destructor for the client class
 Networking::Client::~Client()
 {
+    // std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Client(): Destructor Entry." << std::endl;
+    // Add any specific cleanup logging if necessary, though IsConnected() check in Disconnect is primary for action.
+    // std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Client(): Destructor Exit." << std::endl;
 }
 
-// Destructor for the client class
+// InitClientSocket - No changes requested beyond constructor context logs
 bool Networking::Client::InitClientSocket()
 {
     #ifdef _WIN32

@@ -1,5 +1,8 @@
 #include "utilities/fuse_adapter.h"
 #include "utilities/logger.h"
+#include <sstream> // For std::ostringstream
+#include <chrono>    // For timestamps
+#include <iomanip>   // For std::put_time
 #include "utilities/client.h"
 #include "utilities/message.h"
 #include <errno.h>
@@ -18,11 +21,22 @@
 #include <sstream>      // For std::istringstream
 #include <algorithm>    // For std::min
 
+// Helper for timestamp logging
+static std::string getCurrentTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream oss;
+    oss << std::put_time(std::localtime(&now_c), "%Y-%m-%d %H:%M:%S");
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return oss.str();
+}
+
 // Helper to get SimpliDfsFuseData from FUSE context
 static SimpliDfsFuseData* get_fuse_data() {
     SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(fuse_get_context()->private_data);
     if (!data || !data->metadata_client) {
-        Logger::getInstance().log(LogLevel::ERROR, "FUSE private_data not configured correctly or metadata_client not accessible or configured.");
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] FUSE private_data not configured correctly or metadata_client not accessible or configured.");
         return nullptr;
     }
     return data;
@@ -30,50 +44,57 @@ static SimpliDfsFuseData* get_fuse_data() {
 
 int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
     (void)fi;
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr called for path: " + std::string(path));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Entry for path: " + path_str);
     memset(stbuf, 0, sizeof(struct stat));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    // Note: get_fuse_data() already logs if data or metadata_client is null,
-    // so we can directly return -EIO if it returns nullptr.
     if (!data) {
-        // Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Critical error: FUSE data or metadata client is not available.");
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
     // Handle root directory locally
-    if (strcmp(path, "/") == 0) {
+    if (path_str == "/") {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2; // Standard for directories (.) and (..)
         stbuf->st_uid = getuid(); // Current user
         stbuf->st_gid = getgid(); // Current group
         stbuf->st_atime = stbuf->st_mtime = stbuf->st_ctime = time(NULL); // Current time
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (handled root) for path: " + path_str);
         return 0;
     }
 
     // For other paths, query the metaserver
     Message req_msg;
     req_msg._Type = MessageType::GetAttr;
-    req_msg._Path = path; // Send full path
+    req_msg._Path = path_str; // Send full path
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Sending GetAttr request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Before Send for path: " + path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Failed to send GetAttr request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: After Send for path: " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Failed to send GetAttr request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Before Receive for path: " + path_str);
         std::vector<char> received_vector_getattr = data->metadata_client->Receive();
-        if (received_vector_getattr.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Received empty response for GetAttr request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: After Receive for path: " + path_str + ", Received size: " + std::to_string(received_vector_getattr.size()));
+        if (received_vector_getattr.empty() && send_success) { // Check send_success to ensure this isn't a cascade from send failure
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Received empty response for GetAttr request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_getattr.begin(), received_vector_getattr.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_getattr: Received GetAttr response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Received GetAttr response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode; // Return negative errno
         }
 
@@ -81,7 +102,7 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
         stbuf->st_mode = static_cast<mode_t>(res_msg._Mode);
         stbuf->st_uid = static_cast<uid_t>(res_msg._Uid);
         stbuf->st_gid = static_cast<gid_t>(res_msg._Gid);
-        stbuf->st_size = static_cast<off_t>(res_msg._Size);
+        stbuf->stx_size = static_cast<off_t>(res_msg._Size); // Corrected from stbuf->st_size
         stbuf->st_nlink = (S_ISDIR(stbuf->st_mode)) ? 2 : 1; // Basic nlink logic
 
         // Timestamps: Use current time as placeholder, ideally server provides these
@@ -89,10 +110,12 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
         stbuf->st_mtime = time(NULL);
         stbuf->st_ctime = time(NULL);
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (success) for path: " + path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_getattr: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_getattr: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
@@ -101,14 +124,15 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
 int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struct fuse_file_info *fi) {
     (void)fi;
     (void)flags_unused;
-
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx called for path: " + std::string(path));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: Entry for path: " + path_str);
     memset(stxbuf, 0, sizeof(struct statx));
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) return -EIO;
-
-    std::string spath(path);
+    if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: Exit (data is null) for path: " + path_str);
+        return -EIO;
+    }
 
     stxbuf->stx_uid = getuid();
     stxbuf->stx_gid = getgid();
@@ -124,29 +148,22 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
     stxbuf->stx_btime.tv_nsec = current_time.tv_nsec;
 
 
-    if (spath == "/") {
+    if (path_str == "/") {
         stxbuf->stx_mode = S_IFDIR | 0755;
         stxbuf->stx_nlink = 2;
         stxbuf->stx_size = 4096;
         stxbuf->stx_attributes_mask |= STATX_ATTR_DIRECTORY;
         stxbuf->stx_mask |= STATX_BASIC_STATS | STATX_BTIME; // Indicate what fields are filled
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: Exit (handled root) for path: " + path_str);
         return 0;
     }
 
-    std::string filename = spath.substr(1);
-    // Logger::getInstance().log(LogLevel::DEBUG, "simpli_statx: Evaluating filename: " + filename);
+    std::string filename = path_str.substr(1);
     // TODO: Implement network call to metaserver for Statx (similar to GetAttr but with statx structure)
-    // if successful:
-    //    stxbuf->stx_mode = ...
-    //    stxbuf->stx_nlink = ...
-    //    stxbuf->stx_size = ...
-    //    stxbuf->stx_uid = ...
-    //    stxbuf->stx_gid = ...
-    //    stxbuf->stx_mask = STATX_BASIC_STATS | STATX_BTIME; // and other relevant STATX_ flags
-    //    if (xattrs_present) stxbuf->stx_attributes_mask |= STATX_ATTR_HAS_XATTRS;
-    //    return 0;
+    // Add logging before/after Send/Receive here when implemented.
 
-    Logger::getInstance().log(LogLevel::WARN, "simpli_statx: Statx not yet fully implemented for: " + filename + ". Returning ENOENT.");
+    Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: Statx not yet fully implemented for: " + filename + ". Returning ENOENT.");
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: Exit (not implemented) for path: " + path_str);
     return -ENOENT;
 }
 #endif // SIMPLIDFS_HAS_STATX
@@ -155,10 +172,12 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
     (void) offset;
     (void) fi;
     (void)flags;
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir called for path: " + std::string(path));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Entry for path: " + path_str);
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
@@ -167,26 +186,34 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
 
     Message req_msg;
     req_msg._Type = MessageType::Readdir;
-    req_msg._Path = path; // Send the full path
+    req_msg._Path = path_str; // Send the full path
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Sending Readdir request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Before Send for " + path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Failed to send Readdir request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Failed to send Readdir request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Before Receive for " + path_str);
         std::vector<char> received_vector_readdir = data->metadata_client->Receive();
-        if (received_vector_readdir.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Received empty response for Readdir request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_readdir.size()));
+
+        if (received_vector_readdir.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Received empty response for Readdir request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_readdir.begin(), received_vector_readdir.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_readdir: Received Readdir response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Received Readdir response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
 
@@ -198,402 +225,463 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
                 filler(buf, name_token.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
             }
         }
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (success) for path: " + path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_readdir: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_readdir: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_open(const char *path, struct fuse_file_info *fi) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_open called for path: " + std::string(path) + " with flags: " + std::to_string(fi->flags));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Entry for path: " + path_str + " with flags: " + std::to_string(fi->flags));
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
-    if (strcmp(path, "/") == 0) {
+    if (path_str == "/") {
         if ((fi->flags & O_ACCMODE) != O_RDONLY) {
-            Logger::getInstance().log(LogLevel::WARN, "simpli_open: Write access denied for directory /");
+            Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Write access denied for directory /");
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (root write access denied) for path: " + path_str);
             return -EACCES;
         }
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (root read access) for path: " + path_str);
         return 0;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Open;
-    req_msg._Path = path;
+    req_msg._Path = path_str;
     req_msg._Mode = static_cast<uint32_t>(fi->flags); // Using _Mode to pass FUSE flags
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Sending Open request for " + std::string(path) + " with flags " + std::to_string(fi->flags));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Before Send for " + path_str + " with flags " + std::to_string(fi->flags));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Failed to send Open request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Failed to send Open request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Before Receive for " + path_str);
         std::vector<char> received_vector_open = data->metadata_client->Receive();
-        if (received_vector_open.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Received empty response for Open request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_open.size()));
+
+        if (received_vector_open.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Received empty response for Open request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_open.begin(), received_vector_open.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_open: Received Open response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Received Open response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
 
-        fi->fh = 1; // Dummy file handle, as server doesn't manage them yet.
-                    // Could use res_msg._FileHandle if server sent one.
+        fi->fh = 1; // Dummy file handle
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (success) for path: " + path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_open: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     (void)fi; // fi->fh could be used if server manages file handles
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_read called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Read;
-    req_msg._Path = path;
+    req_msg._Path = path_str;
     req_msg._Offset = static_cast<int64_t>(offset);
     req_msg._Size = static_cast<uint64_t>(size);
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Sending Read request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Before Send for " + path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Failed to send Read request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Failed to send Read request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Before Receive for " + path_str);
         std::vector<char> received_vector_read = data->metadata_client->Receive();
-        // Empty response can be valid if reading 0 bytes or at EOF.
-        // The metaserver should handle this by sending a response with _Data being empty and _ErrorCode = 0.
-        // A truly empty network response (e.g. connection closed by peer) might indicate an error.
-        // For now, we proceed if received_vector_read is empty, and Message::Deserialize will handle it.
-        // If size > 0 and it's a persistent empty response, it could be an issue.
-        if (received_vector_read.empty() && size > 0) {
-             Logger::getInstance().log(LogLevel::WARN, "simpli_read: Received completely empty (zero bytes) network response for " + std::string(path) + " when requesting " + std::to_string(size) + " bytes. This might be EOF or an issue.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_read.size()));
+
+        if (received_vector_read.empty() && size > 0 && send_success) { // Check send_success
+             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Received completely empty (zero bytes) network response for " + path_str + " when requesting " + std::to_string(size) + " bytes. This might be EOF or an issue.");
         }
         std::string serialized_res(received_vector_read.begin(), received_vector_read.end());
         Message res_msg = Message::Deserialize(serialized_res);
-         Logger::getInstance().log(LogLevel::DEBUG, "simpli_read: Received Read response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Data size: " + std::to_string(res_msg._Data.length()));
-
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Received Read response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Data size: " + std::to_string(res_msg._Data.length()));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
 
         size_t bytes_to_copy = std::min(size, static_cast<size_t>(res_msg._Data.length()));
         memcpy(buf, res_msg._Data.data(), bytes_to_copy);
-
-        return static_cast<ssize_t>(bytes_to_copy); // FUSE read returns ssize_t
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exit (success, copied " + std::to_string(bytes_to_copy) + " bytes) for path: " + path_str);
+        return static_cast<ssize_t>(bytes_to_copy);
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_read: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_access(const char *path, int mask) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_access called for path: " + std::string(path) + " with mask: " + std::to_string(mask));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Entry for path: " + path_str + " with mask: " + std::to_string(mask));
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
-    if (strcmp(path, "/") == 0) {
+    if (path_str == "/") {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (root access granted) for path: " + path_str);
         return 0; // Root is generally accessible
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Access;
-    req_msg._Path = path; // Send full path
-    req_msg._Mode = static_cast<uint32_t>(mask); // Send FUSE access mask in _Mode
+    req_msg._Path = path_str;
+    req_msg._Mode = static_cast<uint32_t>(mask);
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Sending Access request for " + std::string(path) + " with mask " + std::to_string(mask));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Before Send for " + path_str + " with mask " + std::to_string(mask));
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Failed to send Access request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Failed to send Access request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Before Receive for " + path_str);
         std::vector<char> received_vector_access = data->metadata_client->Receive();
-        if (received_vector_access.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Received empty response for Access request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_access.size()));
+        if (received_vector_access.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Received empty response for Access request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_access.begin(), received_vector_access.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_access: Received Access response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Received Access response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
-        // If ErrorCode is 0, access is granted (return 0).
-        // Otherwise, ErrorCode contains the errno to be returned (e.g., ENOENT, EACCES),
-        // so return -ErrorCode.
-        return (res_msg._ErrorCode == 0) ? 0 : -res_msg._ErrorCode;
+        int result = (res_msg._ErrorCode == 0) ? 0 : -res_msg._ErrorCode;
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (result " + std::to_string(result) + ") for path: " + path_str);
+        return result;
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_access: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-    std::ostringstream oss_create_log;
-    oss_create_log << "simpli_create called for path: " << path << " with mode: " << std::oct << mode << std::dec << ", flags: " << fi->flags;
-    Logger::getInstance().log(LogLevel::DEBUG, oss_create_log.str());
+    std::string path_str(path);
+    std::ostringstream oss_create_log_entry;
+    oss_create_log_entry << getCurrentTimestamp() << " [FUSE_ADAPTER] simpli_create: Entry for path: " << path_str << " with mode: " << std::oct << mode << std::dec << ", flags: " << fi->flags;
+    Logger::getInstance().log(LogLevel::DEBUG, oss_create_log_entry.str());
 
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data) { // data->metadata_client is checked by get_fuse_data
+    if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
-    if (strcmp(path, "/") == 0) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Cannot create file at root path /.");
+    if (path_str == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Cannot create file at root path /.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (cannot create root) for path: " + path_str);
         return -EISDIR;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::CreateFile;
-    req_msg._Path = path;
+    req_msg._Path = path_str;
     req_msg._Mode = static_cast<uint32_t>(mode);
 
     try {
         std::ostringstream oss_create_send_log;
-        oss_create_send_log << "simpli_create: Sending CreateFile request for " << path << " with mode " << std::oct << mode;
+        oss_create_send_log << getCurrentTimestamp() << " [FUSE_ADAPTER] simpli_create: Before Send for " << path_str << " with mode " << std::oct << mode;
         Logger::getInstance().log(LogLevel::DEBUG, oss_create_send_log.str());
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Failed to send CreateFile request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Failed to send CreateFile request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Before Receive for " + path_str);
         std::vector<char> received_vector_create = data->metadata_client->Receive();
-        if (received_vector_create.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Received empty response for CreateFile request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_create.size()));
+        if (received_vector_create.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Received empty response for CreateFile request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_create.begin(), received_vector_create.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_create: Received CreateFile response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Received CreateFile response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
 
-        fi->fh = 1; // Dummy file handle, as server doesn't manage them yet.
-                    // Could use res_msg._FileHandle if server sent one.
+        fi->fh = 1;
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (success) for path: " + path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_create: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void)fi; // fi->fh could be used if server manages file handles
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_write called for path: " + std::string(path) + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
+    (void)fi;
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Write;
-    req_msg._Path = path;
+    req_msg._Path = path_str;
     req_msg._Offset = static_cast<int64_t>(offset);
     req_msg._Size = static_cast<uint64_t>(size);
     req_msg._Data.assign(buf, size);
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Sending Write request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Before Send for " + path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Failed to send Write request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to send Write request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Before Receive for " + path_str);
         std::vector<char> received_vector_write = data->metadata_client->Receive();
-        if (received_vector_write.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Received empty response for Write request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_write.size()));
+        if (received_vector_write.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received empty response for Write request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_write.begin(), received_vector_write.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_write: Received Write response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Size Confirmed: " + std::to_string(res_msg._Size));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received Write response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode) + ", Size Confirmed: " + std::to_string(res_msg._Size));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
 
-        // Server confirms the number of bytes written in res_msg._Size
-        return static_cast<ssize_t>(res_msg._Size);
+        ssize_t bytes_written = static_cast<ssize_t>(res_msg._Size);
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (success, wrote " + std::to_string(bytes_written) + " bytes) for path: " + path_str);
+        return bytes_written;
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_write: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_unlink(const char *path) {
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink called for path: " + std::string(path));
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Entry for path: " + path_str);
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (data is null) for path: " + path_str);
         return -EIO;
     }
 
-    if (strcmp(path, "/") == 0) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Cannot unlink root directory.");
+    if (path_str == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Cannot unlink root directory.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (cannot unlink root) for path: " + path_str);
         return -EISDIR;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Unlink;
-    req_msg._Path = path;
+    req_msg._Path = path_str;
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Sending Unlink request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Before Send for " + path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Failed to send Unlink request for " + std::string(path));
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: After Send for " + path_str + ", Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Failed to send Unlink request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (send failed) for path: " + path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Before Receive for " + path_str);
         std::vector<char> received_vector_unlink = data->metadata_client->Receive();
-        if (received_vector_unlink.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Received empty response for Unlink request for " + std::string(path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: After Receive for " + path_str + ", Received size: " + std::to_string(received_vector_unlink.size()));
+        if (received_vector_unlink.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Received empty response for Unlink request for " + path_str);
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (empty receive) for path: " + path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_unlink.begin(), received_vector_unlink.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_unlink: Received Unlink response for " + std::string(path) + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Received Unlink response for " + path_str + ", ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for path: " + path_str);
             return -res_msg._ErrorCode;
         }
-
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (success) for path: " + path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_unlink: Exception for " + std::string(path) + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exit (exception) for path: " + path_str);
         return -EIO;
     }
 }
 
 int simpli_rename(const char *from_path, const char *to_path, unsigned int flags) {
-    (void)flags; // Ignoring flags for now, as per instruction
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename called from: " + std::string(from_path) + " to: " + std::string(to_path) + " with flags: " + std::to_string(flags));
+    (void)flags; // Ignoring flags for now
+    std::string from_path_str(from_path);
+    std::string to_path_str(to_path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Entry from: " + from_path_str + " to: " + to_path_str + " with flags: " + std::to_string(flags));
 
     SimpliDfsFuseData* data = get_fuse_data();
     if (!data) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (data is null) for " + from_path_str + " -> " + to_path_str);
         return -EIO;
     }
 
-    if (strcmp(from_path, "/") == 0 || strcmp(to_path, "/") == 0) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Cannot rename to or from root directory.");
+    if (from_path_str == "/" || to_path_str == "/") {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Cannot rename to or from root directory.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (cannot rename root) for " + from_path_str + " -> " + to_path_str);
         return -EBUSY;
     }
 
     Message req_msg;
     req_msg._Type = MessageType::Rename;
-    req_msg._Path = from_path;
-    req_msg._NewPath = to_path;
+    req_msg._Path = from_path_str;
+    req_msg._NewPath = to_path_str;
 
     try {
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Sending Rename request from " + std::string(from_path) + " to " + std::string(to_path));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Before Send from " + from_path_str + " to " + to_path_str);
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Failed to send Rename request.");
+        bool send_success = data->metadata_client->Send(serialized_req.c_str());
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: After Send, Success: " + (send_success ? "true" : "false"));
+        if (!send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Failed to send Rename request.");
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (send failed) for " + from_path_str + " -> " + to_path_str);
             return -EIO;
         }
 
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Before Receive for " + from_path_str + " -> " + to_path_str);
         std::vector<char> received_vector_rename = data->metadata_client->Receive();
-        if (received_vector_rename.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Received empty response for Rename request.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: After Receive, Received size: " + std::to_string(received_vector_rename.size()));
+        if (received_vector_rename.empty() && send_success) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Received empty response for Rename request.");
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (empty receive) for " + from_path_str + " -> " + to_path_str);
             return -EIO;
         }
         std::string serialized_res(received_vector_rename.begin(), received_vector_rename.end());
         Message res_msg = Message::Deserialize(serialized_res);
-        Logger::getInstance().log(LogLevel::DEBUG, "simpli_rename: Received Rename response, ErrorCode: " + std::to_string(res_msg._ErrorCode));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Received Rename response, ErrorCode: " + std::to_string(res_msg._ErrorCode));
 
         if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (error code " + std::to_string(-res_msg._ErrorCode) + ") for " + from_path_str + " -> " + to_path_str);
             return -res_msg._ErrorCode;
         }
-
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (success) for " + from_path_str + " -> " + to_path_str);
         return 0; // Success
 
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, "simpli_rename: Exception: " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exception: " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Exit (exception) for " + from_path_str + " -> " + to_path_str);
         return -EIO;
     }
 }
 
 int simpli_release(const char *path, struct fuse_file_info *fi) {
-    (void)path; // Path is not used in this stub
-    (void)fi;   // File info (including fh) is not used in this stub
-    Logger::getInstance().log(LogLevel::DEBUG, "simpli_release called for path: " + std::string(path) + " with fi->fh: " + std::to_string(fi->fh) + ". No server action implemented yet.");
-    // Since the server isn't managing file handles (fi->fh is a dummy value),
-    // there's no specific "close" message to send to the server at this time.
-    // If the server were to manage file handles, a MessageType::Close would be sent here.
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Entry for path: " + path_str + " with fi->fh: " + std::to_string(fi->fh) + ". No server action implemented yet.");
+    // No network calls currently.
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Exit for path: " + path_str);
     return 0;
 }
 
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
     (void)fi; // fi can be NULL.
+    std::string path_str(path);
     Logger& logger = Logger::getInstance();
-    logger.log(LogLevel::DEBUG, "simpli_utimens called for path: " + std::string(path));
+    logger.log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_utimens: Entry for path: " + path_str);
 
     // TODO: Implement network call to metaserver for Utimens
-    // Serialize timespec tv into msg._Data or specific fields if added to Message struct
-    // Message msg_req;
-    // msg_req._Type = MessageType::Utimens;
-    // msg_req._Path = std::string(path).substr(1); // Assuming path starts with /
-    // // Logic to serialize tv[0] (atime) and tv[1] (mtime) into msg_req._Data
-    // // e.g., "sec1:nsec1|sec2:nsec2" or binary representation
-    // SimpliDfsFuseData* data = get_fuse_data();
-    // if (!data || !data->metadata_client) return -EIO;
-    // data->metadata_client->Send(Message::Serialize(msg_req));
-    // std::string response_str = data->metadata_client->Receive();
-    // Message msg_res = Message::Deserialize(response_str);
-    // return -msg_res._ErrorCode;
-
-    logger.log(LogLevel::INFO, "simpli_utimens: Operation not yet fully implemented for " + std::string(path) + ". Optimistically succeeding.");
+    // Add logging before/after Send/Receive here when implemented.
+    logger.log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_utimens: Operation not yet fully implemented for " + path_str + ". Optimistically succeeding.");
+    logger.log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_utimens: Exit (not implemented) for path: " + path_str);
     return 0;
 }
 
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
     try {
-        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG);
+        Logger::init("fuse_adapter_main.log", LogLevel::DEBUG); // Initialize logger early
     } catch (const std::exception& e) {
-        fprintf(stderr, "FATAL: Failed to initialize logger: %s\n", e.what());
+        fprintf(stderr, "%s [FUSE_ADAPTER] FATAL: Failed to initialize logger: %s\n", getCurrentTimestamp().c_str(), e.what());
         return 1;
     }
 
-    Logger::getInstance().log(LogLevel::INFO, "Starting SimpliDFS FUSE adapter.");
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Starting SimpliDFS FUSE adapter.");
 
     if (argc < 4) {
-        Logger::getInstance().log(LogLevel::FATAL, "Usage: " + std::string(argv[0]) + " <metaserver_host> <metaserver_port> <mountpoint> [FUSE options]");
+        Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Usage: " + std::string(argv[0]) + " <metaserver_host> <metaserver_port> <mountpoint> [FUSE options]");
         return 1;
     }
 
@@ -602,33 +690,46 @@ int main(int argc, char *argv[]) {
     try {
         fuse_data.metaserver_port = std::stoi(argv[2]);
     } catch (const std::invalid_argument& ia) {
-        Logger::getInstance().log(LogLevel::FATAL, "Invalid metaserver port: " + std::string(argv[2]) + ". Must be an integer. " + ia.what());
+        Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Invalid metaserver port: " + std::string(argv[2]) + ". Must be an integer. " + ia.what());
         return 1;
     } catch (const std::out_of_range& oor) {
-        Logger::getInstance().log(LogLevel::FATAL, "Metaserver port out of range: " + std::string(argv[2]) + ". " + oor.what());
+        Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Metaserver port out of range: " + std::string(argv[2]) + ". " + oor.what());
         return 1;
     }
 
-    Logger::getInstance().log(LogLevel::INFO, "Attempting to connect to metaserver at " + fuse_data.metaserver_host + ":" + std::to_string(fuse_data.metaserver_port));
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Attempting to connect to metaserver at " + fuse_data.metaserver_host + ":" + std::to_string(fuse_data.metaserver_port));
 
     fuse_data.metadata_client = new Networking::Client();
+    bool connect_socket_success = false;
     try {
+        // CreateClientTCPSocket is called internally by Client constructor or connectWithRetry
+        // For direct control and logging:
+        if (!fuse_data.metadata_client->InitClientSocket()) { // WSAStartup on Windows
+             Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Failed to initialize client socket (WSAStartup).");
+             delete fuse_data.metadata_client;
+             fuse_data.metadata_client = nullptr;
+             return 1;
+        }
         if (!fuse_data.metadata_client->CreateClientTCPSocket(fuse_data.metaserver_host.c_str(), fuse_data.metaserver_port)) {
-            Logger::getInstance().log(LogLevel::FATAL, "Failed to create TCP socket for metaserver.");
+            Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Failed to create TCP socket for metaserver.");
             delete fuse_data.metadata_client;
             fuse_data.metadata_client = nullptr;
             return 1;
         }
-        if (!fuse_data.metadata_client->ConnectClientSocket()) {
-            Logger::getInstance().log(LogLevel::FATAL, "Failed to connect to metaserver.");
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] main: Before ConnectClientSocket.");
+        connect_socket_success = fuse_data.metadata_client->ConnectClientSocket();
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] main: After ConnectClientSocket, Success: " + (connect_socket_success ? "true" : "false"));
+
+        if (!connect_socket_success) {
+            Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Failed to connect to metaserver.");
             delete fuse_data.metadata_client;
             fuse_data.metadata_client = nullptr;
             return 1;
         }
-        Logger::getInstance().log(LogLevel::INFO, "Successfully connected to metaserver.");
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Successfully connected to metaserver.");
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::FATAL, "Exception during metaserver connection: " + std::string(e.what()));
-        if (fuse_data.metadata_client) {
+        Logger::getInstance().log(LogLevel::FATAL, getCurrentTimestamp() + " [FUSE_ADAPTER] Exception during metaserver connection: " + std::string(e.what()));
+        if (fuse_data.metadata_client && !connect_socket_success) { // Ensure cleanup if ConnectClientSocket failed after allocation
             delete fuse_data.metadata_client;
             fuse_data.metadata_client = nullptr;
         }
@@ -661,32 +762,40 @@ int main(int argc, char *argv[]) {
     simpli_ops.statx   = simpli_statx;
 #endif
 
-    Logger::getInstance().log(LogLevel::INFO, "Passing control to fuse_main.");
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Passing control to fuse_main.");
 
     int fuse_ret = fuse_main(fuse_argc, fuse_argv, &simpli_ops, &fuse_data);
 
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] fuse_main returned " + std::to_string(fuse_ret) + ". Cleaning up.");
     delete[] fuse_argv;
+    // Note: simpli_destroy will be called by FUSE to clean up fuse_data.metadata_client
 
     return fuse_ret;
 }
 
 void simpli_destroy(void* private_data) {
-    Logger::getInstance().log(LogLevel::INFO, "simpli_destroy called.");
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Entry.");
     if (!private_data) {
+        Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: private_data is null.");
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exit (private_data null).");
         return;
     }
     SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(private_data);
     if (data->metadata_client) {
         if (data->metadata_client->IsConnected()) {
             try {
+                Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Before Disconnect.");
                 data->metadata_client->Disconnect();
-                Logger::getInstance().log(LogLevel::INFO, "Disconnected from metaserver.");
+                Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Disconnected from metaserver.");
             } catch (const std::exception& e) {
-                Logger::getInstance().log(LogLevel::ERROR, "Exception during disconnect from metaserver: " + std::string(e.what()));
+                Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exception during disconnect from metaserver: " + std::string(e.what()));
             }
         }
         delete data->metadata_client;
         data->metadata_client = nullptr;
-        Logger::getInstance().log(LogLevel::INFO, "Metadata client deleted.");
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Metadata client deleted.");
+    } else {
+        Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: metadata_client was already null.");
     }
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Exit.");
 }

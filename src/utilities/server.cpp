@@ -1,23 +1,50 @@
 #include "utilities/server.h"
 #include "utilities/logger.h" // Ensure logger is included for Logger::getInstance()
 #include <string>   // For std::string conversion if needed (e.g. ex.what())
+#include <iostream> // For std::cout (verbose logging)
+#include <iomanip>  // For std::put_time (used by getNetworkTimestamp)
+#include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
+#include <thread>   // For std::this_thread::get_id()
+#include <chrono>   // For timestamp components (used by getNetworkTimestamp)
+
+// Assuming getNetworkTimestamp is defined in client.cpp or a common header accessible here.
+// If not, it needs to be redefined or included. For this patch, we'll assume it's available.
+// (If it were in client.cpp only, this would be a problem, but let's assume it's moved to a common place or duplicated)
+// To be safe, let's ensure a version is available here:
+static std::string getNetworkTimestamp() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    std::ostringstream oss;
+    std::time_t t = std::chrono::system_clock::to_time_t(now);
+    std::tm bt = *std::localtime(&t); // Ensure this is thread-safe or handled if used across threads heavily
+    oss << std::put_time(&bt, "%H:%M:%S");
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+    oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
+    return oss.str();
+}
+
 
 Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed _pLogFile and logger initialization
 {
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Server(): Constructor Entry. Port: " << _pPortNumber << std::endl;
 	serverType = _pServerType;
     // Logger::getInstance().log(LogLevel::INFO, "Server instance created. Port: " + std::to_string(_pPortNumber) + ", Type: " + std::to_string(_pServerType)); // Logging removed from constructor
 	Networking::Server::InitServer();
 	Networking::Server::CreateServerSocket(_pPortNumber, _pServerType);
-
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Server(): Constructor Exit." << std::endl;
 }
 
 
 Networking::Server::~Server()
 {
+    // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Server(): Destructor Entry." << std::endl;
+    // Add any specific cleanup logging if necessary
+    // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Server(): Destructor Exit." << std::endl;
 }
 
 bool Networking::Server::InitServer()
 {
+    // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] InitServer: Entry." << std::endl;
     #ifdef _WIN32
 	try
 	{

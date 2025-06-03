@@ -41,3 +41,24 @@ target_include_directories(SimpliDFSTests
 # Register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(SimpliDFSTests)
+
+# --- Add FUSE Concurrency Test ---
+# Add executable for the FUSE concurrency test
+add_executable(SimpliDFSFuseConcurrencyTest
+    fuse_concurrency_tests.cpp
+)
+
+# Link necessary libraries (primarily pthreads for std::thread)
+# Threads::Threads is the modern CMake way to handle threading libraries.
+target_link_libraries(SimpliDFSFuseConcurrencyTest
+    PRIVATE
+    Threads::Threads
+)
+
+# Add the FUSE concurrency test to CTest
+add_test(
+    NAME FuseConcurrencyTest
+    COMMAND SimpliDFSFuseConcurrencyTest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Or specific path if needed
+)
+# --- End of FUSE Concurrency Test Addition ---
