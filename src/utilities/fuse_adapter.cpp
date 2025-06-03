@@ -1,4 +1,5 @@
 #include "utilities/fuse_adapter.h"
+#include <fuse_opt.h>
 #include "utilities/logger.h"
 #include <sstream> // For std::ostringstream
 #include <chrono>    // For timestamps
@@ -736,12 +737,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    char** fuse_argv = new char*[argc - 2];
-    fuse_argv[0] = argv[0];
+    char** fuse_argv_for_init = new char*[argc - 2];
+    fuse_argv_for_init[0] = argv[0];
     for (int i = 3; i < argc; ++i) {
-        fuse_argv[i - 2] = argv[i];
+        fuse_argv_for_init[i - 2] = argv[i];
     }
-    int fuse_argc = argc - 2;
+    int fuse_argc_for_init = argc - 2;
+
+    struct fuse_args args = FUSE_ARGS_INIT(fuse_argc_for_init, fuse_argv_for_init);
 
     struct fuse_operations simpli_ops;
     memset(&simpli_ops, 0, sizeof(struct fuse_operations));
@@ -764,10 +767,11 @@ int main(int argc, char *argv[]) {
 
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] Passing control to fuse_main.");
 
-    int fuse_ret = fuse_main(fuse_argc, fuse_argv, &simpli_ops, &fuse_data);
+    int fuse_ret = fuse_main(args.argc, args.argv, &simpli_ops, &fuse_data);
 
+    fuse_opt_free_args(&args);
     Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] fuse_main returned " + std::to_string(fuse_ret) + ". Cleaning up.");
-    delete[] fuse_argv;
+    delete[] fuse_argv_for_init;
     // Note: simpli_destroy will be called by FUSE to clean up fuse_data.metadata_client
 
     return fuse_ret;
