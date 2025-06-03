@@ -102,7 +102,7 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
         stbuf->st_mode = static_cast<mode_t>(res_msg._Mode);
         stbuf->st_uid = static_cast<uid_t>(res_msg._Uid);
         stbuf->st_gid = static_cast<gid_t>(res_msg._Gid);
-        stbuf->stx_size = static_cast<off_t>(res_msg._Size); // Corrected from stbuf->st_size
+        stbuf->st_size = static_cast<off_t>(res_msg._Size);
         stbuf->st_nlink = (S_ISDIR(stbuf->st_mode)) ? 2 : 1; // Basic nlink logic
 
         // Timestamps: Use current time as placeholder, ideally server provides these
