@@ -39,35 +39,27 @@ std::mutex Logger::s_mutex;
 
 void Logger::init(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal) {
     std::lock_guard<std::mutex> lock(s_mutex);
-    std::cerr << "[Logger::init] CALLED for file: " << logFile << ". Current s_instance: " << s_instance << std::endl;
+    // Removed verbose entry log: std::cerr << "[Logger::init] CALLED for file: " << logFile << ". Current s_instance: " << s_instance << std::endl;
 
-    if (s_instance) {
-        // Attempting to access s_instance->logFilePath here might be risky if s_instance is corrupted,
-        // but for diagnostics under normal conditions it's helpful.
-        // If s_instance is a dangling pointer from a previous misuse, this could crash.
-        // However, if Logger destructor was not called properly, it might point to valid-ish memory.
-        // Given typical singleton usage, if s_instance is non-null, it should be a valid object.
-        std::cerr << "[Logger::init] Deleting existing s_instance logging to: " << s_instance->logFilePath << std::endl;
-    }
+    // Removed verbose pre-deletion log:
+    // if (s_instance) {
+    //     std::cerr << "[Logger::init] Deleting existing s_instance logging to: " << s_instance->logFilePath << std::endl;
+    // }
     
     delete s_instance; // Safe to delete nullptr
-    // std::cerr << "[Logger::init] After delete, s_instance is now effectively nullptr (pending explicit nullification if added)." << std::endl; // This log is a bit misleading as s_instance still holds old address until next line
     s_instance = nullptr; // Explicitly nullify before attempting new allocation.
-    std::cerr << "[Logger::init] s_instance explicitly set to nullptr." << std::endl;
+    // Removed verbose nullification log: std::cerr << "[Logger::init] s_instance explicitly set to nullptr." << std::endl;
 
     try {
         s_instance = new Logger(logFile, level, maxFileSizeVal, maxBackupFilesVal);
-        // The check `if (s_instance)` after `new` is somewhat redundant if `new` throws `std::bad_alloc` on failure,
-        // as it's standard behavior. If `new` were `new (std::nothrow) Logger(...)`, then checking for nullptr would be essential.
-        // However, it doesn't hurt as a defense-in-depth or for clarity.
-        if (s_instance) { 
-             std::cerr << "[Logger::init] new Logger SUCCEEDED. s_instance: " << s_instance 
-                       << ", logging to: " << s_instance->logFilePath 
-                       << ", is_open: " << s_instance->logFileStream.is_open() << std::endl;
-        } else {
-             // This path should not be taken with standard-conforming `new`.
-             std::cerr << "[Logger::init] CRITICAL: new Logger returned nullptr but did not throw! s_instance REMAINS nullptr." << std::endl;
-        }
+        // Removed verbose success log:
+        // if (s_instance) { 
+        //      std::cerr << "[Logger::init] new Logger SUCCEEDED. s_instance: " << s_instance 
+        //                << ", logging to: " << s_instance->logFilePath 
+        //                << ", is_open: " << s_instance->logFileStream.is_open() << std::endl;
+        // } else {
+        //      std::cerr << "[Logger::init] CRITICAL: new Logger returned nullptr but did not throw! s_instance REMAINS nullptr." << std::endl;
+        // }
     } catch (const std::bad_alloc& bae) {
         // s_instance remains nullptr because it was set to nullptr before the try block.
         std::cerr << "[Logger::init] CRITICAL: new Logger FAILED due to std::bad_alloc: " << bae.what() << ". s_instance REMAINS nullptr." << std::endl;
@@ -78,7 +70,7 @@ void Logger::init(const std::string& logFile, LogLevel level, long long maxFileS
         // s_instance remains nullptr.
         std::cerr << "[Logger::init] CRITICAL: new Logger FAILED due to unknown exception. s_instance REMAINS nullptr." << std::endl;
     }
-    std::cerr << "[Logger::init] COMPLETED. Final s_instance: " << s_instance << std::endl;
+    // Removed verbose completion log: std::cerr << "[Logger::init] COMPLETED. Final s_instance: " << s_instance << std::endl;
 }
 
 Logger& Logger::getInstance() {
