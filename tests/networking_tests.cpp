@@ -6,6 +6,7 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include <signal.h> // Added for SIGPIPE handling
 #include "utilities/logger.h" // Add this include
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
@@ -2131,6 +2132,7 @@ TEST_F(NetworkingTest, ServerInitializationOnSamePort) {
 }
 
 TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
+    signal(SIGPIPE, SIG_IGN); // Ignore SIGPIPE for this test
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientSendAfterServerAbruptDisconnect: Starting." << std::endl;
     const int testPort = 12398;
     Networking::Server server(testPort);

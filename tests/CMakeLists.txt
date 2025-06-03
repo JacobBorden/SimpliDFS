@@ -61,4 +61,23 @@ add_test(
     COMMAND SimpliDFSFuseConcurrencyTest
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Or specific path if needed
 )
+
+# Define a test for running the setup script
+add_test(
+    NAME FuseTestEnvSetup
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/setup_fuse_test_env.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Scripts expect to be run from build/tests
+)
+
+# Define a test for running the cleanup script
+add_test(
+    NAME FuseTestEnvCleanup
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cleanup_fuse_test_env.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Scripts expect to be run from build/tests
+)
+
+# Set test properties for fixtures
+set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_SETUP FuseTestEnvSetup)
+set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_CLEANUP FuseTestEnvCleanup)
+
 # --- End of FUSE Concurrency Test Addition ---
