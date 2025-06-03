@@ -36,6 +36,7 @@ namespace {
 // Initialize static members
 Logger* Logger::s_instance = nullptr;
 std::mutex Logger::s_mutex;
+std::once_flag Logger::s_once_flag; // Initialize static once_flag
 const std::string Logger::CONSOLE_ONLY_OUTPUT = "::CONSOLE::";
 
 void Logger::init(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal) {
@@ -78,40 +79,29 @@ Logger& Logger::getInstance() {
     // Double-checked locking pattern can be considered here for performance if getInstance is called extremely frequently
     // and locking is a bottleneck. However, for typical logger usage, a simple lock is often sufficient and safer to implement.
     // The emergency init path complicates DCLP.
-    std::lock_guard<std::mutex> lock(s_mutex); // Protects check and potential emergency init
-    if (!s_instance) {
-        std::cerr << "CRITICAL_WARNING: Logger::getInstance() called when s_instance is null. Attempting emergency initialization to 'emergency_default.log'." << std::endl;
-        try {
-            // Attempt to initialize the logger to an emergency default.
-            // Logger::init handles 'new Logger' which can throw std::bad_alloc.
-            Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::WARN);
-            // If Logger::init was successful, s_instance is now (or should be) non-nullptr.
+    std::call_once(s_once_flag, []() {
+        // This lambda will be executed only once.
+        // It ensures a default instance is created if no instance exists when getInstance is first called.
+        // This typically happens if getInstance() is called during static initialization, before main()'s Logger::init().
+        if (!s_instance) { // s_instance should be null here unless init() was called by another thread before this call_once (unlikely for static init)
+            std::cerr << "Logger::getInstance() called before explicit Logger::init(). Creating default console logger." << std::endl;
+            // Create a default logger that logs to console.
+            // Parameters for Logger constructor: (logFile, level, maxFileSizeVal, maxBackupFilesVal)
+            s_instance = new Logger(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::WARN, 0, 0);
+            // Note: No mutex needed for s_instance assignment here as call_once guarantees serial execution.
         }
-        catch (const std::bad_alloc& e) {
-            // This catch is specifically if 'new Logger()' inside Logger::init fails due to memory.
-            // s_instance would remain nullptr if it was nullptr before, or become nullptr if init deleted an old one then failed to new.
-            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed during memory allocation: " << e.what() << std::endl;
-            // s_instance is confirmed to be nullptr or is effectively nullptr after this.
-        }
-        catch (const std::exception& e) {
-            // Catch any other unexpected std::exception if Logger::init or Logger constructor were to throw more.
-            // (Currently, Logger constructor only prints to cerr for file errors, doesn't throw for that).
-            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed with an unexpected standard exception: " << e.what() << std::endl;
-        }
-        catch (...) {
-            // Catch any other non-standard exception.
-            std::cerr << "CRITICAL_ERROR: Emergency Logger::init failed with an unknown exception." << std::endl;
-        }
+    });
 
-        // After attempting emergency initialization, re-check s_instance.
-        if (!s_instance) {
-            // If s_instance is still null, the emergency initialization failed catastrophically.
-            throw std::runtime_error("Logger not initialized. Call Logger::init() first. Emergency init also failed.");
-        }
-        // If we reach here, s_instance is now valid (pointing to an instance).
-        // That instance might have failed to open its log file ("emergency_default.log"), 
-        // but the Logger object itself exists, preventing a crash on dereferencing s_instance.
-        // The Logger::log method handles cases where its file stream isn't open.
+    // After call_once, s_instance should be non-null (either default or from previous init).
+    // However, Logger::init() can delete and replace s_instance.
+    // So, we still need a null check here for safety, though it implies init() failed catastrophically or was called concurrently.
+    std::lock_guard<std::mutex> lock(s_mutex); // Protects the s_instance read, in case init is running concurrently
+    if (!s_instance) {
+        // This case should ideally not be reached if call_once worked and init is well-behaved.
+        // If it is reached, it means s_instance was nulled after call_once's block (e.g. init failed badly).
+        // Throwing an exception is better than returning a reference to a null-derived object.
+        std::cerr << "CRITICAL_ERROR: Logger::s_instance is null in getInstance even after call_once. This indicates a severe issue." << std::endl;
+        throw std::runtime_error("Logger instance is unexpectedly null in getInstance.");
     }
     return *s_instance;
 }

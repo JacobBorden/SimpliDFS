@@ -50,6 +50,7 @@ private:
     // Static members for init and getInstance
     static Logger* s_instance; 
     static std::mutex s_mutex; // Mutex for thread safety
+    static std::once_flag s_once_flag; // For robust singleton initialization
 };
 
 #endif
