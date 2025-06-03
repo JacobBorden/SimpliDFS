@@ -58,7 +58,8 @@ bool Networking::Server::startListening() {
              std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: InitServer() failed. Exiting." << std::endl;
             return false;
         }
-        if (!CreateServerSocketInternal()) {
+        // Ensure the call is to CreateServerSocketInternal()
+        if (!this->CreateServerSocketInternal()) {
             std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: CreateServerSocketInternal() failed. Exiting." << std::endl;
             return false;
         }
@@ -103,31 +104,35 @@ bool Networking::Server::InitServer()
 	return true;
 }
 
-
-
-
-bool Networking::Server::CreateServerSocket(int _pPortNumber,  ServerType _pServerType)
+// Definition for CreateServerSocketInternal, using member variables
+bool Networking::Server::CreateServerSocketInternal()
 {
-    // Force IPv4 for all server sockets
-    int addressFamily = AF_INET;
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] CreateServerSocketInternal: Entry. Port: " << portNumber_ << " Type: " << serverType_ << std::endl;
+    // Use serverType_ to determine address family, though current logic might default to IPv4
+    int addressFamily = (serverType_ == ServerType::IPv6) ? AF_INET6 : AF_INET;
+    // The original code consistently used AF_INET. Sticking to that for minimal change for now.
+    // Forcing IPv4 as per original logic until IPv6 is fully plumbed for serverInfo
+    addressFamily = AF_INET;
+
+
     ZeroMemory(&addressInfo, sizeof(addressInfo));
     SetFamily(addressFamily);
     SetSocketType(SOCK_STREAM);
     SetProtocol(IPPROTO_TCP);
 
-    // Set up the sockaddr_in structure for IPv4 only
+    // Set up the sockaddr_in structure
+    // TODO: Adapt for IPv6 if addressFamily is AF_INET6 using sockaddr_in6
     memset(&serverInfo, 0, sizeof(serverInfo));
-    serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = htonl(INADDR_LOOPBACK); // 127.0.0.1
-    serverInfo.sin_port = htons(_pPortNumber);
+    serverInfo.sin_family = addressFamily;
+    serverInfo.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
+    serverInfo.sin_port = htons(portNumber_); // Use member variable
 
-    CreateSocket();
-    BindSocket();
+    CreateSocket(); // Internally uses serverInfo.sin_family
+    BindSocket();   // Internally uses serverInfo
     ListenOnSocket();
-    serverIsConnected = true;
+    // serverIsConnected should be set by startListening after all steps succeed
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] CreateServerSocketInternal: Exit (success)." << std::endl;
     return true;
-
-
 }
 
 
@@ -1025,7 +1030,7 @@ std::string Networking::Server::GetClientIPAddress(Networking::ClientConnection 
 
 Networking::ServerType Networking::Server::GetServerType()
 {
-	return serverType;
+	return serverType_;
 }
 
 // Removed LogToFile and LogToConsole methods as they are replaced by direct Logger::getInstance() calls
