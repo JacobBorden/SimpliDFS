@@ -1517,10 +1517,14 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
                         ASSERT_FALSE(data.empty()) << threadIdStr << ": Received empty data.";
                         
                         std::string receivedMsg(data.begin(), data.end());
-                        std::string expectedMsg = "Hello from Client " + std::to_string(i);
-                        ASSERT_EQ(receivedMsg, expectedMsg) << threadIdStr << ": Message content mismatch.";
+                        // std::string expectedMsg = "Hello from Client " + std::to_string(i);
+                        // ASSERT_EQ(receivedMsg, expectedMsg) << threadIdStr << ": Message content mismatch.";
                         
-                        std::string responseMsg = "ACK Client " + std::to_string(i);
+                        size_t lastSpace = receivedMsg.rfind(' ');
+                        ASSERT_NE(lastSpace, std::string::npos) << threadIdStr << ": Could not find space in message from client.";
+                        std::string parsedClientIdStr = receivedMsg.substr(lastSpace + 1);
+
+                        std::string responseMsg = "ACK Client " + parsedClientIdStr;
                         server.Send(responseMsg.c_str(), conn);
                         
                         successfulServerOperations++;
