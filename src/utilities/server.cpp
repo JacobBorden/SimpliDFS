@@ -68,12 +68,12 @@ bool Networking::Server::startListening() {
         return true;
     } catch (const Networking::NetworkException& ne) {
         std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: NetworkException: " << ne.what() << ". Exiting." << std::endl;
-        Logger::getInstance().log(LogLevel::FATAL, "startListening failed: " + std::string(ne.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "startListening failed: " + std::string(ne.what())); // Changed FATAL to ERROR
         serverIsConnected = false; // Ensure this is false on failure
         return false;
     } catch (const std::exception& e) {
         std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: std::exception: " << e.what() << ". Exiting." << std::endl;
-        Logger::getInstance().log(LogLevel::FATAL, "startListening failed with std::exception: " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, "startListening failed with std::exception: " + std::string(e.what())); // Changed FATAL to ERROR
         serverIsConnected = false;
         return false;
     }
@@ -165,21 +165,22 @@ void Networking::Server::CreateSocket()
             Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEADDR on server socket.");
         }
 
-        // Set SO_REUSEPORT option (more platform specific)
-        // SO_REUSEPORT allows multiple sockets to bind to the same IP address and port.
-        // This is particularly useful on Linux for load distribution or fast restarts.
-        // On Windows, SO_REUSEADDR effectively allows similar behavior for TCP sockets
-        // regarding quick restarts, but SO_REUSEPORT is not typically used or available in the same way.
-        #if defined(SO_REUSEPORT) && !defined(_WIN32)
-        int reuseport = 1;
-        if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuseport, sizeof(reuseport)) < 0) {
-            int errorCode = GETERROR();
-            Logger::getInstance().log(LogLevel::WARN, "setsockopt(SO_REUSEPORT) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
-            // Log and continue
-        } else {
-            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEPORT on server socket.");
-        }
-        #endif
+        // SO_REUSEPORT option removed to ensure ServerInitializationOnSamePort test fails the second bind.
+        // // Set SO_REUSEPORT option (more platform specific)
+        // // SO_REUSEPORT allows multiple sockets to bind to the same IP address and port.
+        // // This is particularly useful on Linux for load distribution or fast restarts.
+        // // On Windows, SO_REUSEADDR effectively allows similar behavior for TCP sockets
+        // // regarding quick restarts, but SO_REUSEPORT is not typically used or available in the same way.
+        // #if defined(SO_REUSEPORT) && !defined(_WIN32)
+        // int reuseport = 1;
+        // if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEPORT, (const char*)&reuseport, sizeof(reuseport)) < 0) {
+        //     int errorCode = GETERROR();
+        //     Logger::getInstance().log(LogLevel::WARN, "setsockopt(SO_REUSEPORT) failed with error code " + std::to_string(errorCode) + ": " + std::string(strerror(errorCode)));
+        //     // Log and continue
+        // } else {
+        //     Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_REUSEPORT on server socket.");
+        // }
+        // #endif
 
 		retries =0;
 	}
@@ -260,8 +261,8 @@ void Networking::Server::BindSocket()
 			}
 			else
 			{
-				Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (EADDRINUSE) after max retries: " + std::string(ex.what()));
-				std::exit(EXIT_FAILURE);
+				Logger::getInstance().log(LogLevel::ERROR, "BindSocket failed (EADDRINUSE) after max retries: " + std::string(ex.what()));
+                throw; // Re-throw the exception
 			}
 		case EADDRNOTAVAIL:
 			if(retries < MAX_RETRIES)
@@ -273,13 +274,13 @@ void Networking::Server::BindSocket()
 			}
 			else
 			{
-				Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (EADDRNOTAVAIL) after max retries: " + std::string(ex.what()));
-				std::exit(EXIT_FAILURE);
+				Logger::getInstance().log(LogLevel::ERROR, "BindSocket failed (EADDRNOTAVAIL) after max retries: " + std::string(ex.what()));
+                throw; // Re-throw the exception
 			}
 
 		default:
-			Logger::getInstance().log(LogLevel::FATAL, "BindSocket failed (default case): " + std::string(ex.what()));
-			std::exit(EXIT_FAILURE);
+			Logger::getInstance().log(LogLevel::ERROR, "BindSocket failed (default case): " + std::string(ex.what()));
+            throw; // Re-throw the exception
 		}
 
 	}
@@ -411,88 +412,69 @@ void Networking::Server::SetFamily(int _pFamily)
 }
 
 
-// Send data to the client
+// Helper function to send all data in a buffer (Server context)
+// Note: _pClient is passed by value, but its clientSocket is used.
+// A reference or pointer to a ClientConnection might be more appropriate if its state needed modification by send_all.
+// For now, this helper primarily encapsulates the send loop and basic error handling.
+// It does not modify ClientConnection state directly but throws on error, which the caller (Server::Send) handles.
+static bool send_all_server(SOCKET sock, const char* buffer, size_t length, Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
+    size_t totalBytesSent = 0;
+    while (totalBytesSent < length) {
+        int bytesSent = send(sock, buffer + totalBytesSent, length - totalBytesSent, 0);
+        if (bytesSent == SOCKET_ERROR) {
+            int errorCode = GETERROR();
+            Logger::getInstance().log(LogLevel::ERROR, "send_all_server: send() failed for socket " + std::to_string(sock) + " with error: " + std::to_string(errorCode));
+            // Server-side, we might disconnect this specific client rather than shutting down the whole server socket.
+            // The original Server::Send logic calls DisconnectClient.
+            // Throwing here allows Server::Send to catch and decide.
+            throw Networking::NetworkException(sock, errorCode, "send_all_server failed");
+        }
+        if (bytesSent == 0) { // Should not happen with blocking sockets unless length is 0
+            Logger::getInstance().log(LogLevel::ERROR, "send_all_server: send() returned 0 for socket " + std::to_string(sock) + ", treating as error.");
+            throw Networking::NetworkException(sock, 0, "send_all_server failed: sent 0 bytes");
+        }
+        totalBytesSent += bytesSent;
+    }
+    return true;
+}
+
+
+// Send data to the client (modified for length-prefixing)
 int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient)
 {
-	static int retries =0;
-	int bytesSent;
-	try{
+    // Note: _pClient is a copy. Operations on its socket are fine, but state changes to _pClient itself won't persist outside.
+    // The current DisconnectClient takes a ClientConnection copy too. This design might need review for state management.
 
-		// Send the data to the client
-		bytesSent = send(_pClient.clientSocket,_pSendBuffer, strlen(_pSendBuffer),0 );
+    size_t payloadLength = strlen(_pSendBuffer);
+    uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
 
-		// If there was an error, throw an exception
-		if(bytesSent == SOCKET_ERROR)
-		{
-			// Get the error code
-			int errorCode = GETERROR();
+    Logger::getInstance().log(LogLevel::DEBUG, "[Server::Send to " + GetClientIPAddress(_pClient) + "] Sending header: payloadLength = " + std::to_string(payloadLength));
 
-			// Throw the error code
-			Networking::ThrowSendException(_pClient.clientSocket, errorCode);
+    try {
+        // Send the header (payload length)
+        send_all_server(_pClient.clientSocket, reinterpret_cast<const char*>(&netPayloadLength), sizeof(netPayloadLength), this, _pClient);
 
-		}
-		retries =0;
-	}
+        Logger::getInstance().log(LogLevel::DEBUG, "[Server::Send to " + GetClientIPAddress(_pClient) + "] Header sent. Sending payload...");
 
-	catch (Networking::NetworkException &ex)
-	{
-		switch(ex.GetErrorCode())
-		{
-		case EAGAIN:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EAGAIN) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
-
-		case EINTR:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINTR) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINTR) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
-
-		case EINPROGRESS:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINPROGRESS) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINPROGRESS) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
-
-		default:
-            Logger::getInstance().log(LogLevel::ERROR, "Send failed (default case) to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-			DisconnectClient(_pClient);
-			break;
-
-		}
-
-	}
-
-	// Return  the number of bytes sent if the data was sent successfully
-	return bytesSent;
+        // Send the actual payload
+        if (payloadLength > 0) {
+            send_all_server(_pClient.clientSocket, _pSendBuffer, payloadLength, this, _pClient);
+        }
+        Logger::getInstance().log(LogLevel::DEBUG, "[Server::Send to " + GetClientIPAddress(_pClient) + "] Payload sent successfully.");
+        return static_cast<int>(payloadLength); // Return payload length
+    } catch (const Networking::NetworkException &ex) {
+        // send_all_server throws, but doesn't DisconnectClient. Server::Send's original catch block did.
+        Logger::getInstance().log(LogLevel::ERROR, "Server::Send failed for client " + GetClientIPAddress(_pClient) + " (socket " + std::to_string(_pClient.clientSocket) + "): " + std::string(ex.what()));
+        DisconnectClient(_pClient); // Disconnect on failure as per original Send logic
+        // Decide whether to re-throw or return an error code. Original threw via ThrowSendException.
+        // For now, let's stick to re-throwing or throwing a new one, as just returning -1 might hide errors.
+        // The original Send method's catch block was more complex with retries.
+        // This simplified version for length-prefixing assumes send_all handles immediate errors by throwing.
+        // If retries are needed, they'd be inside send_all_server or here.
+        // For now, let's throw a generic exception indicating send failure to this client.
+        Networking::ThrowSendException(_pClient.clientSocket, ex.GetErrorCode()); // Re-throw specific error
+        return -1; // Should not be reached if ThrowSendException exits or throws
+    }
 }
 
 // Send data to a specified address and port
@@ -710,75 +692,80 @@ void Networking::Server::SendFile(const std::string& _pFilePath, Networking::Cli
 }
 
 
-// Receive data from the server
-std::vector <char> Networking::Server::Receive(Networking::ClientConnection client)
-{
-	static int retries =0;
-	// Initialize the number of bytes received to 0
-	int bytesReceived =0;
+// Helper function to receive exactly 'length' bytes (Server context)
+static bool recv_all_server(SOCKET sock, char* buffer, size_t length, Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
+    size_t totalBytesReceived = 0;
+    while (totalBytesReceived < length) {
+        int bytesReceived = recv(sock, buffer + totalBytesReceived, length - totalBytesReceived, 0);
+        if (bytesReceived == 0) { // Graceful shutdown by peer
+            Logger::getInstance().log(LogLevel::INFO, "recv_all_server: Peer (socket " + std::to_string(sock) + ") has performed an orderly shutdown during message reception.");
+            // Server-side, this means the client closed the connection.
+            // We don't necessarily close the server's main listening socket here.
+            // We should signal that this specific client connection is effectively dead.
+            // Throwing an exception allows Receive to handle cleanup for this client.
+            throw Networking::NetworkException(sock, 0, "recv_all_server failed: Peer shutdown prematurely");
+        }
+        if (bytesReceived == SOCKET_ERROR) {
+            int errorCode = GETERROR();
+            Logger::getInstance().log(LogLevel::ERROR, "recv_all_server: recv() failed for socket " + std::to_string(sock) + " with error: " + std::to_string(errorCode));
+            throw Networking::NetworkException(sock, errorCode, "recv_all_server failed");
+        }
+        totalBytesReceived += bytesReceived;
+    }
+    return true;
+}
 
-	// Create a vector to store the received data
-	std::vector<char> receiveBuffer;
-	try{
-		// Receive data from the server in a loop
-		do{
-			// Get the current size of the receive buffer
-			int bufferStart = receiveBuffer.size();
-			// Resize the buffer to make room for more data
-			receiveBuffer.resize(bufferStart+512);
-			// Receive data from the server
-			bytesReceived = recv(client.clientSocket, &receiveBuffer[bufferStart],512,0);
-			// Resize the buffer to the actual size of the received data
-			receiveBuffer.resize(bufferStart + bytesReceived);
-		} while (bytesReceived == 512);
+// Receive data from the client (modified for length-prefixing)
+std::vector<char> Networking::Server::Receive(Networking::ClientConnection client) {
+    // Note: 'client' is a copy. Operations on its socket are fine.
+    // If recv_all_server or this function needs to modify the state of the client connection
+    // as stored in Server's 'clients' list, a reference or identifier would be needed.
 
-// If there was an error, throw an exception
-		if (bytesReceived == SOCKET_ERROR)
-		{
-			// Get the error code
-			int errorCode = GETERROR();
-			Networking::ThrowReceiveException(client.clientSocket,errorCode);
-		}
-		retries =0;
-	}
-	catch(Networking::NetworkException &ex)
-	{
-		switch(ex.GetErrorCode())
-		{
-		case EAGAIN:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-				Receive(client);
-			}
-			else{
-				retries =0;
-				DisconnectClient(client);
-                Logger::getInstance().log(LogLevel::ERROR, "Receive failed (EAGAIN) after max retries from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
-				break;
-			}
-		case EINTR:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-                Logger::getInstance().log(LogLevel::WARN, "Receive failed (EINTR) from client " + GetClientIPAddress(client) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
-				Receive(client);
-			}
-			else{
-				retries =0;
-				DisconnectClient(client);
-                Logger::getInstance().log(LogLevel::ERROR, "Receive failed (EINTR) after max retries from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
-				break;
-			}
-		default:
-			DisconnectClient(client);
-            Logger::getInstance().log(LogLevel::ERROR, "Receive failed (default case) from client " + GetClientIPAddress(client) + ": " + std::string(ex.what()));
-			break;
-		}
-	}
+    uint32_t netPayloadLength;
+    Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Receiving header (4 bytes).");
+    try {
+        recv_all_server(client.clientSocket, reinterpret_cast<char*>(&netPayloadLength), sizeof(netPayloadLength), this, client);
+    } catch (const Networking::NetworkException& e) {
+        if (e.GetErrorCode() == 0) { // Peer shutdown during header read
+            Logger::getInstance().log(LogLevel::INFO, "Server::Receive: Client " + GetClientIPAddress(client) + " shutdown while reading header.");
+            DisconnectClient(client); // Clean up this client connection
+            return {}; // Return empty vector, indicating no message received due to client disconnect
+        } else {
+            Logger::getInstance().log(LogLevel::ERROR, "Server::Receive: Failed to receive header from client " + GetClientIPAddress(client) + ": " + std::string(e.what()));
+            DisconnectClient(client);
+            Networking::ThrowReceiveException(client.clientSocket, e.GetErrorCode()); // Re-throw as original Receive would
+            return {}; // Should not be reached
+        }
+    }
 
-	// Return the vector containing the received data
-	return receiveBuffer;
+    uint32_t payloadLength = ntohl(netPayloadLength);
+    Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Header received. Payload length = " + std::to_string(payloadLength));
+
+    if (payloadLength == 0) {
+        Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Zero-length payload indicated. Returning empty vector.");
+        return {}; // Correctly handle zero-length message
+    }
+
+    std::vector<char> payloadBuffer(payloadLength);
+    Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Receiving payload (" + std::to_string(payloadLength) + " bytes).");
+    try {
+        recv_all_server(client.clientSocket, payloadBuffer.data(), payloadLength, this, client);
+    } catch (const Networking::NetworkException& e) {
+        if (e.GetErrorCode() == 0) { // Peer shutdown during payload read
+            Logger::getInstance().log(LogLevel::INFO, "Server::Receive: Client " + GetClientIPAddress(client) + " shutdown while reading payload.");
+        } else {
+            Logger::getInstance().log(LogLevel::ERROR, "Server::Receive: Failed to receive payload from client " + GetClientIPAddress(client) + ": " + std::string(e.what()));
+        }
+        DisconnectClient(client); // Clean up on any error/EOF during payload read
+        // Decide if to return partial data, throw, or return empty.
+        // For robustness, if we didn't get the full expected payload, it's an error or incomplete message.
+        // Original Receive would throw or retry. Let's throw an error indicating incomplete message.
+        Networking::ThrowReceiveException(client.clientSocket, e.GetErrorCode() != 0 ? e.GetErrorCode() : -1 /* generic error for EOF mid-message */);
+        return {}; // Should not be reached
+    }
+
+    Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Payload received successfully.");
+    return payloadBuffer;
 }
 
 
