@@ -6,6 +6,7 @@
 #include <string>
 #include <ctime>
 #include <stdexcept> // Required for std::runtime_error
+#include <mutex>     // For std::mutex and std::lock_guard
 
 enum LogLevel {
     TRACE,
@@ -45,7 +46,8 @@ private:
     int maxBackupFiles;
 
     // Static members for init and getInstance
-    static Logger* s_instance; // Changed from s_isInitialized and other static config members
+    static Logger* s_instance; 
+    static std::mutex s_mutex; // Mutex for thread safety
 };
 
 #endif

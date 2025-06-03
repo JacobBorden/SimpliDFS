@@ -855,11 +855,10 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         currentServer->Shutdown();
         delete currentServer;
-        ASSERT_EQ(mockFileContents[testFilePath], "Hello FUSEd"); // Original "World" last 'd' remains if data is shorter than remaining part
-                                                              // Our server logic resizes to exactly offset + data.length if that's larger.
-                                                              // If offset + data.length is smaller than original, then it's effectively a partial overwrite.
-                                                              // "Hello " (6) + "FUSE" (4) = "Hello FUSE". Original length was 11.
-                                                              // New length will be offset + data.length = 6 + 4 = 10.
+        // Our server logic resizes to exactly offset + data.length if that's larger.
+        // If offset + data.length is smaller than original, then it's effectively a partial overwrite.
+        // "Hello " (6) + "FUSE" (4) = "Hello FUSE". Original length was 11.
+        // New length will be offset + data.length = 6 + 4 = 10.
         ASSERT_EQ(mockFileContents[testFilePath], "Hello FUSE");
     }
 
@@ -1120,10 +1119,15 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
 
 
     std::thread serverThread([&]() {
-        Networking::ClientConnection connection;
-        try {
+        Networking::ClientConnection connection{}; // Initialize to ensure clientSocket is 0 if Accept fails early
+        try { // Outer try for the entire lambda body
             connection = server.Accept();
-            ASSERT_TRUE(connection.clientSocket != 0);
+            // ASSERT_TRUE(connection.clientSocket != 0); // GTest macros might throw, use EXPECT_NE for non-fatal or check and log
+            if (connection.clientSocket == 0) {
+                 ADD_FAILURE() << "S: Accept failed, clientSocket is 0.";
+                 serverThreadCompleted = true; // Mark as completed to avoid join issues if possible
+                 return; 
+            }
             serverAcceptedClient = true;
             Logger::getInstance().log(LogLevel::DEBUG, "S: Client accepted.");
 
@@ -1133,13 +1137,21 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 waitRetries++;
             }
-            ASSERT_TRUE(clientAttemptedSendZero.load()) << "S: Timeout waiting for client to send zero-length message.";
-            
-            Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to receive client's zero-length message.");
-            std::vector<char> rcvDataClient = server.Receive(connection);
-            ASSERT_TRUE(rcvDataClient.empty()) << "S: Received data from client was not empty for zero-length send. Size: " << rcvDataClient.size();
-            Logger::getInstance().log(LogLevel::DEBUG, "S: Correctly received empty message from client.");
-            serverConfirmedEmptyReceive = true;
+            if(!clientAttemptedSendZero.load()) { // Use if instead of ASSERT_TRUE to allow cleanup
+                ADD_FAILURE() << "S: Timeout waiting for client to send zero-length message.";
+                // Proceed to cleanup
+            } else {
+                Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to receive client's zero-length message.");
+                std::vector<char> rcvDataClient = server.Receive(connection);
+                
+                if (rcvDataClient.empty()) {
+                    serverConfirmedEmptyReceive = true;
+                    Logger::getInstance().log(LogLevel::DEBUG, "S: Confirmed empty receive from client.");
+                } else {
+                    ADD_FAILURE() << "S: Received data from client was NOT empty for zero-length send. Size: " << rcvDataClient.size();
+                    serverConfirmedEmptyReceive = false; 
+                }
+            }
 
             // Part 2: Server sends zero-length to client
             waitRetries = 0;
@@ -1147,27 +1159,40 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 waitRetries++;
             }
-            ASSERT_TRUE(clientReadyForServersZeroMsg.load()) << "S: Timeout waiting for client to be ready for server's zero-length message.";
-
-            Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to send zero-length message to client.");
-            server.Send("", connection);
-            Logger::getInstance().log(LogLevel::DEBUG, "S: Sent zero-length message to client.");
-            serverAttemptedSendZero = true;
+            if(!clientReadyForServersZeroMsg.load()){
+                 ADD_FAILURE() << "S: Timeout waiting for client to be ready for server's zero-length message.";
+                 // Proceed to cleanup
+            } else {
+                Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to send zero-length message to client.");
+                server.Send("", connection);
+                Logger::getInstance().log(LogLevel::DEBUG, "S: Sent zero-length message to client.");
+                serverAttemptedSendZero = true;
+            }
             
             // Hold connection open a bit for client to receive and assert
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-
         } catch (const Networking::NetworkException& e) {
-            FAIL() << "S: NetworkException in server thread: " << e.what();
+            ADD_FAILURE() << "S: NetworkException in server thread: " << e.what();
         } catch (const std::exception& e) {
-            FAIL() << "S: std::exception in server thread: " << e.what();
+            ADD_FAILURE() << "S: std::exception in server thread: " << e.what();
+        } catch (...) {
+            ADD_FAILURE() << "S: Unknown exception in server thread.";
         }
         
         if (connection.clientSocket != 0) {
-             try { server.DisconnectClient(connection); } catch(...) {}
+             try { 
+                 Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to disconnect client in server thread.");
+                 server.DisconnectClient(connection); 
+                 Logger::getInstance().log(LogLevel::DEBUG, "S: Disconnected client in server thread.");
+             } catch(const std::exception& e) {
+                 ADD_FAILURE() << "S: Exception during DisconnectClient: " << e.what();
+             } catch(...) {
+                 ADD_FAILURE() << "S: Unknown exception during DisconnectClient.";
+             }
         }
         serverThreadCompleted = true;
+        Logger::getInstance().log(LogLevel::DEBUG, "S: Server thread logic completed.");
     });
 
     // Client (Main Thread)
@@ -1223,7 +1248,7 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete as expected.";
+    ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete its execution as expected.";
     server.Shutdown();
 }
 
@@ -1251,10 +1276,14 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     std::atomic<bool> serverThreadCompleted{false};
 
     std::thread serverThread([&]() {
-        Networking::ClientConnection connection;
-        try {
+        Networking::ClientConnection connection{}; // Initialize
+        try { // Outer try for the entire lambda body
             connection = server.Accept();
-            ASSERT_TRUE(connection.clientSocket != 0);
+            if (connection.clientSocket == 0) {
+                 ADD_FAILURE() << "S_LM: Accept failed, clientSocket is 0.";
+                 serverThreadCompleted = true;
+                 return; 
+            }
             serverAcceptedClient = true;
             Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Client accepted.");
 
@@ -1264,18 +1293,26 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 waitRetries++;
             }
-            ASSERT_TRUE(clientAttemptedSendLarge.load()) << "S_LM: Timeout waiting for client to send large message.";
             
-            Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to receive client's large message.");
-            std::vector<char> rcvDataClient = server.Receive(connection);
-            ASSERT_EQ(rcvDataClient.size(), largeMessageSize) << "S_LM: Received data size mismatch from client.";
-            ASSERT_TRUE(std::equal(rcvDataClient.begin(), rcvDataClient.end(), largeMessageStr.begin())) << "S_LM: Received data content mismatch from client.";
-            Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Correctly received and verified large message from client.");
-            serverConfirmedLargeReceive = true;
+            if(!clientAttemptedSendLarge.load()) {
+                 ADD_FAILURE() << "S_LM: Timeout waiting for client to send large message.";
+            } else {
+                Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to receive client's large message.");
+                std::vector<char> rcvDataClient = server.Receive(connection);
+                
+                if (rcvDataClient.size() != largeMessageSize) {
+                    ADD_FAILURE() << "S_LM: Received data size mismatch. Expected: " << largeMessageSize << " Got: " << rcvDataClient.size();
+                } else if (!std::equal(rcvDataClient.begin(), rcvDataClient.end(), largeMessageStr.begin())) {
+                    ADD_FAILURE() << "S_LM: Received data content mismatch from client.";
+                } else {
+                    Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Correctly received and verified large message from client.");
+                    serverConfirmedLargeReceive = true; // Set the flag
+                }
+            }
 
             // Part 2: Server sends large message to client
             Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to send large message to client.");
-            server.Send(largeMessageStr.c_str(), connection);
+            server.Send(largeMessageStr.c_str(), connection); // This might throw if client disconnected early
             Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Sent large message to client.");
             serverAttemptedSendLarge = true;
             
@@ -1283,15 +1320,26 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         } catch (const Networking::NetworkException& e) {
-            FAIL() << "S_LM: NetworkException in server thread: " << e.what();
+            ADD_FAILURE() << "S_LM: NetworkException in server thread: " << e.what();
         } catch (const std::exception& e) {
-            FAIL() << "S_LM: std::exception in server thread: " << e.what();
+            ADD_FAILURE() << "S_LM: std::exception in server thread: " << e.what();
+        } catch (...) {
+            ADD_FAILURE() << "S_LM: Unknown exception in server thread.";
         }
         
         if (connection.clientSocket != 0) {
-             try { server.DisconnectClient(connection); } catch(...) { /* ignore during cleanup */ }
+             try { 
+                 Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to disconnect client in server thread.");
+                 server.DisconnectClient(connection); 
+                 Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Disconnected client in server thread.");
+             } catch(const std::exception& e) {
+                 ADD_FAILURE() << "S_LM: Exception during DisconnectClient: " << e.what();
+             } catch(...) {
+                 ADD_FAILURE() << "S_LM: Unknown exception during DisconnectClient.";
+             }
         }
         serverThreadCompleted = true;
+        Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Server thread logic completed.");
     });
 
     // Client (Main Thread)
@@ -1354,7 +1402,7 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete as expected (LM Test).";
+    ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete its execution as expected (LM Test).";
     server.Shutdown();
 }
 

@@ -30,10 +30,15 @@ namespace {
 
 #include <new> // For std::bad_alloc
 
+#include <new> // For std::bad_alloc
+#include <mutex> // For std::lock_guard, though already in logger.h
+
 // Initialize static members
 Logger* Logger::s_instance = nullptr;
+std::mutex Logger::s_mutex;
 
 void Logger::init(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal) {
+    std::lock_guard<std::mutex> lock(s_mutex);
     std::cerr << "[Logger::init] CALLED for file: " << logFile << ". Current s_instance: " << s_instance << std::endl;
 
     if (s_instance) {
@@ -77,6 +82,10 @@ void Logger::init(const std::string& logFile, LogLevel level, long long maxFileS
 }
 
 Logger& Logger::getInstance() {
+    // Double-checked locking pattern can be considered here for performance if getInstance is called extremely frequently
+    // and locking is a bottleneck. However, for typical logger usage, a simple lock is often sufficient and safer to implement.
+    // The emergency init path complicates DCLP.
+    std::lock_guard<std::mutex> lock(s_mutex); // Protects check and potential emergency init
     if (!s_instance) {
         std::cerr << "CRITICAL_WARNING: Logger::getInstance() called when s_instance is null. Attempting emergency initialization to 'emergency_default.log'." << std::endl;
         try {
@@ -132,6 +141,7 @@ Logger::~Logger(){
 }
 
 void Logger::setLogLevel(LogLevel level) {
+    std::lock_guard<std::mutex> lock(s_mutex);
     currentLogLevel = level;
 }
 
@@ -148,7 +158,8 @@ std::string Logger::levelToString(LogLevel level) {
 }
 
 void Logger::log(LogLevel level, const std::string& message){
-    if (level < currentLogLevel) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (level < currentLogLevel) { // Check level after acquiring lock
         return;
     }
 
@@ -197,7 +208,8 @@ void Logger::log(LogLevel level, const std::string& message){
 }
 
 void Logger::logToConsole(LogLevel level, const std::string& message){
-    if (level < currentLogLevel) {
+    std::lock_guard<std::mutex> lock(s_mutex);
+    if (level < currentLogLevel) { // Check level after acquiring lock
         return;
     }
     // Removed local lambda, will use file-static helper function
