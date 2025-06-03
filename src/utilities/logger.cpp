@@ -36,6 +36,7 @@ namespace {
 // Initialize static members
 Logger* Logger::s_instance = nullptr;
 std::mutex Logger::s_mutex;
+const std::string Logger::CONSOLE_ONLY_OUTPUT = "::CONSOLE::";
 
 void Logger::init(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal) {
     std::lock_guard<std::mutex> lock(s_mutex);
@@ -83,7 +84,7 @@ Logger& Logger::getInstance() {
         try {
             // Attempt to initialize the logger to an emergency default.
             // Logger::init handles 'new Logger' which can throw std::bad_alloc.
-            Logger::init("emergency_default.log", LogLevel::WARN);
+            Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::WARN);
             // If Logger::init was successful, s_instance is now (or should be) non-nullptr.
         }
         catch (const std::bad_alloc& e) {
@@ -118,10 +119,18 @@ Logger& Logger::getInstance() {
 // Constructor (was private, now effectively public via static init, but keep private for direct instantiation control)
 Logger::Logger(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal)
     : currentLogLevel(level), logFilePath(logFile), maxFileSize(maxFileSizeVal), maxBackupFiles(maxBackupFilesVal) {
-    logFileStream.open(logFilePath, std::ios::app);
-    if (!logFileStream.is_open()) {
-        // Using std::cerr here as logger might not be fully functional for itself yet.
-        std::cerr << "Error: Could not open log file: " << logFilePath << std::endl;
+    if (logFile == CONSOLE_ONLY_OUTPUT) {
+        // This is console-only mode, logFilePath is set to the special value,
+        // and logFileStream is not opened (remains in its default closed state).
+        // std::cerr might be used for a bootstrap message if needed, but getInstance already does.
+    } else {
+        // Normal file logging mode
+        logFileStream.open(logFilePath, std::ios::app);
+        if (!logFileStream.is_open()) {
+            // Using std::cerr here as logger might not be fully functional for itself yet,
+            // or if this instance is the one being created by emergency init.
+            std::cerr << "Error: Could not open log file: " << logFilePath << std::endl;
+        }
     }
 }
 
@@ -155,8 +164,17 @@ void Logger::log(LogLevel level, const std::string& message){
         return;
     }
 
-    // Removed local lambda, will use file-static helper function
+    if (this->logFilePath == CONSOLE_ONLY_OUTPUT) {
+        // In CONSOLE_ONLY_OUTPUT mode, format and write directly to std::cout.
+        // This bypasses file operations and log rotation.
+        // getTimestamp, levelToString, and escapeJsonString are assumed to be safe.
+        std::cout << "{\"timestamp\": \"" << getTimestamp()
+                  << "\", \"level\": \"" << levelToString(level)
+                  << "\", \"message\": \"" << escapeJsonString(message) << "\"}" << std::endl;
+        return;
+    }
 
+    // Normal file logging logic (including rotation)
     if (logFileStream.is_open() && maxFileSize > 0) { // Check maxFileSize > 0
         if (logFileStream.is_open()) logFileStream.clear(); // Clear any error flags
         if (logFileStream.is_open()) logFileStream.flush(); // Flush before tellp
@@ -191,12 +209,13 @@ void Logger::log(LogLevel level, const std::string& message){
         }
     }
 
-
     if (logFileStream.is_open()) {
         logFileStream << "{\"timestamp\": \"" << getTimestamp()
                       << "\", \"level\": \"" << levelToString(level)
                       << "\", \"message\": \"" << escapeJsonString(message) << "\"}" << std::endl;
     }
+    // If not CONSOLE_ONLY_OUTPUT and logFileStream is not open (e.g. initial open failed),
+    // the message is currently dropped silently. This could be changed if desired.
 }
 
 void Logger::logToConsole(LogLevel level, const std::string& message){

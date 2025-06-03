@@ -24,6 +24,8 @@ public:
     Logger(const Logger&) = delete;
     Logger& operator=(const Logger&) = delete;
 
+    static const std::string CONSOLE_ONLY_OUTPUT; // Special value for console-only logging
+
     static void init(const std::string& logFile, LogLevel level = LogLevel::INFO, long long maxFileSize = 10 * 1024 * 1024, int maxBackupFiles = 5);
     static Logger& getInstance();
 
