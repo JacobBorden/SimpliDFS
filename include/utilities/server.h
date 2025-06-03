@@ -70,34 +70,38 @@ struct ClientConnection {
 class Server {
 public:
 
-//Constructor that takes in a port number and a server type
+//Constructor that takes in a port number and a server type.
+//This will only store parameters. Call startListening() to initialize and bind.
 Server(int _pPortNumber = 8080, ServerType _pServerType = ServerType::IPv4);
 
 // Destructor
 ~Server();
 
-// Initializes the server
+// Starts the server: Initializes, creates socket, binds, and listens.
+// Returns true on success, false on failure.
+bool startListening();
+
+// Initializes the server (e.g., WSAStartup on Windows)
 bool InitServer();
 
+//Creates a socket for the server using the stored port number and server type
+bool CreateServerSocketInternal(); // Renamed to avoid confusion, takes no params
 
-//Creates a socket for the server using the specified port number and server type
-bool CreateServerSocket(int _pPortNumber, ServerType _pServerType);
-
-void CreateSocket();
-void BindSocket();
-void ListenOnSocket();
+void CreateSocket(); // Remains for internal socket creation step
+void BindSocket();   // Remains for internal bind step
+void ListenOnSocket(); // Remains for internal listen step
 
 // Listens for incoming client connections and returns a
 // Networking::ClientConnection object representing the connected client
 Networking::ClientConnection Accept();
 
-// Sets the socket type
+// Sets the socket type (used during CreateServerSocketInternal)
 void SetSocketType(int _pSockType);
 
-// Sets the socket family
+// Sets the socket family (used during CreateServerSocketInternal)
 void SetFamily(int _pFamily);
 
-// Sets the socket protocol
+// Sets the socket protocol (used during CreateServerSocketInternal)
 void SetProtocol(int _pProtocol);
 
 // Sends data to a specific client
@@ -122,8 +126,9 @@ std::vector<char> ReceiveFrom(PCSTR _pAddress, int _pPort);
 void ReceiveFile(const std::string& _pFilePath, Networking::ClientConnection client);
 
 // Returns true if the server is currently running and listening for connections
-// Returns false otherwise
+// (i.e., startListening was successful and Shutdown hasn't been called).
 bool ServerIsRunning();
+
 // Shut down the server
 void Shutdown();
 
@@ -138,23 +143,24 @@ std::vector<Networking::ClientConnection> getClients() const;
 void ErrorHandling(NetworkException _pNetEx);
 
 std::string GetClientIPAddress(ClientConnection _pClient);
-ServerType GetServerType();
-// void LogToFile(const std::string& _pMessage); // Removed
-// void LogToConsole(const std::string& _pMessage); // Removed
-int GetPort();
+ServerType GetServerType(); // Will use serverType_
+int GetPort();             // Will use portNumber_
 
 private:
+    // Member variables to store configuration
+    int portNumber_;
+    ServerType serverType_;
 
 	#ifdef _WIN32
-WSADATA wsaData;
+WSADATA wsaData; // Should this be a pointer or handled per InitServer call?
+                 // For now, keeping as is, but WSAStartup/Cleanup should be balanced.
 	#endif
-addrinfo addressInfo;
-SOCKET serverSocket;
-sockaddr_in serverInfo;
+addrinfo addressInfo; // Used for socket creation hints
+SOCKET serverSocket = 0; // Listening socket, initialize to 0 or INVALIDSOCKET_CONST
+sockaddr_in serverInfo;  // For IPv4 // TODO: support sockaddr_in6 for IPv6 with serverType_
 bool serverIsConnected = false;
-ServerType serverType;
 std::vector<Networking::ClientConnection> clients;
-// Logger logger; // Removed
+// Logger logger; // Removed - logging is done via Logger::getInstance() or std::cout
 };
 }
 

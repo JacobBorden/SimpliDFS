@@ -87,7 +87,7 @@ TEST_F(IntegrationTest, EndToEndFileCreation) {
     // --- 1. Start Metaserver Listener Thread ---
     std::cout << "[INTEGRATION TEST LOG " << getIntegrationTestTimestamp() << " TID: " << std::this_thread::get_id() << "] EndToEndFileCreation: Initializing Metaserver listener." << std::endl;
     Networking::Server metaserverListener(METASERVER_PORT_INTEGRATION);
-    ASSERT_TRUE(metaserverListener.InitServer());
+    ASSERT_TRUE(metaserverListener.startListening()); // Updated to startListening()
     std::thread metaserverThread([&]() {
         std::cout << "[INTEGRATION TEST LOG " << getIntegrationTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MetaserverThread: Started." << std::endl;
         // Logger::getInstance().log(LogLevel::INFO, "Metaserver listener thread started."); // Old log

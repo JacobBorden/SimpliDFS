@@ -11,7 +11,7 @@
 // If not, it needs to be redefined or included. For this patch, we'll assume it's available.
 // (If it were in client.cpp only, this would be a problem, but let's assume it's moved to a common place or duplicated)
 // To be safe, let's ensure a version is available here:
-static std::string getNetworkTimestamp() {
+static std::string getNetworkTimestamp() { // Duplicated from client.cpp for now
     auto now = std::chrono::system_clock::now();
     auto now_c = std::chrono::system_clock::to_time_t(now);
     std::ostringstream oss;
@@ -24,13 +24,11 @@ static std::string getNetworkTimestamp() {
 }
 
 
-Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed _pLogFile and logger initialization
-{
-    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Server(): Constructor Entry. Port: " << _pPortNumber << std::endl;
-	serverType = _pServerType;
-    // Logger::getInstance().log(LogLevel::INFO, "Server instance created. Port: " + std::to_string(_pPortNumber) + ", Type: " + std::to_string(_pServerType)); // Logging removed from constructor
-	Networking::Server::InitServer();
-	Networking::Server::CreateServerSocket(_pPortNumber, _pServerType);
+Networking::Server::Server(int _pPortNumber, ServerType _pServerType)
+    : portNumber_(_pPortNumber), serverType_(_pServerType), serverSocket(0), serverIsConnected(false) {
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Server(): Constructor Entry. Port: " << _pPortNumber << " Type: " << _pServerType << std::endl;
+    // Constructor now only initializes members.
+    // Calls to InitServer() and CreateServerSocketInternal() are moved to startListening().
     std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Server(): Constructor Exit." << std::endl;
 }
 
@@ -38,13 +36,52 @@ Networking::Server::Server(int _pPortNumber, ServerType _pServerType) // Removed
 Networking::Server::~Server()
 {
     // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Server(): Destructor Entry." << std::endl;
-    // Add any specific cleanup logging if necessary
+    // Ensure Shutdown is called if server was connected.
+    // However, relying on destructor for critical cleanup like network shutdown can be tricky.
+    // Explicit Shutdown() call by user is preferred.
+    // if (serverIsConnected) {
+    //     Shutdown(); // Consider if this is safe or if it should be logged if not explicitly shut down.
+    // }
     // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Server(): Destructor Exit." << std::endl;
 }
 
+
+bool Networking::Server::startListening() {
+    std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: Entry. Port: " << portNumber_ << std::endl;
+    if (serverIsConnected) {
+        std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: Server already connected. Exiting." << std::endl;
+        return true; // Already started
+    }
+
+    try {
+        if (!InitServer()) {
+             std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: InitServer() failed. Exiting." << std::endl;
+            return false;
+        }
+        if (!CreateServerSocketInternal()) {
+            std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: CreateServerSocketInternal() failed. Exiting." << std::endl;
+            return false;
+        }
+        serverIsConnected = true; // Set only after all steps succeed
+        std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: Success. Server is connected. Exiting." << std::endl;
+        return true;
+    } catch (const Networking::NetworkException& ne) {
+        std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: NetworkException: " << ne.what() << ". Exiting." << std::endl;
+        Logger::getInstance().log(LogLevel::FATAL, "startListening failed: " + std::string(ne.what()));
+        serverIsConnected = false; // Ensure this is false on failure
+        return false;
+    } catch (const std::exception& e) {
+        std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] startListening: std::exception: " << e.what() << ". Exiting." << std::endl;
+        Logger::getInstance().log(LogLevel::FATAL, "startListening failed with std::exception: " + std::string(e.what()));
+        serverIsConnected = false;
+        return false;
+    }
+}
+
+
 bool Networking::Server::InitServer()
 {
-    // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] InitServer: Entry." << std::endl;
+    // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] InitServer: Entry." << std::endl; // Can be noisy
     #ifdef _WIN32
 	try
 	{

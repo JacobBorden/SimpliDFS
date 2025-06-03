@@ -60,7 +60,7 @@ protected:
 TEST_F(NetworkingTest, ServerInitialization) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerInitialization: Starting." << std::endl;
     Networking::Server server(12345);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening());
     ASSERT_TRUE(server.ServerIsRunning());
     ASSERT_EQ(server.GetPort(), 12345);
     server.Shutdown(); // Ensure server is properly closed
@@ -70,7 +70,7 @@ TEST_F(NetworkingTest, ServerInitialization) {
 TEST_F(NetworkingTest, ClientInitializationAndConnection) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientInitializationAndConnection: Starting." << std::endl;
     Networking::Server server(12346);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening());
     std::thread serverThread([&]() {
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] ServerThread (ClientInit): Started, attempting Accept." << std::endl;
         server.Accept(); // Accept one connection
@@ -120,7 +120,7 @@ TEST_F(NetworkingTest, ClientConnectWithRetrySuccess) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientConnectWithRetrySuccess: Starting." << std::endl;
     const int testPort = 12355; // Unique port for this test
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer()) << "Server failed to initialize for retry success test.";
+    ASSERT_TRUE(server.startListening()) << "Server failed to initialize for retry success test.";
 
     std::atomic<bool> clientAccepted{false};
     std::thread serverAcceptThread([&]() {
@@ -201,7 +201,7 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
     auto run_server_for_mkdir_scenario = 
         [&](std::map<std::string, uint32_t>& currentMockDirs) -> Networking::Server* {
         Networking::Server* server = new Networking::Server(testPort);
-        EXPECT_TRUE(server->InitServer());
+        EXPECT_TRUE(server->startListening()); // Call new startListening method
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_server_for_mkdir_scenario: Server initialized for port " << testPort << std::endl;
 
         std::thread([server, &currentMockDirs, get_parent_path]() {
@@ -359,7 +359,7 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
     const int testPort = 12389;
     const int numClients = 3;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<int> clientsSuccessfullyConnected{0};
     std::atomic<int> serverHandlersStarted{0};
@@ -425,7 +425,7 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
             }
         } catch (const Networking::NetworkException& e) {
             if (serverShutdownCalled.load()) {
-                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accept loop caught NetworkException during/after shutdown (expected): " << std::string(e.what()) << std::endl;
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ACCEPT_LOOP (ShutdownTest): Accept loop caught NetworkException during/after shutdown (expected): " + std::string(e.what()) << std::endl;
                 // Logger::getInstance().log(LogLevel::INFO, "S_ACCEPT: Accept loop caught NetworkException during/after shutdown (expected): " + std::string(e.what())); // Old log
             } else {
                 FAIL() << "S_ACCEPT: NetworkException in Accept loop: " << e.what();
@@ -546,7 +546,7 @@ TEST_F(NetworkingTest, ServerShutdownWhileBlockedInAccept) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerShutdownWhileBlockedInAccept: Starting." << std::endl;
     const int testPort = 12388;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<bool> serverAttemptingAccept{false};
     std::atomic<bool> acceptCallUnblocked{false};
@@ -657,7 +657,7 @@ TEST_F(NetworkingTest, FuseRmdirSimulation) {
     auto run_server_for_rmdir_scenario = 
         [&](std::map<std::string, uint32_t>& currentMockDirs) -> Networking::Server* {
         Networking::Server* server = new Networking::Server(testPort);
-        EXPECT_TRUE(server->InitServer());
+        EXPECT_TRUE(server->startListening()); // Call new startListening method
 
         std::thread([server, &currentMockDirs, is_directory_non_empty]() {
             try {
@@ -799,7 +799,7 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
     auto run_server_for_write_scenario = 
         [&](std::map<std::string, std::string>& currentMockContents) -> Networking::Server* {
         Networking::Server* server = new Networking::Server(testPort); // Heap allocated to return
-        EXPECT_TRUE(server->InitServer());
+        EXPECT_TRUE(server->startListening()); // Call new startListening method
 
         // Server runs in a new thread for one transaction then finishes
         std::thread([server, &currentMockContents]() {
@@ -971,9 +971,9 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     const int testPort = 12393;
     std::cout << "[FRS_MAIN] Initializing server object..." << std::endl;
     Networking::Server server(testPort);
-    std::cout << "[FRS_MAIN] Asserting server InitServer..." << std::endl;
-    ASSERT_TRUE(server.InitServer());
-    std::cout << "[FRS_MAIN] Server InitServer returned true." << std::endl;
+    std::cout << "[FRS_MAIN] Asserting server startListening..." << std::endl;
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
+    std::cout << "[FRS_MAIN] Server startListening returned true." << std::endl;
 
     // Mock file content store for the Metaserver simulation
     std::map<std::string, std::string> mockFileContents;
@@ -1176,9 +1176,10 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
 }
 
 TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendReceiveZeroLengthMessages: Starting." << std::endl;
     const int testPort = 12396;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<bool> serverAcceptedClient{false};
     std::atomic<bool> clientAttemptedSendZero{false};
@@ -1189,17 +1190,17 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
 
 
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Server thread started." << std::endl;
         Networking::ClientConnection connection{}; // Initialize to ensure clientSocket is 0 if Accept fails early
         try { // Outer try for the entire lambda body
             connection = server.Accept();
-            // ASSERT_TRUE(connection.clientSocket != 0); // GTest macros might throw, use EXPECT_NE for non-fatal or check and log
             if (connection.clientSocket == 0) {
                  ADD_FAILURE() << "S: Accept failed, clientSocket is 0.";
                  serverThreadCompleted = true; // Mark as completed to avoid join issues if possible
                  return; 
             }
             serverAcceptedClient = true;
-            Logger::getInstance().log(LogLevel::DEBUG, "S: Client accepted.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Client accepted." << std::endl;
 
             // Part 1: Server receives zero-length from client
             int waitRetries = 0;
@@ -1207,18 +1208,18 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 waitRetries++;
             }
+
             if(!clientAttemptedSendZero.load()) { // Use if instead of ASSERT_TRUE to allow cleanup
-                ADD_FAILURE() << "S: Timeout waiting for client to send zero-length message.";
-                // Proceed to cleanup
+                 ADD_FAILURE() << "S: Timeout waiting for client to send zero-length message.";
             } else {
-                Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to receive client's zero-length message.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Attempting to receive client's zero-length message." << std::endl;
                 std::vector<char> rcvDataClient = server.Receive(connection);
                 
                 if (rcvDataClient.empty()) {
                     serverConfirmedEmptyReceive = true;
-                    Logger::getInstance().log(LogLevel::DEBUG, "S: Confirmed empty receive from client.");
+                    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Confirmed empty receive from client." << std::endl;
                 } else {
-                    ADD_FAILURE() << "S: Received data from client was NOT empty for zero-length send. Size: " << rcvDataClient.size();
+                    ADD_FAILURE() << "S_ZeroLen: Received data from client was NOT empty for zero-length send. Size: " << rcvDataClient.size();
                     serverConfirmedEmptyReceive = false; 
                 }
             }
@@ -1231,11 +1232,10 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
             }
             if(!clientReadyForServersZeroMsg.load()){
                  ADD_FAILURE() << "S: Timeout waiting for client to be ready for server's zero-length message.";
-                 // Proceed to cleanup
             } else {
-                Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to send zero-length message to client.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Attempting to send zero-length message to client." << std::endl;
                 server.Send("", connection);
-                Logger::getInstance().log(LogLevel::DEBUG, "S: Sent zero-length message to client.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Sent zero-length message to client." << std::endl;
                 serverAttemptedSendZero = true;
             }
             
@@ -1243,26 +1243,26 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         } catch (const Networking::NetworkException& e) {
-            ADD_FAILURE() << "S: NetworkException in server thread: " << e.what();
+            ADD_FAILURE() << "S_ZeroLen: NetworkException in server thread: " << e.what();
         } catch (const std::exception& e) {
-            ADD_FAILURE() << "S: std::exception in server thread: " << e.what();
+            ADD_FAILURE() << "S_ZeroLen: std::exception in server thread: " << e.what();
         } catch (...) {
-            ADD_FAILURE() << "S: Unknown exception in server thread.";
+            ADD_FAILURE() << "S_ZeroLen: Unknown exception in server thread.";
         }
         
         if (connection.clientSocket != 0) {
              try { 
-                 Logger::getInstance().log(LogLevel::DEBUG, "S: Attempting to disconnect client in server thread.");
+                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Attempting to disconnect client in server thread." << std::endl;
                  server.DisconnectClient(connection); 
-                 Logger::getInstance().log(LogLevel::DEBUG, "S: Disconnected client in server thread.");
+                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Disconnected client in server thread." << std::endl;
              } catch(const std::exception& e) {
-                 ADD_FAILURE() << "S: Exception during DisconnectClient: " << e.what();
+                 ADD_FAILURE() << "S_ZeroLen: Exception during DisconnectClient: " << e.what();
              } catch(...) {
-                 ADD_FAILURE() << "S: Unknown exception during DisconnectClient.";
+                 ADD_FAILURE() << "S_ZeroLen: Unknown exception during DisconnectClient.";
              }
         }
         serverThreadCompleted = true;
-        Logger::getInstance().log(LogLevel::DEBUG, "S: Server thread logic completed.");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Server thread logic completed." << std::endl;
     });
 
     // Client (Main Thread)
@@ -1283,49 +1283,52 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
     ASSERT_TRUE(serverAcceptedClient.load()) << "C: Timeout waiting for server to accept connection.";
 
     // Part 1: Client sends zero-length to server
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Sending zero-length message to server.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Sending zero-length message to server." << std::endl;
     client.Send("");
     clientAttemptedSendZero = true;
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Sent zero-length message to server.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Sent zero-length message to server." << std::endl;
 
     waitRetries = 0;
     while(!serverConfirmedEmptyReceive.load() && waitRetries < 100) { // Max 10s
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         waitRetries++;
     }
-    ASSERT_TRUE(serverConfirmedEmptyReceive.load()) << "C: Timeout waiting for server to confirm empty receive.";
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Server confirmed receipt of zero-length message.");
+    ASSERT_TRUE(serverConfirmedEmptyReceive.load()) << "C_ZeroLen: Timeout waiting for server to confirm empty receive.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Server confirmed receipt of zero-length message." << std::endl;
 
     // Part 2: Client receives zero-length from server
     clientReadyForServersZeroMsg = true;
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Ready for server's zero-length message.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Ready for server's zero-length message." << std::endl;
 
     waitRetries = 0;
     while(!serverAttemptedSendZero.load() && waitRetries < 100) { // Max 10s
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         waitRetries++;
     }
-    ASSERT_TRUE(serverAttemptedSendZero.load()) << "C: Timeout waiting for server to send zero-length message.";
+    ASSERT_TRUE(serverAttemptedSendZero.load()) << "C_ZeroLen: Timeout waiting for server to send zero-length message.";
     
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Attempting to receive server's zero-length message.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Attempting to receive server's zero-length message." << std::endl;
     std::vector<char> rcvDataServer = client.Receive();
-    ASSERT_TRUE(rcvDataServer.empty()) << "C: Received data from server was not empty for zero-length send. Size: " << rcvDataServer.size();
-    Logger::getInstance().log(LogLevel::DEBUG, "C: Correctly received empty message from server.");
+    ASSERT_TRUE(rcvDataServer.empty()) << "C_ZeroLen: Received data from server was not empty for zero-length send. Size: " << rcvDataServer.size();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Correctly received empty message from server." << std::endl;
 
     client.Disconnect();
     ASSERT_FALSE(client.IsConnected());
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Client disconnected." << std::endl;
 
     if (serverThread.joinable()) {
         serverThread.join();
     }
     ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete its execution as expected.";
     server.Shutdown();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendReceiveZeroLengthMessages: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, SendReceiveLargeMessage) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendReceiveLargeMessage: Starting." << std::endl;
     const int testPort = 12395;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     // Define a large message (1MB)
     const size_t largeMessageSize = 1024 * 1024;
@@ -1346,16 +1349,17 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     std::atomic<bool> serverThreadCompleted{false};
 
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Server thread started." << std::endl;
         Networking::ClientConnection connection{}; // Initialize
         try { // Outer try for the entire lambda body
             connection = server.Accept();
             if (connection.clientSocket == 0) {
-                 ADD_FAILURE() << "S_LM: Accept failed, clientSocket is 0.";
+                 ADD_FAILURE() << "S_LargeMsg: Accept failed, clientSocket is 0.";
                  serverThreadCompleted = true;
                  return; 
             }
             serverAcceptedClient = true;
-            Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Client accepted.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Client accepted." << std::endl;
 
             // Part 1: Server receives large message from client
             int waitRetries = 0;
@@ -1367,52 +1371,53 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
             if(!clientAttemptedSendLarge.load()) {
                  ADD_FAILURE() << "S_LM: Timeout waiting for client to send large message.";
             } else {
-                Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to receive client's large message.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Attempting to receive client's large message." << std::endl;
                 std::vector<char> rcvDataClient = server.Receive(connection);
                 
                 if (rcvDataClient.size() != largeMessageSize) {
-                    ADD_FAILURE() << "S_LM: Received data size mismatch. Expected: " << largeMessageSize << " Got: " << rcvDataClient.size();
+                    ADD_FAILURE() << "S_LargeMsg: Received data size mismatch. Expected: " << largeMessageSize << " Got: " << rcvDataClient.size();
                 } else if (!std::equal(rcvDataClient.begin(), rcvDataClient.end(), largeMessageStr.begin())) {
-                    ADD_FAILURE() << "S_LM: Received data content mismatch from client.";
+                    ADD_FAILURE() << "S_LargeMsg: Received data content mismatch from client.";
                 } else {
-                    Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Correctly received and verified large message from client.");
+                    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Correctly received and verified large message from client." << std::endl;
                     serverConfirmedLargeReceive = true; // Set the flag
                 }
             }
 
             // Part 2: Server sends large message to client
-            Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to send large message to client.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Attempting to send large message to client." << std::endl;
             server.Send(largeMessageStr.c_str(), connection); // This might throw if client disconnected early
-            Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Sent large message to client.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Sent large message to client." << std::endl;
             serverAttemptedSendLarge = true;
             
             // Keep connection alive for client to process
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         } catch (const Networking::NetworkException& e) {
-            ADD_FAILURE() << "S_LM: NetworkException in server thread: " << e.what();
+            ADD_FAILURE() << "S_LargeMsg: NetworkException in server thread: " << e.what();
         } catch (const std::exception& e) {
-            ADD_FAILURE() << "S_LM: std::exception in server thread: " << e.what();
+            ADD_FAILURE() << "S_LargeMsg: std::exception in server thread: " << e.what();
         } catch (...) {
-            ADD_FAILURE() << "S_LM: Unknown exception in server thread.";
+            ADD_FAILURE() << "S_LargeMsg: Unknown exception in server thread.";
         }
         
         if (connection.clientSocket != 0) {
              try { 
-                 Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Attempting to disconnect client in server thread.");
+                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Attempting to disconnect client in server thread." << std::endl;
                  server.DisconnectClient(connection); 
-                 Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Disconnected client in server thread.");
+                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Disconnected client in server thread." << std::endl;
              } catch(const std::exception& e) {
-                 ADD_FAILURE() << "S_LM: Exception during DisconnectClient: " << e.what();
+                 ADD_FAILURE() << "S_LargeMsg: Exception during DisconnectClient: " << e.what();
              } catch(...) {
-                 ADD_FAILURE() << "S_LM: Unknown exception during DisconnectClient.";
+                 ADD_FAILURE() << "S_LargeMsg: Unknown exception during DisconnectClient.";
              }
         }
         serverThreadCompleted = true;
-        Logger::getInstance().log(LogLevel::DEBUG, "S_LM: Server thread logic completed.");
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Server thread logic completed." << std::endl;
     });
 
     // Client (Main Thread)
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Client starting." << std::endl;
     Networking::Client client("127.0.0.1", testPort);
     int connectRetries = 0;
     while (!client.IsConnected() && connectRetries < 20) {
@@ -1421,31 +1426,32 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
         connectRetries++;
     }
     ASSERT_TRUE(client.IsConnected()) << "C_LM: Failed to connect to server.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Client connected." << std::endl;
 
     int waitRetries = 0;
     while(!serverAcceptedClient.load() && waitRetries < 100) { 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         waitRetries++;
     }
-    ASSERT_TRUE(serverAcceptedClient.load()) << "C_LM: Timeout waiting for server to accept connection.";
+    ASSERT_TRUE(serverAcceptedClient.load()) << "C_LargeMsg: Timeout waiting for server to accept connection.";
 
     // Part 1: Client sends large message to server
-    Logger::getInstance().log(LogLevel::DEBUG, "C_LM: Sending large message to server.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Sending large message to server." << std::endl;
     try {
         client.Send(largeMessageStr.c_str());
     } catch (const Networking::NetworkException& e) {
-        FAIL() << "C_LM: NetworkException during client Send: " << e.what();
+        FAIL() << "C_LargeMsg: NetworkException during client Send: " << e.what();
     }
     clientAttemptedSendLarge = true;
-    Logger::getInstance().log(LogLevel::DEBUG, "C_LM: Sent large message to server.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Sent large message to server." << std::endl;
 
     waitRetries = 0;
     while(!serverConfirmedLargeReceive.load() && waitRetries < 200) { // Increased timeout
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         waitRetries++;
     }
-    ASSERT_TRUE(serverConfirmedLargeReceive.load()) << "C_LM: Timeout waiting for server to confirm large receive.";
-    Logger::getInstance().log(LogLevel::DEBUG, "C_LM: Server confirmed receipt of large message.");
+    ASSERT_TRUE(serverConfirmedLargeReceive.load()) << "C_LargeMsg: Timeout waiting for server to confirm large receive.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Server confirmed receipt of large message." << std::endl;
 
     // Part 2: Client receives large message from server
     waitRetries = 0;
@@ -1453,18 +1459,18 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         waitRetries++;
     }
-    ASSERT_TRUE(serverAttemptedSendLarge.load()) << "C_LM: Timeout waiting for server to send large message.";
+    ASSERT_TRUE(serverAttemptedSendLarge.load()) << "C_LargeMsg: Timeout waiting for server to send large message.";
     
-    Logger::getInstance().log(LogLevel::DEBUG, "C_LM: Attempting to receive server's large message.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Attempting to receive server's large message." << std::endl;
     std::vector<char> rcvDataServer;
     try {
         rcvDataServer = client.Receive();
     } catch (const Networking::NetworkException& e) {
-        FAIL() << "C_LM: NetworkException during client Receive: " << e.what();
+        FAIL() << "C_LargeMsg: NetworkException during client Receive: " << e.what();
     }
-    ASSERT_EQ(rcvDataServer.size(), largeMessageSize) << "C_LM: Received data size mismatch from server.";
-    ASSERT_TRUE(std::equal(rcvDataServer.begin(), rcvDataServer.end(), largeMessageStr.begin())) << "C_LM: Received data content mismatch from server.";
-    Logger::getInstance().log(LogLevel::DEBUG, "C_LM: Correctly received and verified large message from server.");
+    ASSERT_EQ(rcvDataServer.size(), largeMessageSize) << "C_LargeMsg: Received data size mismatch from server.";
+    ASSERT_TRUE(std::equal(rcvDataServer.begin(), rcvDataServer.end(), largeMessageStr.begin())) << "C_LargeMsg: Received data content mismatch from server.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Correctly received and verified large message from server." << std::endl;
 
     client.Disconnect();
     ASSERT_FALSE(client.IsConnected());
@@ -1474,13 +1480,14 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     }
     ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete its execution as expected (LM Test).";
     server.Shutdown();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendReceiveLargeMessage: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
     const int testPort = 12394;
     const int numClients = 15; // Moderate number of concurrent clients
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<int> successfulServerOperations{0};
     std::atomic<int> connectedServerHandlers{0}; // To track active server handlers
@@ -1617,29 +1624,36 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
 }
 
 TEST_F(NetworkingTest, ClientCannotConnectToNonListeningServer) { // Changed to TEST_F
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientCannotConnectToNonListeningServer: Starting." << std::endl;
     // Attempt to connect to a port where no server is listening
     Networking::Client client("127.0.0.1", 12340); // Some unlikely port
     ASSERT_FALSE(client.IsConnected()); 
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientCannotConnectToNonListeningServer: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, SendAndReceiveClientToServer) { // Changed to TEST_F
     const int testPort = 12347;
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendAndReceiveClientToServer: Starting. Port: " << testPort << std::endl;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     const char* testMessage = "Hello Server from Client";
     std::string receivedMessage;
     std::thread serverThread([&]() {
         Networking::ClientConnection clientConn = server.Accept();
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Thread (ClientToServer): Accepted client. Receiving." << std::endl;
         ASSERT_TRUE(clientConn.clientSocket != 0); // Check for valid client socket
         std::vector<char> data = server.Receive(clientConn);
         if (!data.empty()) {
             receivedMessage = std::string(data.begin(), data.end());
         }
         server.DisconnectClient(clientConn);
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Thread (ClientToServer): Processed and disconnected." << std::endl;
     });
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientToServer): Server thread launched. Sleeping." << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Ensure server is listening
 
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientToServer): Client connecting and sending." << std::endl;
     Networking::Client client("127.0.0.1", testPort);
     ASSERT_TRUE(client.IsConnected());
     client.Send(testMessage);
@@ -1648,42 +1662,51 @@ TEST_F(NetworkingTest, SendAndReceiveClientToServer) { // Changed to TEST_F
     if (serverThread.joinable()) serverThread.join(); // Join instead of detach
     server.Shutdown();
     ASSERT_EQ(receivedMessage, testMessage);
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendAndReceiveClientToServer: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, SendAndReceiveServerToClient) { // Changed to TEST_F
     const int testPort = 12348;
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendAndReceiveServerToClient: Starting. Port: " << testPort << std::endl;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     const char* testMessage = "Hello Client from Server";
     std::string receivedMessage;
 
     std::thread clientThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Thread (ServerToClient): Client thread started. Connecting." << std::endl;
         Networking::Client client("127.0.0.1", testPort);
         if (client.IsConnected()) {
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Thread (ServerToClient): Connected. Receiving." << std::endl;
             std::vector<char> data = client.Receive();
             if (!data.empty()) {
                 receivedMessage = std::string(data.begin(), data.end());
             }
             client.Disconnect();
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Thread (ServerToClient): Received and disconnected." << std::endl;
         }
     });
     
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ServerToClient): Client thread launched. Server accepting." << std::endl;
     Networking::ClientConnection clientConn = server.Accept();
     ASSERT_TRUE(clientConn.clientSocket != 0); // Check for valid client socket
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ServerToClient): Server accepted. Sending." << std::endl;
     server.Send(testMessage, clientConn);
     
     clientThread.join(); // Wait for client to finish
     server.DisconnectClient(clientConn);
     server.Shutdown();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ServerToClient): Server shutdown." << std::endl;
     
     ASSERT_EQ(receivedMessage, testMessage);
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendAndReceiveServerToClient: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, MultipleClientsConnect) { // Changed to TEST_F
     const int testPort = 12349;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::vector<std::thread> clientThreads;
     const int numClients = 5;
@@ -1692,10 +1715,12 @@ TEST_F(NetworkingTest, MultipleClientsConnect) { // Changed to TEST_F
 #include <sstream> // Required for std::stringstream
 
 // ... (other includes)
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test MultipleClientsConnect: Starting. Port: " << testPort << std::endl;
 
     std::thread serverAcceptThread([&]() {
         for (int i = 0; i < numClients; ++i) {
             try {
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Thread (MultiClient): Server accepting client " << i << std::endl;
                 Networking::ClientConnection c = server.Accept();
                 ASSERT_TRUE(c.clientSocket != 0);
                 server.DisconnectClient(c);
@@ -1708,10 +1733,12 @@ TEST_F(NetworkingTest, MultipleClientsConnect) { // Changed to TEST_F
                 break;
             }
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Thread (MultiClient): Server accept loop finished." << std::endl;
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Ensure server is listening
 
     for (int i = 0; i < numClients; ++i) {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (MultiClient): Launching client thread " << i << std::endl;
         clientThreads.emplace_back([testPort]() {
             Networking::Client client("127.0.0.1", testPort);
             int retries = 0;
@@ -1733,19 +1760,22 @@ TEST_F(NetworkingTest, MultipleClientsConnect) { // Changed to TEST_F
     if (serverAcceptThread.joinable()) serverAcceptThread.join(); // Join instead of detach
     server.Shutdown();
     ASSERT_EQ(connectedClients, numClients);
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test MultipleClientsConnect: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeRegistrationWithMetadataManager: Starting." << std::endl;
     const int metaserverPort = 12350;
     MetadataManager metadataManager; // Metaserver logic instance
 
     Networking::Server metaserverNetworkListener(metaserverPort);
-    ASSERT_TRUE(metaserverNetworkListener.InitServer());
+    ASSERT_TRUE(metaserverNetworkListener.startListening()); // Call new startListening method
 
     std::atomic<bool> registrationDone{false};
     std::string registeredNodeId;
 
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MetaserverThread (NodeReg): Started." << std::endl;
         try {
             std::stringstream log_msg_start;
             log_msg_start << "Metaserver listener started on port " << metaserverPort;
@@ -1789,6 +1819,7 @@ TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
             ss_err << "Metaserver listener thread std::exception: " << e.what();
             Logger::getInstance().log(LogLevel::ERROR, ss_err.str());
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MetaserverThread (NodeReg): Finished." << std::endl;
         // Server will be shut down by the main thread
     });
 
@@ -1822,10 +1853,12 @@ TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    Logger::getInstance().log(LogLevel::INFO, "Test NodeRegistrationWithMetadataManager completed.");
+    // Logger::getInstance().log(LogLevel::INFO, "Test NodeRegistrationWithMetadataManager completed."); // Old log
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeRegistrationWithMetadataManager: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeHeartbeatProcessing: Starting." << std::endl;
     const int metaserverPort = 12352; // Different port for this test
     MetadataManager metadataManager;
     const std::string nodeId = "heartbeatNode";
@@ -1843,10 +1876,11 @@ TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
 
     // 2. Setup server to listen for heartbeat
     Networking::Server metaserverNetworkListener(metaserverPort);
-    ASSERT_TRUE(metaserverNetworkListener.InitServer());
+    ASSERT_TRUE(metaserverNetworkListener.startListening()); // Call new startListening method
     std::atomic<bool> heartbeatProcessed{false};
 
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] HB_ServerThread: Started." << std::endl;
         try {
             std::stringstream log_msg_start;
             log_msg_start << "Heartbeat listener started on port " << metaserverPort;
@@ -1887,6 +1921,7 @@ TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
             ss_err << "Heartbeat listener thread std::exception: " << e.what();
             Logger::getInstance().log(LogLevel::ERROR, ss_err.str());
         }
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] HB_ServerThread: Finished." << std::endl;
     });
 
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give server thread time to start
@@ -1934,10 +1969,12 @@ TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    Logger::getInstance().log(LogLevel::INFO, "Test NodeHeartbeatProcessing completed.");
+    // Logger::getInstance().log(LogLevel::INFO, "Test NodeHeartbeatProcessing completed."); // Old log
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeHeartbeatProcessing: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, FuseGetattrSimulation) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test FuseGetattrSimulation: Starting." << std::endl;
     const int metaserverPort = 12353; // Yet another unique port
     MetadataManager metadataManager;
 
@@ -1958,10 +1995,11 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
 
     // 2. Setup server to listen for FUSE GetAttr request
     Networking::Server metaserverNetworkListener(metaserverPort);
-    ASSERT_TRUE(metaserverNetworkListener.InitServer());
+    ASSERT_TRUE(metaserverNetworkListener.startListening()); // Call new startListening method
     std::atomic<bool> requestProcessed{false};
 
     std::thread serverThread([&]() {
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] GetAttr_ServerThread: Started." << std::endl;
         try {
             std::stringstream log_msg_start;
             log_msg_start << "FUSE GetAttr listener started on port " << metaserverPort;
@@ -2007,6 +2045,7 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
             ss_err << "FUSE GetAttr listener thread exception: " << e.what();
             Logger::getInstance().log(LogLevel::ERROR, ss_err.str());
             requestProcessed = true; // Allow main thread to proceed and fail assertions if this was unexpected
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] GetAttr_ServerThread: Exception " << e.what() << std::endl;
         }
     });
 
@@ -2062,77 +2101,75 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    Logger::getInstance().log(LogLevel::INFO, "Test FuseGetattrSimulation completed.");
+    // Logger::getInstance().log(LogLevel::INFO, "Test FuseGetattrSimulation completed."); // Old log
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test FuseGetattrSimulation: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, ServerInitializationOnSamePort) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerInitializationOnSamePort: Starting." << std::endl;
     const int testPort = 12399;
     Networking::Server server1(testPort);
-    ASSERT_TRUE(server1.InitServer()) << "First server failed to initialize on port " << testPort;
+    ASSERT_TRUE(server1.startListening()) << "First server failed to initialize on port " << testPort;
     ASSERT_TRUE(server1.ServerIsRunning()) << "First server is not running after initialization.";
     ASSERT_EQ(server1.GetPort(), testPort);
 
     Networking::Server server2(testPort);
-    // Expecting InitServer on an already bound port to fail
-    // This might return false or throw NetworkException depending on implementation
-    bool secondServerInitializedSuccessfully = true;
-    try {
-        secondServerInitializedSuccessfully = server2.InitServer();
-        if (secondServerInitializedSuccessfully) {
-            // If it claims success, check if it's actually running (it shouldn't be on the same port)
-            // This part of the assertion might be tricky if InitServer returns true but fails silently.
-            // However, a robust InitServer should return false or throw.
-            ASSERT_FALSE(server2.ServerIsRunning()) << "Second server claims to be running on an already occupied port.";
-        }
-    } catch (const Networking::NetworkException& e) {
-        // This is an acceptable outcome if InitServer throws on port conflict
-        std::stringstream ss;
-        ss << "Caught expected NetworkException for second server: " << e.what();
-        Logger::getInstance().log(LogLevel::INFO, ss.str());
-        secondServerInitializedSuccessfully = false; // Explicitly mark as not successful
-    }
+    // Expecting startListening on an already bound port to fail
+    bool secondServerStartedSuccessfully = server2.startListening();
     
-    ASSERT_FALSE(secondServerInitializedSuccessfully) << "Second server initialization did not fail as expected on port " << testPort;
+    ASSERT_FALSE(secondServerStartedSuccessfully) << "Second server initialization (startListening) did not fail as expected on port " << testPort;
+    ASSERT_FALSE(server2.ServerIsRunning()) << "Second server should not be running after failed startListening.";
+
 
     server1.Shutdown(); // Ensure the first server is properly closed
-    // server2 does not need explicit shutdown if InitServer failed or threw.
-    // If InitServer returned true but it's not really working, server2.Shutdown() might be needed.
-    // However, the primary check is that InitServer itself signals failure.
+    // server2 does not need explicit shutdown if startListening failed.
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerInitializationOnSamePort: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientSendAfterServerAbruptDisconnect: Starting." << std::endl;
     const int testPort = 12398;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<bool> clientAccepted{false};
     std::thread serverThread([&]() {
         try {
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (SendTest): Server thread started. Accepting." << std::endl;
             Networking::ClientConnection conn = server.Accept(); // Accept one connection
             if (conn.clientSocket != 0) { // Successfully accepted
                 clientAccepted = true;
                 // Keep connection alive until server shuts down.
                 // A receive here might block, so we just wait for shutdown.
-                while (server.ServerIsRunning() && clientAccepted.load()) { // clientAccepted prevents spinning after shutdown if client disconnects first
+                while (server.ServerIsRunning() && clientAccepted.load()) {
                      // Check if client is still connected before attempting to receive
-                    if (conn.clientSocket != 0) { // Still valid? Server might have closed it.
+                    if (conn.clientSocket != 0) {
                         // Poll or use select for readability if we needed to do more here.
                         // For this test, server shutdown is the primary trigger.
-                        std::vector<char> quickCheckData = server.Receive(conn); // Non-blocking check or with timeout
-                        if (!quickCheckData.empty() && quickCheckData[0] == 0x04) { // EOT or special signal
-                            break; 
+                        // A non-blocking receive or receive with timeout would be better here.
+                        // For now, this loop will spin until server.IsRunning() is false.
+                        // If server.Receive() is blocking, this inner part is problematic for this test's intent.
+                        // Let's assume server.Receive() would throw if client is gone or unblock on shutdown.
+                        try {
+                            std::vector<char> quickCheckData = server.Receive(conn);
+                            if (!quickCheckData.empty() && quickCheckData[0] == 0x04) {
+                                break;
+                            }
+                        } catch (const Networking::NetworkException& ) {
+                            // Expected if client disconnects or server shuts down during Receive
+                            break;
                         }
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 }
             }
         } catch (const Networking::NetworkException& e) {
-            // Expected if server shuts down while Accept is blocking or during Receive
+            // Expected if server shuts down while Accept is blocking
             std::stringstream ss;
-            ss << "Server thread caught NetworkException: " << e.what();
-            Logger::getInstance().log(LogLevel::INFO, ss.str());
+            ss << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (SendTest): Server thread caught NetworkException: " << e.what();
+            std::cout << ss.str() << std::endl;
         }
-        // Server shutdown will be called from main thread.
+        std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (SendTest): Server thread finished." << std::endl;
     });
 
     Networking::Client client("127.0.0.1", testPort);
@@ -2143,6 +2180,7 @@ TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
         retries++;
     }
     ASSERT_TRUE(client.IsConnected()) << "Client failed to connect initially.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client connected. Waiting for server to accept." << std::endl;
     
     // Wait for server to accept the client
     int accept_retries = 0;
@@ -2153,76 +2191,52 @@ TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
     ASSERT_TRUE(clientAccepted.load()) << "Server did not accept client connection in time.";
 
     // Abruptly shut down the server
-    Logger::getInstance().log(LogLevel::INFO, "Shutting down server for abrupt disconnect test.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Server accepted. Shutting down server." << std::endl;
     server.Shutdown();
-    clientAccepted = false; // Signal server thread to stop its loop if it was based on this
+    clientAccepted = false;
 
     bool sendFailedAsExpected = false;
     try {
-        // Assuming Send returns bool or int. If void, this part changes.
-        // Based on existing tests, Send is `void Client::Send(const char* data)`.
-        // So, it must throw on error, or the error is detected later.
-        // Let's assume it might throw, or IsConnected will be false after.
-        // For now, let's assume Send might not throw immediately but subsequent IsConnected will be false.
-        // Or, if send itself encounters an error (like broken pipe), it should throw.
-
-        // Let's refine: The problem statement implies Send() itself should fail.
-        // This means Send should either return an error code or throw.
-        // If Networking::Client::Send is void and doesn't throw on immediate error,
-        // the design might rely on a later Receive or IsConnected check.
-        // Let's check `utilities/client.h` for Send's signature and behavior.
-        // For now, let's assume Send will throw if the pipe is broken.
         client.Send("Hello after server shutdown");
-        // If Send did not throw, we might not have detected the error here.
-        // This depends on TCP stack behavior; send might succeed locally if buffer has space.
-        // A subsequent receive is a more reliable way to detect a closed connection.
     } catch (const Networking::NetworkException& e) {
         std::stringstream ss;
-        ss << "Client caught expected NetworkException during Send: " << e.what();
-        Logger::getInstance().log(LogLevel::INFO, ss.str());
+        ss << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client caught expected NetworkException during Send: " << e.what();
+        std::cout << ss.str() << std::endl;
         sendFailedAsExpected = true;
     }
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client attempting receive after server shutdown." << std::endl;
 
-    // Attempt to receive data, this should definitely fail or return empty
     std::vector<char> received_data;
     bool receiveFailedAsExpected = false;
     try {
         received_data = client.Receive();
         if (received_data.empty()) {
-            // This is an expected outcome if the connection was closed gracefully by the remote peer (server shutdown)
-            // or if Receive detects the broken pipe.
             receiveFailedAsExpected = true;
-            Logger::getInstance().log(LogLevel::INFO, "Client Receive returned empty data as expected.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client Receive returned empty data as expected." << std::endl;
         }
     } catch (const Networking::NetworkException& e) {
         std::stringstream ss;
-        ss << "Client caught expected NetworkException during Receive: " << e.what();
-        Logger::getInstance().log(LogLevel::INFO, ss.str());
+        ss << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client caught expected NetworkException during Receive: " << e.what();
+        std::cout << ss.str() << std::endl;
         receiveFailedAsExpected = true;
     }
 
-    // Either send failed, or receive failed, or both.
-    // And IsConnected should be false.
-    // If Send didn't throw, but the connection is broken, IsConnected should reflect that.
-    // A call to Send might return successfully if data is buffered by OS.
-    // A subsequent Receive is more likely to detect the broken pipe.
-    // Thus, receiveFailedAsExpected is a more reliable indicator of the broken connection for this test.
     ASSERT_TRUE(receiveFailedAsExpected) << "Client Receive did not fail as expected after server shutdown.";
     
-    // After a failed send or receive due to server disconnect, IsConnected should be false.
-    // It might take an operation (like Send/Receive) for the client to realize the connection is dead.
     ASSERT_FALSE(client.IsConnected()) << "Client IsConnected still true after server shutdown and failed communication attempt.";
 
     if (serverThread.joinable()) {
         serverThread.join();
     }
-    client.Disconnect(); // Ensure client resources are cleaned up
+    // client.Disconnect(); // Client should already be disconnected or attempting to will do nothing/fail gracefully
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientSendAfterServerAbruptDisconnect: Finished." << std::endl;
 }
 
 TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerReceiveAfterClientAbruptDisconnect: Starting." << std::endl;
     const int testPort = 12397;
     Networking::Server server(testPort);
-    ASSERT_TRUE(server.InitServer());
+    ASSERT_TRUE(server.startListening()); // Call new startListening method
 
     std::atomic<bool> clientAcceptedByServer{false};
     std::atomic<bool> serverReceiveLogicCompleted{false};
@@ -2232,39 +2246,42 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
     std::thread serverThread([&]() {
         Networking::ClientConnection connection; // Hold the connection
         try {
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server thread started. Accepting." << std::endl;
             connection = server.Accept();
             ASSERT_TRUE(connection.clientSocket != 0) << "Server failed to accept client.";
             clientAcceptedByServer = true;
-            Logger::getInstance().log(LogLevel::DEBUG, "Server accepted client. Attempting Receive.");
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server accepted client. Attempting Receive." << std::endl;
+            // Logger::getInstance().log(LogLevel::DEBUG, "Server accepted client. Attempting Receive."); // Old log
 
             std::vector<char> data = server.Receive(connection); // Blocking receive
 
             if (data.empty()) {
-                Logger::getInstance().log(LogLevel::INFO, "Server Receive returned empty vector, as expected due to client disconnect.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server Receive returned empty vector, as expected." << std::endl;
+                // Logger::getInstance().log(LogLevel::INFO, "Server Receive returned empty vector, as expected due to client disconnect."); // Old log
                 serverReceiveWasEmpty = true;
             } else {
-                // This case should ideally not happen if client disconnected before sending much.
-                // However, if client sent data then disconnected, server might receive it.
-                // For this test, we expect empty due to abrupt disconnect *during* server's receive wait.
                 std::string receivedStr(data.begin(), data.end());
-                Logger::getInstance().log(LogLevel::WARN, "Server Receive got unexpected data: " + receivedStr);
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server Receive got unexpected data: " << receivedStr << std::endl;
+                // Logger::getInstance().log(LogLevel::WARN, "Server Receive got unexpected data: " + receivedStr); // Old log
             }
         } catch (const Networking::NetworkException& e) {
-            Logger::getInstance().log(LogLevel::INFO, "Server caught NetworkException during Receive, as expected: " + std::string(e.what()));
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server caught NetworkException during Receive, as expected: " + std::string(e.what()) << std::endl;
+            // Logger::getInstance().log(LogLevel::INFO, "Server caught NetworkException during Receive, as expected: " + std::string(e.what())); // Old log
             serverThrewExceptionOnReceive = true;
         } catch (const std::exception& e) { // Catch other std exceptions for robustness
-            Logger::getInstance().log(LogLevel::ERROR, "Server caught std::exception: " + std::string(e.what()));
+            std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server caught std::exception: " + std::string(e.what()) << std::endl;
+            // Logger::getInstance().log(LogLevel::ERROR, "Server caught std::exception: " + std::string(e.what())); // Old log
             FAIL() << "Server thread caught unexpected std::exception: " << e.what();
         }
 
         // Graceful handling of client disconnection
         if (connection.clientSocket != 0) { // If connection was established
             try {
-                Logger::getInstance().log(LogLevel::DEBUG, "Server attempting to disconnect client post-receive attempt.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server attempting to disconnect client post-receive attempt." << std::endl;
                 server.DisconnectClient(connection);
-                Logger::getInstance().log(LogLevel::INFO, "Server successfully called DisconnectClient.");
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server successfully called DisconnectClient." << std::endl;
             } catch (const Networking::NetworkException& e) {
-                Logger::getInstance().log(LogLevel::ERROR, "Server caught NetworkException during DisconnectClient: " + std::string(e.what()));
+                std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_Abrupt (RecvTest): Server caught NetworkException during DisconnectClient: " + std::string(e.what()) << std::endl;
                 // Depending on state, this might be acceptable or not. For now, log as error.
                 // If client socket is already closed by client, server's attempt to use it might error.
             }
@@ -2273,6 +2290,7 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
     });
 
     // Client actions
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (RecvTest): Client starting and connecting." << std::endl;
     Networking::Client client("127.0.0.1", testPort);
     int retries = 0;
     while (!client.IsConnected() && retries < 20) {
@@ -2281,6 +2299,7 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
         retries++;
     }
     ASSERT_TRUE(client.IsConnected()) << "Client failed to connect.";
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (RecvTest): Client connected. Waiting for server to accept." << std::endl;
 
     // Wait for server to accept
     int waitRetries = 0;
@@ -2294,7 +2313,8 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
     // client.Send("SYNC"); 
     // std::this_thread::sleep_for(std::chrono::milliseconds(50)); // Give it a moment to arrive
 
-    Logger::getInstance().log(LogLevel::DEBUG, "Client disconnecting.");
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (RecvTest): Client disconnecting abruptly." << std::endl;
+    // Logger::getInstance().log(LogLevel::DEBUG, "Client disconnecting."); // Old log
     client.Disconnect(); // Abrupt client disconnect
     ASSERT_FALSE(client.IsConnected()) << "Client failed to disconnect.";
 
@@ -2316,4 +2336,5 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
         serverThread.join();
     }
     server.Shutdown();
+    std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerReceiveAfterClientAbruptDisconnect: Finished." << std::endl;
 }

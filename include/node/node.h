@@ -56,17 +56,29 @@ public:
      * the periodic heartbeat sender.
      */
     void start() {
+        std::cout << "Node " << nodeName << ": Attempting to start server on port " << server.GetPort() << std::endl;
+        if (!this->server.startListening()) {
+            std::cerr << "Node " << nodeName << ": CRITICAL - Failed to start server listening on port " << server.GetPort() << "." << std::endl;
+            // Depending on desired behavior, could throw an exception or set an error state.
+            // For now, just log and don't start other threads.
+            return;
+        }
+        std::cout << "Node " << nodeName << ": Server started successfully on port " << server.GetPort() << std::endl;
+
         // Start the node's server in a separate thread to listen to requests
         std::thread serverThread(&Node::listenForRequests, this);
         serverThread.detach();
+        std::cout << "Node " << nodeName << ": Listener thread detached." << std::endl;
 
         // Start the heartbeat thread
         // Replace "127.0.0.1" and 50505 with actual MetadataManager IP and port if different
         // Heartbeat interval is 10 seconds
         std::thread heartbeatThread(&Node::sendHeartbeatPeriodically, this, "127.0.0.1", 50505, 10);
         heartbeatThread.detach();
+        std::cout << "Node " << nodeName << ": Heartbeat thread detached." << std::endl;
 
-        std::cout << "Node " << nodeName << " started on port " << server.GetPort() << std::endl;
+        // Original log: std::cout << "Node " << nodeName << " started on port " << server.GetPort() << std::endl;
+        // This is now logged above after successful startListening()
     }
 
     /**

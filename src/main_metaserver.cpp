@@ -31,8 +31,14 @@ int main()
     Logger::getInstance().log(LogLevel::INFO, "Loading metadata from file_metadata.dat and node_registry.dat");
     metadataManager.loadMetadata("file_metadata.dat", "node_registry.dat");
 
+    // Attempt to start the server
+    if (!server.startListening()) {
+        Logger::getInstance().log(LogLevel::FATAL, "Metaserver failed to start listening (startListening returned false). Port: " + std::to_string(server.GetPort()));
+        return 1; // Exit if server cannot start
+    }
 
-    if (server.ServerIsRunning()) // Assumes server instance is accessible
+    // server.ServerIsRunning() should now be true if startListening succeeded
+    if (server.ServerIsRunning())
     {
         Logger::getInstance().log(LogLevel::INFO, "Metaserver is running and listening on port " + std::to_string(server.GetPort()));
         while (true)
