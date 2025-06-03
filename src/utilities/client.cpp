@@ -8,6 +8,12 @@
 #include <iostream>       // For std::cout (verbose logging)
 #include <iomanip>        // For std::put_time
 #include <sstream>        // For std::ostringstream
+#include <cstring>        // For memcpy
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h> // For htonl
+#else
+#include <arpa/inet.h> // For htonl
+#endif
 
 // Helper for timestamp logging in client.cpp and server.cpp
 static std::string getNetworkTimestamp() {
@@ -248,41 +254,72 @@ void Networking::Client::SetProtocol(int _pProtocol)
 
 
 // Send data to the server
-int Networking::Client::Send(PCSTR _pSendBuffer)
+int Networking::Client::Send(const char* _pSendBuffer, int length)
 {
-	// Send the data to the server
     if (!clientIsConnected) {
-        // Optionally, prevent send if not connected, though send() itself will fail.
-        // This depends on desired behavior: fail early or let OS detect.
-        // For now, let OS detect to be consistent with not checking before recv().
         // Logger::getInstance().log(LogLevel::WARN, "Client::Send: Attempting to send when not connected.");
         // throw Networking::NetworkException(connectionSocket, 0, "Client send failed: Not connected.");
+        // Let the OS detect the error on send itself.
     }
-	int bytesSent = send(connectionSocket,_pSendBuffer, strlen(_pSendBuffer),0 );
 
-	// If there was an error, throw an exception
-	if(bytesSent ==SOCKET_ERROR)
-	{
-		// Get the error code
-		int errorCode = GETERROR();
-        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: send() failed with error: " + std::to_string(errorCode));
-        clientIsConnected = false; // Update state
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code
-		throw Networking::NetworkException(connectionSocket, errorCode, "Client send failed");
-	}
+    // 1. Prepare and send the length header
+    uint32_t net_length = htonl(static_cast<uint32_t>(length));
+    char header[4];
+    memcpy(header, &net_length, sizeof(uint32_t));
 
-	// Return  the number of bytes sent if the data was sent successfully
-	return bytesSent;
+    int headerBytesSent = send(connectionSocket, header, 4, 0);
+    if (headerBytesSent == SOCKET_ERROR) {
+        int errorCode = GETERROR();
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: send() failed for header with error: " + std::to_string(errorCode));
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+    #ifdef _WIN32
+        WSACleanup();
+    #endif
+        throw Networking::NetworkException(connectionSocket, errorCode, "Client send failed (header)");
+    }
+    if (headerBytesSent < 4) {
+        // This case should ideally be handled by robust send loop, but for now, consider it a critical failure.
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: Incomplete header sent. Expected 4, sent " + std::to_string(headerBytesSent));
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+    #ifdef _WIN32
+        WSACleanup();
+    #endif
+        throw Networking::NetworkException(connectionSocket, 0, "Client send failed (incomplete header)");
+    }
+
+    // 2. Send the actual payload
+    int payloadBytesSent = send(connectionSocket, _pSendBuffer, length, 0);
+    if (payloadBytesSent == SOCKET_ERROR) {
+        int errorCode = GETERROR();
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: send() failed for payload with error: " + std::to_string(errorCode));
+        // Critical error: header might have been sent, but payload failed.
+        clientIsConnected = false; // Mark as disconnected
+        CLOSESOCKET(connectionSocket);
+    #ifdef _WIN32
+        WSACleanup();
+    #endif
+        throw Networking::NetworkException(connectionSocket, errorCode, "Client send failed (payload after header)");
+    }
+    if (payloadBytesSent < length) {
+        // This case should ideally be handled by robust send loop for partial sends.
+        // For now, consider it a critical failure as the receiver expects 'length' bytes.
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: Incomplete payload sent. Expected " + std::to_string(length) + ", sent " + std::to_string(payloadBytesSent));
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+    #ifdef _WIN32
+        WSACleanup();
+    #endif
+        throw Networking::NetworkException(connectionSocket, 0, "Client send failed (incomplete payload)");
+    }
+
+    // Return the total number of bytes sent (header + payload)
+    return headerBytesSent + payloadBytesSent;
 }
 
 // Send data to a specified address and port
-int Networking::Client::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
+int Networking::Client::SendTo(const char* _pBuffer, int length, PCSTR _pAddress, int _pPort)
 {
 	// Create a sockaddr_in structure to hold the address and port of the recipient
 	sockaddr_in recipient;
@@ -296,7 +333,10 @@ int Networking::Client::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 	inet_pton(AF_INET, _pAddress, &recipient.sin_addr);
 
 	// Send the data to the specified recipient
-	int bytesSent = sendto(connectionSocket, _pBuffer, strlen(_pBuffer), 0, (sockaddr*)&recipient, sizeof(recipient));
+	// NOTE: This SendTo for UDP does not currently implement the length header.
+	// The subtask description focuses on TCP stream Send methods.
+	// If UDP also needs length prefix, this would need similar modification.
+	int bytesSent = sendto(connectionSocket, _pBuffer, length, 0, (sockaddr*)&recipient, sizeof(recipient));
 
 	// If there was an error, throw an exception
 	if(bytesSent == SOCKET_ERROR)
@@ -338,59 +378,141 @@ void Networking::Client::SendFile(const std::string& _pFilePath)
 	std::vector<char> fileData((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
 	// Send the file data to the server
-	Send(&fileData[0]);
+    if (!fileData.empty()) {
+        Send(fileData.data(), static_cast<int>(fileData.size()));
+    } else {
+        // Handle empty file case: send a zero-length message or specific protocol message
+        // For now, sending a zero-length message.
+        Send(nullptr, 0);
+    }
 }
 
+// Helper function to read exactly n bytes from a socket
+// Returns:
+//   n          : if exactly n bytes were read successfully.
+//   0 to n-1   : if EOF (peer closed connection) before n bytes were read.
+//   -1         : on socket error (errno/WSAGetLastError() will be set by recv).
+//   -2         : if interrupted by EINTR too many times.
+static ssize_t read_n_bytes(SOCKET sock, char* buffer, size_t n, int max_eintr_retries = 5) {
+    size_t bytes_read = 0;
+    int eintr_retries = 0;
+    while (bytes_read < n) {
+        // On Windows, recv's length parameter is int, on POSIX it's size_t.
+        // Safely cast n - bytes_read to int for Windows, ensuring it doesn't overflow int.
+        // Max message size should be less than INT_MAX. Header is 4 bytes.
+        int length_to_receive = static_cast<int>(n - bytes_read);
+        if (length_to_receive == 0) break; // Should not happen if n > 0 and bytes_read < n
+
+        ssize_t current_read = recv(sock, buffer + bytes_read, length_to_receive, 0);
+
+        if (current_read == 0) { // Peer closed connection
+            return bytes_read;
+        }
+        if (current_read < 0) { // Error
+            int error_code = GETERROR();
+            if (error_code == EINTR) {
+                eintr_retries++;
+                if (eintr_retries > max_eintr_retries) {
+                    Logger::getInstance().log(LogLevel::WARN, "read_n_bytes: recv interrupted too many times.");
+                    return -2;
+                }
+                continue;
+            }
+            // For blocking sockets, EAGAIN/EWOULDBLOCK are not expected.
+            // Logger::getInstance().log(LogLevel::ERROR, "read_n_bytes: recv() error: " + std::to_string(error_code)); // Logged by caller
+            return -1;
+        }
+        bytes_read += current_read;
+    }
+    return bytes_read;
+}
 
 // Receive data from the server
-std::vector <char> Networking::Client::Receive()
-{
-	// Initialize the number of bytes received to 0
-	int bytesReceived = 0; // Stores bytes received in the last recv call
-	std::vector<char> receiveBuffer; // Buffer to accumulate received data
+std::vector<char> Networking::Client::Receive() {
+    if (!clientIsConnected) {
+        Logger::getInstance().log(LogLevel::WARN, "Client::Receive: Attempting to receive when not connected.");
+        // Or throw an exception, depending on desired behavior for this state.
+        // For now, let it proceed and fail on recv, which is more indicative of the actual network state.
+    }
 
-	// Receive data from the server in a loop
-	do {
-		size_t bufferStart = receiveBuffer.size(); // Current end of buffer, where new data will be appended
-		receiveBuffer.resize(bufferStart + 512);   // Allocate space for next chunk
+    char header_buffer[4];
+    ssize_t header_bytes_read = read_n_bytes(connectionSocket, header_buffer, 4);
 
-		bytesReceived = recv(connectionSocket, &receiveBuffer[bufferStart], 512, 0);
+    if (header_bytes_read == 0) { // Peer closed connection before sending anything (or after previous message)
+        Logger::getInstance().log(LogLevel::INFO, "Client::Receive: Peer performed an orderly shutdown (0 bytes for header).");
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+        #ifdef _WIN32
+        // WSACleanup(); // Consider if WSACleanup is appropriate here or at a higher level
+        #endif
+        return {}; // Return empty vector for graceful shutdown
+    }
+    if (header_bytes_read < 0 || header_bytes_read < 4) { // Socket error or incomplete header read
+        int errorCode = (header_bytes_read < 0) ? GETERROR() : 0; // Get error if recv failed
+        std::string msg = "Client::Receive: Failed to read message header. Bytes read: " + std::to_string(header_bytes_read);
+        if (header_bytes_read < 0) msg += ", Error: " + std::to_string(errorCode);
+        Logger::getInstance().log(LogLevel::ERROR, msg);
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+        #ifdef _WIN32
+        WSACleanup();
+        #endif
+        throw Networking::NetworkException(connectionSocket, errorCode, msg);
+    }
 
-		if (bytesReceived == 0) { // Graceful shutdown by peer
-            Logger::getInstance().log(LogLevel::INFO, "Client::Receive: Peer has performed an orderly shutdown.");
-            clientIsConnected = false;
-            CLOSESOCKET(connectionSocket); // Close our end of the socket
-            #ifdef _WIN32
-            // WSACleanup(); // Per existing pattern, but consider if this is too broad for one client instance
-            #endif
-            receiveBuffer.resize(bufferStart); // Truncate to actual data received before shutdown signal
-            break; // Exit loop, return potentially partially filled buffer
-        }
-		if (bytesReceived == SOCKET_ERROR) { // Error during recv
-            int errorCode = GETERROR();
-            Logger::getInstance().log(LogLevel::ERROR, "Client::Receive: recv() failed with error: " + std::to_string(errorCode));
-            clientIsConnected = false; // Update state
-            CLOSESOCKET(connectionSocket);
-            #ifdef _WIN32
-            WSACleanup(); // Per existing pattern
-            #endif
-            // Decide if to return partial data or throw. Current pattern is to throw.
-            // If throwing, any previously received data in receiveBuffer is lost to the caller.
-            throw Networking::NetworkException(connectionSocket, errorCode, "Client receive failed");
-        }
+    uint32_t payload_length_net;
+    memcpy(&payload_length_net, header_buffer, sizeof(uint32_t));
+    uint32_t payload_length = ntohl(payload_length_net);
 
-        // Valid data received, resize buffer to actual new size
-        receiveBuffer.resize(bufferStart + bytesReceived);
+    if (payload_length == 0) { // Valid zero-length message
+        Logger::getInstance().log(LogLevel::DEBUG, "Client::Receive: Received zero-length message.");
+        return {}; // Return empty vector
+    }
 
-	} while (bytesReceived == 512); // Continue if a full 512-byte chunk was received
+    // Basic sanity check for payload_length to prevent absurd allocations.
+    // Max typical message size might be 1MB or configurable. For now, a hardcoded limit.
+    const uint32_t MAX_ALLOWED_PAYLOAD = 10 * 1024 * 1024; // 10MB, example limit
+    if (payload_length > MAX_ALLOWED_PAYLOAD) {
+        std::string msg = "Client::Receive: Payload length " + std::to_string(payload_length) + " exceeds maximum allowed (" + std::to_string(MAX_ALLOWED_PAYLOAD) + ").";
+        Logger::getInstance().log(LogLevel::ERROR, msg);
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+        #ifdef _WIN32
+        WSACleanup();
+        #endif
+        throw Networking::NetworkException(connectionSocket, 0, msg); // Or a specific error code/exception type
+    }
 
-	// Return the vector containing the accumulated received data
-	return receiveBuffer;
+
+    std::vector<char> payload_buffer(payload_length);
+    ssize_t payload_bytes_read = read_n_bytes(connectionSocket, payload_buffer.data(), payload_length);
+
+    if (payload_bytes_read < 0 || static_cast<uint32_t>(payload_bytes_read) < payload_length) { // Socket error or incomplete payload
+        int errorCode = (payload_bytes_read < 0) ? GETERROR() : 0;
+        std::string msg = "Client::Receive: Failed to read full message payload. Expected: " + std::to_string(payload_length) + ", Got: " + std::to_string(payload_bytes_read);
+        if (payload_bytes_read < 0) msg += ", Error: " + std::to_string(errorCode);
+        else if (payload_bytes_read < static_cast<ssize_t>(payload_length)) msg += " (peer closed connection prematurely).";
+
+        Logger::getInstance().log(LogLevel::ERROR, msg);
+        clientIsConnected = false;
+        CLOSESOCKET(connectionSocket);
+        #ifdef _WIN32
+        WSACleanup();
+        #endif
+        throw Networking::NetworkException(connectionSocket, errorCode, msg);
+    }
+
+    return payload_buffer;
 }
 
 
 // Receive data from a specified address and port
-std::vector<char> Networking::Client::ReceiveFrom(PCSTR _pAddress, int _pPort)
+// Changed PCSTR _pAddress to const char* _pAddress for consistency, though not strictly required by task.
+// The ReceiveFrom and SendTo methods using UDP are not the primary focus of this subtask (length prefixing for TCP).
+// However, if length is passed to SendTo, its signature should match.
+// For now, I am only changing the buffer type for consistency with Send.
+// The original did not have a length parameter for ReceiveFrom, it reads until recvfrom returns less than buffer size.
+std::vector<char> Networking::Client::ReceiveFrom(const char* _pAddress, int _pPort)
 {
 	// Initialize the number of bytes received to 0
 	int bytesReceived =0;

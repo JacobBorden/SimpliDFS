@@ -6,6 +6,12 @@
 #include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
 #include <thread>   // For std::this_thread::get_id()
 #include <chrono>   // For timestamp components (used by getNetworkTimestamp)
+#include <cstring>  // For memcpy
+#if defined(_WIN32) || defined(_WIN64)
+#include <winsock2.h> // For htonl
+#else
+#include <arpa/inet.h> // For htonl
+#endif
 
 // Assuming getNetworkTimestamp is defined in client.cpp or a common header accessible here.
 // If not, it needs to be redefined or included. For this patch, we'll assume it's available.
@@ -412,91 +418,102 @@ void Networking::Server::SetFamily(int _pFamily)
 
 
 // Send data to the client
-int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient)
+int Networking::Server::Send(const char* _pSendBuffer, int length, Networking::ClientConnection _pClient)
 {
-	static int retries =0;
-	int bytesSent;
-	try{
+    // static int retries = 0; // Retries should be managed per operation, not static across all calls
+    int totalBytesSuccessfullySent = 0;
 
-		// Send the data to the client
-		bytesSent = send(_pClient.clientSocket,_pSendBuffer, strlen(_pSendBuffer),0 );
+    // 1. Prepare and send the length header
+    uint32_t net_length = htonl(static_cast<uint32_t>(length));
+    char header[4];
+    memcpy(header, &net_length, sizeof(uint32_t));
 
-		// If there was an error, throw an exception
-		if(bytesSent == SOCKET_ERROR)
-		{
-			// Get the error code
-			int errorCode = GETERROR();
+    int headerBytesSent = 0;
+    int send_attempts = 0;
+    while (send_attempts < MAX_RETRIES) {
+        headerBytesSent = send(_pClient.clientSocket, header, 4, 0);
+        if (headerBytesSent == SOCKET_ERROR) {
+            int errorCode = GETERROR();
+            // Non-blocking sockets might return EAGAIN or EWOULDBLOCK, indicating to try again.
+            // Other errors might be more permanent.
+            if (errorCode == EAGAIN || errorCode == EWOULDBLOCK || errorCode == EINTR) {
+                send_attempts++;
+                Logger::getInstance().log(LogLevel::WARN, "Server::Send (header): send() failed with " + std::to_string(errorCode) + ", retrying (" + std::to_string(send_attempts) + "/" + std::to_string(MAX_RETRIES) + ") for client " + GetClientIPAddress(_pClient));
+                std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY * 100)); // Shorter delay for send retries
+                continue;
+            }
+            Logger::getInstance().log(LogLevel::ERROR, "Server::Send: send() failed for header with error: " + std::to_string(errorCode) + " to client " + GetClientIPAddress(_pClient));
+            DisconnectClient(_pClient);
+            throw Networking::NetworkException(_pClient.clientSocket, errorCode, "Server send failed (header)");
+        }
+        if (headerBytesSent < 4 && headerBytesSent >= 0) { // Partial send for header is problematic
+             Logger::getInstance().log(LogLevel::ERROR, "Server::Send: Incomplete header sent. Expected 4, sent " + std::to_string(headerBytesSent) + " to client " + GetClientIPAddress(_pClient));
+             DisconnectClient(_pClient);
+             throw Networking::NetworkException(_pClient.clientSocket, 0, "Server send failed (incomplete header)");
+        }
+        break; // Success
+    }
+     if (headerBytesSent < 4) { // Handles MAX_RETRIES exceeded or other break from loop without success
+        Logger::getInstance().log(LogLevel::ERROR, "Server::Send: Failed to send header after " + std::to_string(MAX_RETRIES) + " attempts to client " + GetClientIPAddress(_pClient));
+        DisconnectClient(_pClient);
+        // Consider throwing an exception here as well, or return an error code
+        // For now, throwing to indicate failure to the caller.
+        throw Networking::NetworkException(_pClient.clientSocket, 0, "Server send failed (header after retries)");
+    }
+    totalBytesSuccessfullySent += headerBytesSent;
 
-			// Throw the error code
-			Networking::ThrowSendException(_pClient.clientSocket, errorCode);
+    // 2. Send the actual payload, only if header was successful
+    if (length > 0 && _pSendBuffer != nullptr) {
+        int payloadBytesSent = 0;
+        send_attempts = 0;
+        int remainingBytes = length;
+        const char* currentBufferPosition = _pSendBuffer;
 
-		}
-		retries =0;
-	}
+        while (remainingBytes > 0 && send_attempts < MAX_RETRIES) {
+            payloadBytesSent = send(_pClient.clientSocket, currentBufferPosition, remainingBytes, 0);
+            if (payloadBytesSent == SOCKET_ERROR) {
+                int errorCode = GETERROR();
+                if (errorCode == EAGAIN || errorCode == EWOULDBLOCK || errorCode == EINTR) {
+                    send_attempts++;
+                    Logger::getInstance().log(LogLevel::WARN, "Server::Send (payload): send() failed with " + std::to_string(errorCode) + ", retrying (" + std::to_string(send_attempts) + "/" + std::to_string(MAX_RETRIES) + ") for client " + GetClientIPAddress(_pClient));
+                    std::this_thread::sleep_for(std::chrono::milliseconds(RETRY_DELAY * 100));
+                    continue;
+                }
+                Logger::getInstance().log(LogLevel::ERROR, "Server::Send: send() failed for payload with error: " + std::to_string(errorCode) + " to client " + GetClientIPAddress(_pClient));
+                DisconnectClient(_pClient); // Critical: payload failed after header potentially sent.
+                throw Networking::NetworkException(_pClient.clientSocket, errorCode, "Server send failed (payload)");
+            }
+            if (payloadBytesSent == 0 && remainingBytes > 0) { // Should not happen with blocking sockets unless connection closed
+                 Logger::getInstance().log(LogLevel::ERROR, "Server::Send: send() returned 0 for payload, client " + GetClientIPAddress(_pClient) + " may have disconnected.");
+                 DisconnectClient(_pClient);
+                 throw Networking::NetworkException(_pClient.clientSocket, 0, "Server send failed (payload, 0 bytes sent)");
+            }
 
-	catch (Networking::NetworkException &ex)
-	{
-		switch(ex.GetErrorCode())
-		{
-		case EAGAIN:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EAGAIN) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
+            currentBufferPosition += payloadBytesSent;
+            remainingBytes -= payloadBytesSent;
+            totalBytesSuccessfullySent += payloadBytesSent;
+            if (remainingBytes > 0) {
+                 Logger::getInstance().log(LogLevel::INFO, "Server::Send (payload): Partial send. " + std::to_string(payloadBytesSent) + " sent, " + std::to_string(remainingBytes) + " remaining for client " + GetClientIPAddress(_pClient) + ". Continuing send.");
+                 // No need to increment send_attempts here unless we consider partial sends as needing a full retry cycle
+            }
+        }
 
-		case EINTR:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINTR) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINTR) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
+        if (remainingBytes > 0) { // MAX_RETRIES exceeded or other loop exit before full send
+            Logger::getInstance().log(LogLevel::ERROR, "Server::Send: Failed to send full payload after " + std::to_string(MAX_RETRIES) + " attempts or due to partial sends to client " + GetClientIPAddress(_pClient) + ". Sent " + std::to_string(length - remainingBytes) + "/" + std::to_string(length) + " bytes.");
+            DisconnectClient(_pClient);
+            throw Networking::NetworkException(_pClient.clientSocket, 0, "Server send failed (incomplete payload after retries)");
+        }
+    } else if (length == 0) {
+        // For zero-length messages, header is sent, payload part is skipped.
+        Logger::getInstance().log(LogLevel::DEBUG, "Server::Send: Zero-length message, only header sent to client " + GetClientIPAddress(_pClient));
+    }
 
-		case EINPROGRESS:
-			if(retries < MAX_RETRIES)
-			{
-				retries++;
-                Logger::getInstance().log(LogLevel::WARN, "Send failed (EINPROGRESS) to client " + GetClientIPAddress(_pClient) + ", retrying (" + std::to_string(retries) + "/" + std::to_string(MAX_RETRIES) + "): " + std::string(ex.what()));
-				std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-				Send(_pSendBuffer, _pClient);
-			}
-			else
-			{
-                Logger::getInstance().log(LogLevel::ERROR, "Send failed (EINPROGRESS) after max retries to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-				DisconnectClient(_pClient);
-				break;
-			}
 
-		default:
-            Logger::getInstance().log(LogLevel::ERROR, "Send failed (default case) to client " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
-			DisconnectClient(_pClient);
-			break;
-
-		}
-
-	}
-
-	// Return  the number of bytes sent if the data was sent successfully
-	return bytesSent;
+    return totalBytesSuccessfullySent; // total header + payload bytes
 }
 
-// Send data to a specified address and port
-int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
+// Send data to a specified address and port (UDP, not modified for length prefix)
+int Networking::Server::SendTo(const char* _pBuffer, int length, PCSTR _pAddress, int _pPort)
 {
 	static int retries=0;
 	int bytesSent=0;
@@ -527,7 +544,8 @@ int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 
 	try{
 		// Send the data to the specified recipient
-		bytesSent = sendto(serverSocket, _pBuffer, strlen(_pBuffer), 0, (sockaddr*)&sockAddress, sizeof(sockAddress));
+		// Note: Using 'length' parameter now instead of strlen(_pBuffer)
+		bytesSent = sendto(serverSocket, _pBuffer, length, 0, (sockaddr*)&sockAddress, sizeof(sockAddress));
 
 		// If there was an error, throw an exception
 		if(bytesSent == SOCKET_ERROR)
@@ -597,98 +615,48 @@ int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 
 
 // Send data to all connected clients
-int Networking::Server::SendToAll(PCSTR _pSendBuffer)
+int Networking::Server::SendToAll(const char* _pSendBuffer, int length)
 {
+    int totalBytesSentAcrossClients = 0;
+    // Iterate over a copy of clients vector if DisconnectClient can modify the original 'clients' list
+    // and cause iterator invalidation. Standard practice for such patterns.
+    std::vector<Networking::ClientConnection> clients_copy = clients;
 
-	int bytesSent;
-	int retries =0;
-	// Iterate over all connected clients
-	for (auto client : clients)
-	{
-		try
-		{
-			// Send the data to the current client
-			bytesSent = send(client.clientSocket, _pSendBuffer, strlen(_pSendBuffer), 0);
+    for (auto& client : clients_copy) // Use reference for client
+    {
+        try
+        {
+            // Call the modified Send method which now handles its own retries and exceptions
+            totalBytesSentAcrossClients += Send(_pSendBuffer, length, client);
+        }
+        catch(const Networking::NetworkException &ex)
+        {
+            // The Send method already logs errors and disconnects the client on failure.
+            // Log here that this specific client failed in SendToAll context.
+            Logger::getInstance().log(LogLevel::ERROR, "SendToAll: Failed to send to client " + GetClientIPAddress(client) + ". Error: " + ex.what());
+            // No need to DisconnectClient(client) here as Send() should have handled it.
+            // If Send() did not throw but returned error, that would be different.
+            // But Send() is designed to throw on unrecoverable error.
+        }
+        catch(const std::exception &ex) // Catch other std::exceptions
+        {
+            Logger::getInstance().log(LogLevel::ERROR, "SendToAll: Std::exception while sending to client " + GetClientIPAddress(client) + ". Error: " + ex.what());
+            // Consider if client needs disconnection here. If Send() was successful but something else failed.
+            // Assuming Send() is the primary point of failure that would require disconnect.
+        }
+        // Catch all (...) could be added if necessary
+    }
 
-			// If there was an error, throw an exception
-			if (bytesSent == SOCKET_ERROR)
-			{
-				// Get the error code
-				int errorCode = GETERROR();
-				ThrowSendException(client.clientSocket, errorCode);
-			}
-		}
-
-		catch(Networking::NetworkException &ex)
-		{
-			switch(ex.GetErrorCode())
-			{
-			case EAGAIN:
-				retries =0;
-				while(retries < MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					retries++;
-					std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-					bytesSent = send(client.clientSocket, _pSendBuffer, strlen(_pSendBuffer), 0);
-				}
-
-				if(retries == MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					DisconnectClient(client);
-				}
-
-				break;
-
-			case EINPROGRESS:
-
-				retries =0;
-				while(retries < MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					retries++;
-					std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-					bytesSent = send(client.clientSocket, _pSendBuffer, strlen(_pSendBuffer), 0);
-				}
-
-				if(retries == MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					DisconnectClient(client);
-				}
-
-				break;
-
-
-			case EINTR:
-				retries =0;
-				while(retries < MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					retries++;
-					std::this_thread::sleep_for(std::chrono::seconds(RETRY_DELAY));
-					bytesSent = send(client.clientSocket, _pSendBuffer, strlen(_pSendBuffer), 0);
-				}
-
-				if(retries == MAX_RETRIES && bytesSent == SOCKET_ERROR)
-				{
-					DisconnectClient(client);
-				}
-
-				break;
-
-
-			default:
-				DisconnectClient(client);
-				break;
-			}
-
-		}
-	}
-
-	// Return the number of bytes sent if the data was sent successfully
-	return bytesSent;
+    // The return value is a bit ambiguous in the original.
+    // Returning total bytes sent to all clients successfully, or 0 if all failed.
+    // Or could return number of clients successfully sent to.
+    // For now, sum of bytes.
+    return totalBytesSentAcrossClients;
 }
 
 
 
-// Send a file to the server
+// Send a file to the client
 void Networking::Server::SendFile(const std::string& _pFilePath, Networking::ClientConnection client)
 {
 	// Open the file for reading
@@ -704,8 +672,13 @@ void Networking::Server::SendFile(const std::string& _pFilePath, Networking::Cli
 	// Read the file data into a buffer
 	std::vector<char> fileData((std::istreambuf_iterator<char>(file)), (std::istreambuf_iterator<char>()));
 
-	// Send the file data to the server
-	Send(&fileData[0], client); // Assuming Send already logs its own errors/retries
+	// Send the file data to the client
+    if (!fileData.empty()) {
+        Send(fileData.data(), static_cast<int>(fileData.size()), client);
+    } else {
+        // Handle empty file case: send a zero-length message
+        Send(nullptr, 0, client);
+    }
     Logger::getInstance().log(LogLevel::INFO, "Sent file " + _pFilePath + " to client " + GetClientIPAddress(client));
 }
 
@@ -783,7 +756,7 @@ std::vector <char> Networking::Server::Receive(Networking::ClientConnection clie
 
 
 // Receive data from a specified address and port
-std::vector<char> Networking::Server::ReceiveFrom(PCSTR _pAddress, int _pPort)
+std::vector<char> Networking::Server::ReceiveFrom(const char* _pAddress, int _pPort) // Changed PCSTR to const char*
 {
 	// Initialize the number of bytes received to 0
 	int bytesReceived =0;

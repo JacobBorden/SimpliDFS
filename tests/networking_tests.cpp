@@ -249,7 +249,8 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
                     }
                 }
                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Processed Mkdir for " << reqMsg._Path << ", ErrorCode: " << respMsg._ErrorCode << ". Sending response." << std::endl;
-                server->Send(Message::Serialize(respMsg).c_str(), conn);
+                std::string serializedResp = Message::Serialize(respMsg);
+                server->Send(serializedResp.c_str(), serializedResp.length(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -271,8 +272,8 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         mkdirReq._Type = MessageType::Mkdir;
         mkdirReq._Path = path;
         mkdirReq._Mode = mode;
-
-        client.Send(Message::Serialize(mkdirReq).c_str());
+        std::string serializedReq = Message::Serialize(mkdirReq);
+        client.Send(serializedReq.c_str(), serializedReq.length());
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_client_for_mkdir_scenario: Sent Mkdir for " << path << ". Awaiting response." << std::endl;
         
         std::vector<char> rawResp = client.Receive();
@@ -684,8 +685,8 @@ TEST_F(NetworkingTest, FuseRmdirSimulation) {
                     currentMockDirs.erase(reqMsg._Path); // Success
                     Logger::getInstance().log(LogLevel::DEBUG, "S_RMDIR: Removed " + reqMsg._Path);
                 }
-                
-                server->Send(Message::Serialize(respMsg).c_str(), conn);
+                std::string serResp = Message::Serialize(respMsg);
+                server->Send(serResp.c_str(), serResp.length(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -704,8 +705,8 @@ TEST_F(NetworkingTest, FuseRmdirSimulation) {
         Message rmdirReq;
         rmdirReq._Type = MessageType::Rmdir;
         rmdirReq._Path = path;
-
-        client.Send(Message::Serialize(rmdirReq).c_str());
+        std::string serReq = Message::Serialize(rmdirReq);
+        client.Send(serReq.c_str(), serReq.length());
         
         std::vector<char> rawResp = client.Receive();
         EXPECT_FALSE(rawResp.empty());
@@ -840,8 +841,8 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
                 }
                 
                 respMsg._Size = sizeToWrite; // Bytes written
-
-                server->Send(Message::Serialize(respMsg).c_str(), conn);
+                std::string serResp = Message::Serialize(respMsg);
+                server->Send(serResp.c_str(), serResp.length(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -864,8 +865,8 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
         writeReq._Offset = offset;
         writeReq._Data = data;
         writeReq._Size = data.length(); // Client sets _Size to actual data length
-
-        client.Send(Message::Serialize(writeReq).c_str());
+        std::string serReq = Message::Serialize(writeReq);
+        client.Send(serReq.c_str(), serReq.length());
         
         std::vector<char> rawResp = client.Receive();
         EXPECT_FALSE(rawResp.empty());
@@ -1034,7 +1035,8 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
                 }
             }
             std::cout << "[FRS_SVR] Sending response..." << std::endl;
-            server.Send(Message::Serialize(respMsg).c_str(), conn);
+            std::string serResp = Message::Serialize(respMsg);
+            server.Send(serResp.c_str(), serResp.length(), conn);
             std::cout << "[FRS_SVR] Response sent." << std::endl;
 
             std::cout << "[FRS_SVR] Disconnecting client..." << std::endl;
@@ -1067,7 +1069,8 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
         readReq._Size = fileContent.length();
         
         std::cout << "[FRS_CLI_S1] Sending request..." << std::endl;
-        client.Send(Message::Serialize(readReq).c_str());
+        std::string serReq = Message::Serialize(readReq);
+        client.Send(serReq.c_str(), serReq.length());
         std::cout << "[FRS_CLI_S1] Request sent." << std::endl;
 
         std::cout << "[FRS_CLI_S1] Attempting to receive response..." << std::endl;
@@ -1234,7 +1237,7 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
                  ADD_FAILURE() << "S: Timeout waiting for client to be ready for server's zero-length message.";
             } else {
                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Attempting to send zero-length message to client." << std::endl;
-                server.Send("", connection);
+                server.Send("", 0, connection);
                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_ZeroLen: Sent zero-length message to client." << std::endl;
                 serverAttemptedSendZero = true;
             }
@@ -1284,7 +1287,7 @@ TEST_F(NetworkingTest, SendReceiveZeroLengthMessages) {
 
     // Part 1: Client sends zero-length to server
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Sending zero-length message to server." << std::endl;
-    client.Send("");
+    client.Send("", 0);
     clientAttemptedSendZero = true;
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_ZeroLen: Sent zero-length message to server." << std::endl;
 
@@ -1386,7 +1389,7 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
 
             // Part 2: Server sends large message to client
             std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Attempting to send large message to client." << std::endl;
-            server.Send(largeMessageStr.c_str(), connection); // This might throw if client disconnected early
+            server.Send(largeMessageStr.c_str(), largeMessageStr.length(), connection);
             std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] S_LargeMsg: Sent large message to client." << std::endl;
             serverAttemptedSendLarge = true;
             
@@ -1438,7 +1441,7 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     // Part 1: Client sends large message to server
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_LargeMsg: Sending large message to server." << std::endl;
     try {
-        client.Send(largeMessageStr.c_str());
+        client.Send(largeMessageStr.c_str(), largeMessageStr.length());
     } catch (const Networking::NetworkException& e) {
         FAIL() << "C_LargeMsg: NetworkException during client Send: " << e.what();
     }
@@ -1521,7 +1524,7 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
                         ASSERT_EQ(receivedMsg, expectedMsg) << threadIdStr << ": Message content mismatch.";
                         
                         std::string responseMsg = "ACK Client " + std::to_string(i);
-                        server.Send(responseMsg.c_str(), conn);
+                        server.Send(responseMsg.c_str(), responseMsg.length(), conn);
                         
                         successfulServerOperations++;
                         Logger::getInstance().log(LogLevel::DEBUG, threadIdStr + ": Processed successfully.");
@@ -1569,7 +1572,7 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
                 ASSERT_TRUE(client.IsConnected()) << threadIdStr << ": Failed to connect.";
 
                 std::string msg = "Hello from Client " + std::to_string(i);
-                client.Send(msg.c_str());
+                client.Send(msg.c_str(), msg.length());
                 
                 std::vector<char> response = client.Receive();
                 ASSERT_FALSE(response.empty()) << threadIdStr << ": Received empty response from server.";
@@ -1656,7 +1659,7 @@ TEST_F(NetworkingTest, SendAndReceiveClientToServer) { // Changed to TEST_F
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ClientToServer): Client connecting and sending." << std::endl;
     Networking::Client client("127.0.0.1", testPort);
     ASSERT_TRUE(client.IsConnected());
-    client.Send(testMessage);
+    client.Send(testMessage, strlen(testMessage));
     std::this_thread::sleep_for(std::chrono::milliseconds(200)); // Give time for message to be processed
     client.Disconnect();
     if (serverThread.joinable()) serverThread.join(); // Join instead of detach
@@ -1692,7 +1695,7 @@ TEST_F(NetworkingTest, SendAndReceiveServerToClient) { // Changed to TEST_F
     Networking::ClientConnection clientConn = server.Accept();
     ASSERT_TRUE(clientConn.clientSocket != 0); // Check for valid client socket
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MainThread (ServerToClient): Server accepted. Sending." << std::endl;
-    server.Send(testMessage, clientConn);
+    server.Send(testMessage, strlen(testMessage), clientConn);
     
     clientThread.join(); // Wait for client to finish
     server.DisconnectClient(clientConn);
@@ -1800,13 +1803,15 @@ TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
                 metadataManager.registerNode(msg._Filename, msg._NodeAddress, msg._NodePort);
                 registeredNodeId = msg._Filename; // Store the node ID
                 // Send a simple success response
-                metaserverNetworkListener.Send("Registered", nodeConnection);
+                const char* regResp = "Registered";
+                metaserverNetworkListener.Send(regResp, strlen(regResp), nodeConnection);
                 registrationDone = true;
             } else {
                 std::stringstream err_log_msg;
                 err_log_msg << "Metaserver received unexpected message type: " << static_cast<int>(msg._Type);
                 Logger::getInstance().log(LogLevel::ERROR, err_log_msg.str());
-                metaserverNetworkListener.Send("Error: Unexpected message type", nodeConnection);
+                const char* errMsg = "Error: Unexpected message type";
+                metaserverNetworkListener.Send(errMsg, strlen(errMsg), nodeConnection);
             }
             metaserverNetworkListener.DisconnectClient(nodeConnection);
             Logger::getInstance().log(LogLevel::INFO, "Metaserver processed registration and disconnected client.");
@@ -1903,13 +1908,15 @@ TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
                 ASSERT_EQ(msg._Filename, nodeId); // Ensure heartbeat is from the correct node
 
                 metadataManager.processHeartbeat(msg._Filename);
-                metaserverNetworkListener.Send("HeartbeatProcessed", nodeConnection);
+                const char* hbRespMsg = "HeartbeatProcessed";
+                metaserverNetworkListener.Send(hbRespMsg, strlen(hbRespMsg), nodeConnection);
                 heartbeatProcessed = true;
             } else {
                 std::stringstream err_log_msg;
                 err_log_msg << "Heartbeat listener received unexpected message type: " << static_cast<int>(msg._Type);
                 Logger::getInstance().log(LogLevel::ERROR, err_log_msg.str());
-                metaserverNetworkListener.Send("Error: Unexpected message type for heartbeat", nodeConnection);
+                const char* errRespMsg = "Error: Unexpected message type for heartbeat";
+                metaserverNetworkListener.Send(errRespMsg, strlen(errRespMsg), nodeConnection);
             }
             metaserverNetworkListener.DisconnectClient(nodeConnection);
         } catch (const Networking::NetworkException& e) {
@@ -1936,12 +1943,12 @@ TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
         heartbeatMsg._Filename = nodeId; // Node identifier is sent in _Filename field for heartbeats
 
         std::string serializedMsg = Message::Serialize(heartbeatMsg);
-        heartbeatClient.Send(serializedMsg.c_str());
+        heartbeatClient.Send(serializedMsg.c_str(), serializedMsg.length());
 
         // Wait for server to process and send response
-        std::vector<char> response = heartbeatClient.Receive();
-        ASSERT_FALSE(response.empty());
-        std::string responseStr(response.begin(), response.end());
+        std::vector<char> response_vec = heartbeatClient.Receive();
+        ASSERT_FALSE(response_vec.empty());
+        std::string responseStr(response_vec.begin(), response_vec.end());
         ASSERT_EQ(responseStr, "HeartbeatProcessed");
 
         heartbeatClient.Disconnect();
@@ -2032,8 +2039,8 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
                     respMsg._Gid = gid;
                     respMsg._Size = size;
                 }
-
-                metaserverNetworkListener.Send(Message::Serialize(respMsg).c_str(), fuseAdapterConnection);
+                std::string serResp = Message::Serialize(respMsg);
+                metaserverNetworkListener.Send(serResp.c_str(), serResp.length(), fuseAdapterConnection);
                 requestProcessed = true;
             } else {
                 Logger::getInstance().log(LogLevel::ERROR, "FUSE GetAttr listener received unexpected message type.");
@@ -2061,8 +2068,8 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
         Message getattrReqMsg;
         getattrReqMsg._Type = MessageType::GetAttr;
         getattrReqMsg._Path = testFilePath; // Using _Path as per message.h for new FUSE types
-
-        fuseClient.Send(Message::Serialize(getattrReqMsg).c_str());
+        std::string serReq = Message::Serialize(getattrReqMsg);
+        fuseClient.Send(serReq.c_str(), serReq.length());
 
         std::vector<char> responseData = fuseClient.Receive();
         ASSERT_FALSE(responseData.empty());
@@ -2197,7 +2204,8 @@ TEST_F(NetworkingTest, ClientSendAfterServerAbruptDisconnect) {
 
     bool sendFailedAsExpected = false;
     try {
-        client.Send("Hello after server shutdown");
+        const char* msg = "Hello after server shutdown";
+        client.Send(msg, strlen(msg));
     } catch (const Networking::NetworkException& e) {
         std::stringstream ss;
         ss << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] C_Abrupt (SendTest): Client caught expected NetworkException during Send: " << e.what();
