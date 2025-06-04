@@ -11,6 +11,7 @@ add_library(SimpliDFS_Utils
     message.cpp
     cid_utils.cpp  # Added cid_utils.cpp
     blockio.cpp    # Moved from BlockIOLib
+    key_manager.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC
