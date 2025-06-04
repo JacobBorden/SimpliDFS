@@ -2,6 +2,14 @@
 
 echo "INFO: setup_fuse_test_env.sh starting..."
 
+# Skip FUSE-dependent tests if the fuse device is not available. This allows
+# the rest of the test suite to run in environments where the FUSE kernel
+# module isn't loaded (e.g. CI containers).
+if [ ! -e /dev/fuse ]; then
+    echo "SKIP: /dev/fuse not found, skipping FUSE tests."
+    exit 0
+fi
+
 NUM_NODES=3
 NODE_START_PORT=50000
 
