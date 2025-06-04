@@ -278,24 +278,36 @@ static std::string normalize_path_to_filename(const std::string& fuse_path) {
 void HandleClientConnection(Networking::Server& server_instance, Networking::ClientConnection _pClient)
 {
     std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread started for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-    try {
-        Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + server_instance.GetClientIPAddress(_pClient));
-        std::vector<char> received_vector = server_instance.Receive(_pClient);
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: Received " << received_vector.size() << " bytes from client." << std::endl;
-        if (received_vector.empty()) {
-            Logger::getInstance().log(LogLevel::WARN, "Received empty data from client " + server_instance.GetClientIPAddress(_pClient));
-            std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing due to empty receive for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-            return; 
-        }
-        std::string received_data_str(received_vector.begin(), received_vector.end());
-        Logger::getInstance().log(LogLevel::DEBUG, "Received data from " + server_instance.GetClientIPAddress(_pClient) + ": " + received_data_str);
-        Message request = Message::Deserialize(received_data_str);
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: Deserialized request type " << static_cast<int>(request._Type) << " for path '" << request._Path << "' from client." << std::endl;
-        bool shouldSave = false;
+    std::string client_ip_str = server_instance.GetClientIPAddress(_pClient); // Store for logging after disconnect
 
-        switch (request._Type)
-        {
-            case MessageType::GetAttr:
+    while(true) { // Loop to handle multiple requests
+        try {
+            Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + client_ip_str);
+            std::vector<char> received_vector = server_instance.Receive(_pClient);
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: Received " << received_vector.size() << " bytes from client." << std::endl;
+            if (received_vector.empty()) {
+                Logger::getInstance().log(LogLevel::INFO, "Client " + client_ip_str + " disconnected or receive failed. Closing connection.");
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing due to empty receive for client " << client_ip_str << std::endl;
+                break;
+            }
+            std::string received_data_str(received_vector.begin(), received_vector.end());
+            Logger::getInstance().log(LogLevel::DEBUG, "Received data from " + client_ip_str + ": " + received_data_str);
+
+            Message request;
+            try {
+                request = Message::Deserialize(received_data_str);
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Deserialized request type " << static_cast<int>(request._Type) << " for path '" << request._Path << "' from client." << std::endl;
+            } catch (const std::runtime_error& re) {
+                 Logger::getInstance().log(LogLevel::ERROR, "Failed to deserialize message from " + client_ip_str + ": " + re.what() + ". Closing connection.");
+                 break; // Critical error, terminate connection handling
+            }
+
+            bool shouldSave = false;
+            Message response_to_send; // To hold the message to be sent, avoids serializing multiple times if not needed for some paths.
+
+            switch (request._Type)
+            {
+                case MessageType::GetAttr:
             {
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case GetAttr for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received GetAttr for: " + request._Path);
@@ -530,28 +542,39 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 break;
         }
 
-        if (shouldSave) {
-        Logger::getInstance().log(LogLevel::DEBUG, "[Metaserver] Metadata modified, marking as dirty.");
-        metadataManager.markDirty();
-    }
-    // std::cerr << "DIAGNOSTIC: HandleClientConnection: Request processed. Explicitly disconnecting client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-    // server_instance.DisconnectClient(_pClient);
-    // std::cerr << "DIAGNOSTIC: HandleClientConnection: Client explicitly disconnected." << std::endl;
+            if (shouldSave) {
+                Logger::getInstance().log(LogLevel::DEBUG, "[Metaserver] Metadata modified, marking as dirty.");
+                metadataManager.markDirty();
+            }
+        } catch (const Networking::NetworkException& ne) {
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: NetworkException caught: " << ne.what() << " for client " << client_ip_str << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + client_ip_str + ": " + std::string(ne.what()));
+            break; // Exit loop on network error
+        } catch (const std::runtime_error& re) {
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: runtime_error caught: " << re.what() << " for client " << client_ip_str << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "Runtime error (e.g., deserialization) in HandleClientConnection for " + client_ip_str + ": " + std::string(re.what()));
+            break; // Exit loop on runtime error
+        } catch (const std::exception& e) {
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: std::exception caught: " << e.what() << " for client " << client_ip_str << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "Generic exception in HandleClientConnection for " + client_ip_str + ": " + std::string(e.what()));
+            break; // Exit loop on generic error
+        }  catch (...) {
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: UNHANDLED EXCEPTION CAUGHT IN THREAD for client " << client_ip_str << ". Thread terminating." << std::endl;
+            Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + client_ip_str);
+            break; // Exit loop on unknown error
+        }
+    } // End of while(true) loop
+
+    try {
+        server_instance.DisconnectClient(_pClient);
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: Client " << client_ip_str << " disconnected." << std::endl;
+        Logger::getInstance().log(LogLevel::INFO, "Disconnected client " + client_ip_str);
     } catch (const Networking::NetworkException& ne) {
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: NetworkException caught: " << ne.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-        Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(ne.what()));
-    } catch (const std::runtime_error& re) {
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: runtime_error caught: " << re.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-        Logger::getInstance().log(LogLevel::ERROR, "Runtime error (e.g., deserialization) in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(re.what()));
-    } catch (const std::exception& e) {
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: std::exception caught: " << e.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-        Logger::getInstance().log(LogLevel::ERROR, "Generic exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(e.what()));
-    }  catch (...) {
-        std::cerr << "DIAGNOSTIC: HandleClientConnection: UNHANDLED EXCEPTION CAUGHT IN THREAD for client " << server_instance.GetClientIPAddress(_pClient) << ". Thread terminating." << std::endl;
-        // Potentially log more details if possible, then allow thread to exit.
-        Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient));
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: NetworkException during DisconnectClient for " << client_ip_str << ": " << ne.what() << std::endl;
+        Logger::getInstance().log(LogLevel::ERROR, "Network error during DisconnectClient for " + client_ip_str + ": " + std::string(ne.what()));
     }
-    std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
+
+    std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing for client " << client_ip_str << std::endl;
 }
 
 // main() function has been moved to src/main_metaserver.cpp
