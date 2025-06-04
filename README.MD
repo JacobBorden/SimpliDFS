@@ -88,6 +88,20 @@ cmake --build build
 The resulting fuzzer executables are located in `build/tests/`. Refer to
 `TESTING_GUIDE.md` for usage details.
 
+### Running a Node
+After building, you can start a storage node with:
+
+```sh
+./node <NodeName> <Port> <MetaserverAddress> <MetaserverPort>
+```
+
+For example, to run a node named `NodeA` on port `60010` that connects to a
+metaserver running on `127.0.0.1` port `50505`:
+
+```sh
+./node NodeA 60010 127.0.0.1 50505
+```
+
 ## Contributing
 Feel free to contribute to the project by opening issues, submitting pull requests, or suggesting new features.
 
