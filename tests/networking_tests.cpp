@@ -2344,3 +2344,47 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
     server.Shutdown();
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerReceiveAfterClientAbruptDisconnect: Finished." << std::endl;
 }
+
+TEST_F(NetworkingTest, IPv6ServerAcceptsConnection) {
+    const int testPort = 12401;
+    Networking::Server server(testPort, Networking::ServerType::IPv6);
+    ASSERT_TRUE(server.startListening());
+
+    std::thread serverThread([&]() {
+        Networking::ClientConnection conn = server.Accept();
+        auto data = server.Receive(conn);
+        if (!data.empty()) {
+            std::string echo(data.begin(), data.end());
+            server.Send(echo.c_str(), conn);
+        }
+        server.DisconnectClient(conn);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    int sock = socket(AF_INET6, SOCK_STREAM, 0);
+    ASSERT_NE(sock, -1);
+    sockaddr_in6 addr{};
+    addr.sin6_family = AF_INET6;
+    addr.sin6_port = htons(testPort);
+    ASSERT_EQ(inet_pton(AF_INET6, "::1", &addr.sin6_addr), 1);
+    ASSERT_EQ(connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)), 0);
+
+    uint32_t len = htonl(2u);
+    ASSERT_EQ(send(sock, &len, 4, 0), 4);
+    ASSERT_EQ(send(sock, "hi", 2, 0), 2);
+
+    uint32_t respLenNet;
+    ASSERT_EQ(recv(sock, &respLenNet, 4, 0), 4);
+    uint32_t respLen = ntohl(respLenNet);
+    ASSERT_EQ(respLen, 2u);
+    char buf[2];
+    ASSERT_EQ(recv(sock, buf, 2, 0), 2);
+    std::string resp(buf, 2);
+    EXPECT_EQ(resp, "hi");
+
+    close(sock);
+
+    if (serverThread.joinable()) serverThread.join();
+    server.Shutdown();
+}
