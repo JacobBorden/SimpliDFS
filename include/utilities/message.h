@@ -57,7 +57,11 @@ enum class MessageType{
     Rmdir,
     RmdirResponse,
     StatFs,
-    StatFsResponse
+    StatFsResponse,
+
+    // For FUSE adapter to request node locations for a file from metaserver
+    GetFileNodeLocationsRequest,    // _Path will contain the file path
+    GetFileNodeLocationsResponse    // _Data will contain comma-separated "ip:port" strings for nodes; _ErrorCode for status
 };
 
 /**

@@ -503,6 +503,63 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 Logger::getInstance().log(LogLevel::INFO, "Sent registration confirmation to node " + request._Filename);
                 break;
             }
+            case MessageType::GetFileNodeLocationsRequest:
+            {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case GetFileNodeLocationsRequest for path '" << request._Path << "'" << std::endl;
+                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received GetFileNodeLocationsRequest for: " + request._Path);
+                Message res_msg;
+                res_msg._Type = MessageType::GetFileNodeLocationsResponse;
+                res_msg._Path = request._Path; // Echo back the path for context
+
+                std::string norm_path = normalize_path_to_filename(request._Path);
+
+                if (norm_path.empty()) {
+                    res_msg._ErrorCode = EINVAL; // Invalid argument if path is empty or just "/"
+                } else {
+                    try {
+                        std::vector<std::string> node_ids = metadataManager.getFileNodes(norm_path);
+                        if (node_ids.empty()) {
+                            // This case might mean file exists but has no nodes (should ideally not happen if addFile ensures nodes)
+                            // Or getFileNodes throws if file doesn't exist, so this path might not be hit for "no nodes".
+                            Logger::getInstance().log(LogLevel::WARN, "[Metaserver] File " + norm_path + " found but has no associated nodes.");
+                            res_msg._ErrorCode = ENOENT; // Or a more specific error like ENODATA
+                        } else {
+                            std::stringstream ss_node_addresses;
+                            for (size_t i = 0; i < node_ids.size(); ++i) {
+                                try {
+                                    NodeInfo node_info = metadataManager.getNodeInfo(node_ids[i]);
+                                    ss_node_addresses << node_info.nodeAddress;
+                                    if (i < node_ids.size() - 1) {
+                                        ss_node_addresses << ",";
+                                    }
+                                } catch (const std::runtime_error& re_node) {
+                                    // Log that a specific node ID couldn't be resolved, but continue if possible
+                                    Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Error getting info for node ID " + node_ids[i] + " for file " + norm_path + ": " + re_node.what());
+                                    // Depending on desired behavior, could set an error here or just skip this node
+                                }
+                            }
+                            res_msg._Data = ss_node_addresses.str();
+                            if (res_msg._Data.empty() && !node_ids.empty()) {
+                                // This means all node_ids lookup failed, which is an error.
+                                Logger::getInstance().log(LogLevel::ERROR, "[Metaserver] Failed to resolve any node addresses for file " + norm_path);
+                                res_msg._ErrorCode = EHOSTUNREACH; // Or some other suitable error
+                            } else if (res_msg._Data.empty() && node_ids.empty()){
+                                // Explicitly set ENOENT if no nodes were found (e.g. file exists but node list is empty)
+                                res_msg._ErrorCode = ENOENT;
+                            }
+                             else {
+                                res_msg._ErrorCode = 0; // Success
+                            }
+                        }
+                    } catch (const std::runtime_error& re_file) {
+                        Logger::getInstance().log(LogLevel::WARN, "[Metaserver] GetFileNodeLocationsRequest: File not found or error for " + norm_path + ": " + re_file.what());
+                        res_msg._ErrorCode = ENOENT; // File not found
+                    }
+                }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case GetFileNodeLocationsRequest, path '" << request._Path << "'" << std::endl;
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                break;
+            }
             case MessageType::Heartbeat:
             {
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Heartbeat for node '" << request._Filename << "'" << std::endl;

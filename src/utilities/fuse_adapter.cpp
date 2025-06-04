@@ -42,6 +42,28 @@ static std::string getCurrentTimestamp() {
     return oss.str();
 }
 
+// Helper function to parse "ip:port" string
+static bool parse_ip_port(const std::string& addr_str, std::string& out_ip, int& out_port) {
+    std::istringstream iss(addr_str);
+    std::string segment;
+    if (std::getline(iss, segment, ':')) {
+        out_ip = segment;
+        if (std::getline(iss, segment)) {
+            try {
+                out_port = std::stoi(segment);
+                return true;
+            } catch (const std::invalid_argument& ia) {
+                Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] parse_ip_port: Invalid port format '" + segment + "' in address '" + addr_str + "'");
+                return false;
+            } catch (const std::out_of_range& oor) {
+                Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] parse_ip_port: Port value out of range '" + segment + "' in address '" + addr_str + "'");
+                return false;
+            }
+        }
+    }
+    Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] parse_ip_port: Could not parse IP and port from address '" + addr_str + "'");
+    return false;
+}
 
 // Forward declarations for FUSE operations
 static SimpliDfsFuseData* get_fuse_data(); // Should be defined in this file or fuse_adapter.h
@@ -217,7 +239,8 @@ void simpli_destroy(void* private_data) {
         return;
     }
     SimpliDfsFuseData* data = static_cast<SimpliDfsFuseData*>(private_data);
-    if (data->metadata_client) {
+    if (data && data->metadata_client) { // Added check for data itself
+        std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
         if (data->metadata_client->IsConnected()) {
             try {
                 Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_destroy: Attempting to disconnect metadata_client.");
@@ -254,6 +277,7 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (path_str == "/") {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
@@ -315,6 +339,9 @@ int simpli_statx(const char *path, struct statx *stxbuf, int flags_unused, struc
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_statx: FUSE data or metadata_client not available for path: " + path_str);
         return -EIO;
     }
+    // NOTE: statx is not in the list of functions to modify for this subtask.
+    // However, if it were, the lock would go here:
+    // std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
 
     stxbuf->stx_uid = getuid();
     stxbuf->stx_gid = getgid();
@@ -348,6 +375,7 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     filler(buf, ".", NULL, 0, (enum fuse_fill_dir_flags)0);
     filler(buf, "..", NULL, 0, (enum fuse_fill_dir_flags)0);
 
@@ -400,6 +428,7 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (path_str == "/") {
         if ((fi->flags & O_ACCMODE) != O_RDONLY) {
             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Write access denied for root directory /");
@@ -433,9 +462,85 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
             Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Metaserver error " + std::to_string(res_msg._ErrorCode) + " for " + path_str);
             return -res_msg._ErrorCode;
         }
-        fi->fh = 1;
-        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully opened " + path_str);
-        return 0;
+        // fi->fh is typically set by FUSE kernel module if not set by us and if open is successful.
+        // If we needed to set it (e.g. fi->fh = some_custom_handle;), this is where it would be.
+        // For now, we rely on FUSE's default fi->fh. If it's 0, that's problematic for map key.
+
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Metaserver Open successful for " + path_str + ". Now fetching node locations.");
+
+        Message loc_req_msg;
+        loc_req_msg._Type = MessageType::GetFileNodeLocationsRequest;
+        loc_req_msg._Path = path_str;
+
+        std::string serialized_loc_req = Message::Serialize(loc_req_msg);
+        if (!data->metadata_client->Send(serialized_loc_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Failed to send GetFileNodeLocationsRequest for " + path_str);
+            return -EIO; // Or a more specific error
+        }
+
+        std::vector<char> loc_received_vector = data->metadata_client->Receive();
+        if (loc_received_vector.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Received empty response for GetFileNodeLocationsRequest for " + path_str);
+            return -EIO;
+        }
+        std::string serialized_loc_res(loc_received_vector.begin(), loc_received_vector.end());
+        Message loc_res_msg = Message::Deserialize(serialized_loc_res);
+
+        if (loc_res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: GetFileNodeLocations failed for " + path_str + " with error: " + std::to_string(loc_res_msg._ErrorCode));
+            return -loc_res_msg._ErrorCode; // Propagate error from metaserver
+        }
+
+        if (loc_res_msg._Data.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: No node locations received for " + path_str);
+            return -ENOENT; // Or ENODATA if more appropriate
+        }
+
+        std::string first_node_addr_str;
+        std::istringstream iss_nodes(loc_res_msg._Data);
+        std::getline(iss_nodes, first_node_addr_str, ','); // Get the first address
+
+        if (first_node_addr_str.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Parsed empty first node address for " + path_str);
+            return -EIO;
+        }
+
+        std::string node_ip;
+        int node_port;
+        if (!parse_ip_port(first_node_addr_str, node_ip, node_port)) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Failed to parse node address '" + first_node_addr_str + "' for " + path_str);
+            return -EIO;
+        }
+
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Attempting to connect to storage node " + node_ip + ":" + std::to_string(node_port) + " for file " + path_str);
+        Networking::Client* storage_node_client = new Networking::Client();
+        if (!storage_node_client->InitClientSocket() ||
+            !storage_node_client->CreateClientTCPSocket(node_ip.c_str(), node_port) ||
+            !storage_node_client->ConnectClientSocket()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Failed to connect to storage node " + node_ip + ":" + std::to_string(node_port) + " for " + path_str);
+            delete storage_node_client;
+            return -EHOSTUNREACH; // Or EIO
+        }
+
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port) + ". Storing handle " + std::to_string(fi->fh));
+
+        StorageNodeClient snc;
+        snc.client = storage_node_client;
+
+        std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
+        data->active_storage_clients[fi->fh] = snc;
+        // Note: FUSE sets fi->fh to a unique value if we return 0 and don't set it ourselves,
+        // unless FUSE_CAP_EXPLICIT_INVAL_DATA is set (which it isn't by default).
+        // If fi->fh is 0 here, it means FUSE didn't assign one (e.g. because of direct_io or kernel_cache)
+        // or the open wasn't truly "successful" in a way that FUSE assigns an fh.
+        // This could be an issue if multiple files return fh=0. For now, assume fh is unique non-zero.
+        if (fi->fh == 0) {
+             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: fi->fh is 0 after successful open and storage client connection for " + path_str + ". This might lead to issues if not unique.");
+        }
+
+
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully opened " + path_str + " and connected to storage node.");
+        return 0; // Success
     } catch (const std::exception& e) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Exception for " + path_str + ": " + std::string(e.what()));
         return -EIO;
@@ -452,6 +557,7 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: FUSE data or metadata_client not available for " + path_str);
         return -EIO;
     }
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (size == 0) return 0;
 
     Message req_msg;
@@ -497,6 +603,7 @@ int simpli_access(const char *path, int mask) {
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (path_str == "/") {
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Root access check always returns success for now.");
         return 0;
@@ -544,6 +651,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (path_str == "/") {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Cannot create file at root path /.");
         return -EISDIR;
@@ -573,12 +681,111 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
             Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Metaserver error " + std::to_string(res_msg._ErrorCode) + " for " + path_str);
             return -res_msg._ErrorCode;
         }
+        // Similar to open, fi->fh should be set by FUSE upon successful return from create.
 
-        fi->fh = 1;
-        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully created " + path_str);
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Metaserver CreateFile successful for " + path_str + ". Now fetching node locations.");
+
+        Message loc_req_msg;
+        loc_req_msg._Type = MessageType::GetFileNodeLocationsRequest;
+        loc_req_msg._Path = path_str;
+
+        std::string serialized_loc_req = Message::Serialize(loc_req_msg);
+        if (!data->metadata_client->Send(serialized_loc_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Failed to send GetFileNodeLocationsRequest for " + path_str);
+            // Attempt to unlink the metadata entry
+            // TODO: Implement a helper for this cleanup logic if it becomes common
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -EIO;
+        }
+
+        std::vector<char> loc_received_vector = data->metadata_client->Receive();
+        if (loc_received_vector.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Received empty response for GetFileNodeLocationsRequest for " + path_str);
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -EIO;
+        }
+        std::string serialized_loc_res(loc_received_vector.begin(), loc_received_vector.end());
+        Message loc_res_msg = Message::Deserialize(serialized_loc_res);
+
+        if (loc_res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: GetFileNodeLocations failed for " + path_str + " with error: " + std::to_string(loc_res_msg._ErrorCode));
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -loc_res_msg._ErrorCode;
+        }
+
+        if (loc_res_msg._Data.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: No node locations received for " + path_str);
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -ENOENT;
+        }
+
+        std::string first_node_addr_str;
+        std::istringstream iss_nodes(loc_res_msg._Data);
+        std::getline(iss_nodes, first_node_addr_str, ',');
+
+        if (first_node_addr_str.empty()) {
+             Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Parsed empty first node address for " + path_str);
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -EIO;
+        }
+
+        std::string node_ip;
+        int node_port;
+        if (!parse_ip_port(first_node_addr_str, node_ip, node_port)) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Failed to parse node address '" + first_node_addr_str + "' for " + path_str);
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -EIO;
+        }
+
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Attempting to connect to storage node " + node_ip + ":" + std::to_string(node_port) + " for file " + path_str);
+        Networking::Client* storage_node_client = new Networking::Client();
+        if (!storage_node_client->InitClientSocket() ||
+            !storage_node_client->CreateClientTCPSocket(node_ip.c_str(), node_port) ||
+            !storage_node_client->ConnectClientSocket()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Failed to connect to storage node " + node_ip + ":" + std::to_string(node_port) + " for " + path_str);
+            delete storage_node_client;
+            Message unlink_req_msg;
+            unlink_req_msg._Type = MessageType::Unlink;
+            unlink_req_msg._Path = path_str;
+            data->metadata_client->Send(Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
+            return -EHOSTUNREACH;
+        }
+
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port) + ". Storing handle " + std::to_string(fi->fh));
+
+        StorageNodeClient snc;
+        snc.client = storage_node_client;
+
+        std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
+        data->active_storage_clients[fi->fh] = snc;
+         if (fi->fh == 0) {
+             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: fi->fh is 0 after successful create and storage client connection for " + path_str + ". This might lead to issues if not unique.");
+        }
+
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully created " + path_str + " and connected to storage node.");
         return 0;
     } catch (const std::exception& e) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Exception for " + path_str + ": " + std::string(e.what()));
+        // Consider attempting to unlink the metadata entry if an exception occurs after creation but before storage connection
+        // For now, just return EIO.
         return -EIO;
     }
 }
@@ -593,6 +800,7 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: FUSE data or metadata_client not available for " + path_str);
         return -EIO;
     }
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (size == 0) return 0;
 
     Message req_msg;
@@ -640,6 +848,7 @@ int simpli_unlink(const char *path) {
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (path_str == "/") {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Cannot unlink root directory /.");
         return -EISDIR;
@@ -688,6 +897,7 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
         return -EIO;
     }
 
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
     if (from_path_str == "/" || to_path_str == "/") {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Cannot rename to or from root directory.");
         return -EBUSY;
@@ -726,9 +936,46 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
 }
 
 int simpli_release(const char *path, struct fuse_file_info *fi) {
-    (void)fi;
     std::string path_str(path);
-    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Entry for path: " + path_str + " with fi->fh: " + std::to_string(fi->fh) + ". No server action implemented yet.");
+    Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Entry for path: " + path_str + ", fh: " + std::to_string(fi->fh));
+
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: FUSE data not available for " + path_str);
+        return -EIO; // Or 0 if we want to be lenient on release
+    }
+
+    // Remove and disconnect the storage client associated with this file handle
+    StorageNodeClient snc_to_remove;
+    bool client_found = false;
+    {
+        std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
+        auto it = data->active_storage_clients.find(fi->fh);
+        if (it != data->active_storage_clients.end()) {
+            snc_to_remove = it->second;
+            data->active_storage_clients.erase(it);
+            client_found = true;
+        }
+    }
+
+    if (client_found && snc_to_remove.client) {
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Disconnecting and deleting storage client for fh: " + std::to_string(fi->fh) + " path: " + path_str);
+        try {
+            if (snc_to_remove.client->IsConnected()) { // Assuming IsConnected() exists
+                 snc_to_remove.client->Disconnect();
+            }
+        } catch (const std::exception& e) {
+             Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Exception during storage client disconnect for fh: " + std::to_string(fi->fh) + " path: " + path_str + " - " + e.what());
+        }
+        delete snc_to_remove.client;
+    } else if (fi->fh != 0) { // Don't warn for fh=0 which might be for directories or failed opens
+        Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: No active storage client found for fh: " + std::to_string(fi->fh) + " path: " + path_str);
+    }
+
+    // Note: The metadata server "close" or "release" message is not sent here.
+    // This is typically handled by FUSE if direct_io is not used, or can be added if specific server-side release actions are needed.
+    // For many distributed file systems, release on the client side just cleans up local resources.
+
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_release: Exit for path: " + path_str);
     return 0;
 }
