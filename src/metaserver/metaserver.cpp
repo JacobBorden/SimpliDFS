@@ -11,6 +11,7 @@
 #include <sstream>
 #include "metaserver/metaserver.h"
 #include "utilities/server.h"
+#include "utilities/client.h"
 #include "utilities/networkexception.h"
 #include <thread>
 #include <string>        // Required for std::string, std::to_string
@@ -81,8 +82,36 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     Logger::getInstance().log(LogLevel::INFO, oss_add.str());
 
 
-    // TODO: Actual communication to nodes to create file blocks would happen here or be initiated from here.
-    // For now, metaserver just records it.
+    // Instruct chosen nodes to create an empty file. The Node implementation
+    // interprets a WriteFile message with empty content as a create request.
+    for (const auto& nodeID : targetNodes) {
+        auto it = registeredNodes.find(nodeID);
+        if (it == registeredNodes.end()) {
+            Logger::getInstance().log(LogLevel::ERROR,
+                "[MetadataManager] addFile: Node ID " + nodeID + " vanished before create message");
+            continue;
+        }
+
+        const std::string& addr = it->second.nodeAddress;
+        std::string ip = addr.substr(0, addr.find(':'));
+        int port = std::stoi(addr.substr(addr.find(':') + 1));
+
+        Message createMsg;
+        createMsg._Type = MessageType::WriteFile;
+        createMsg._Filename = filename;
+        createMsg._Content = ""; // create empty file
+
+        try {
+            Networking::Client client(ip.c_str(), port);
+            client.Send(Message::Serialize(createMsg).c_str());
+            (void)client.Receive(); // ignore response
+            client.Disconnect();
+        } catch (const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR,
+                "[MetadataManager] Failed to send create command to node " + nodeID + ": " + e.what());
+        }
+    }
+
     return 0; // Success
 }
 
@@ -102,13 +131,30 @@ bool MetadataManager::removeFile(const std::string& filename) {
 
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " removed from metadata.");
 
-    // TODO: Actual communication to nodes to delete file blocks
+    // Notify each node to remove its replica of the file
     Message delMsg;
-    delMsg._Type = MessageType::DeleteFile; // Or a more specific internal command
+    delMsg._Type = MessageType::DeleteFile;
     delMsg._Filename = filename;
+
     for (const auto& nodeID : nodesToNotify) {
-        Logger::getInstance().log(LogLevel::DEBUG, "[Metaserver_STUB] Instructing node " + nodeID + " to delete file " + filename);
-        // server.SendToNode(nodeID, Message::Serialize(delMsg)); // Hypothetical send to specific node
+        auto it = registeredNodes.find(nodeID);
+        if (it == registeredNodes.end()) {
+            continue; // Node might have been removed
+        }
+
+        const std::string& addr = it->second.nodeAddress;
+        std::string ip = addr.substr(0, addr.find(':'));
+        int port = std::stoi(addr.substr(addr.find(':') + 1));
+
+        try {
+            Networking::Client client(ip.c_str(), port);
+            client.Send(Message::Serialize(delMsg).c_str());
+            (void)client.Receive();
+            client.Disconnect();
+        } catch (const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR,
+                "[MetadataManager] Failed to send delete command to node " + nodeID + ": " + e.what());
+        }
     }
     return true; // Success
 }
@@ -216,8 +262,77 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
         Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
     }
 
-    // TODO: Notify storage nodes about the write and data.
-    // This would involve selecting primary node, sending data, and handling replication.
+    // Send write command to the primary node (first in replica list)
+    const auto& nodes = fileMetadata[filename];
+    if (!nodes.empty()) {
+        const std::string& primaryID = nodes.front();
+        auto it = registeredNodes.find(primaryID);
+        if (it != registeredNodes.end()) {
+            const std::string& addr = it->second.nodeAddress;
+            std::string ip = addr.substr(0, addr.find(':'));
+            int port = std::stoi(addr.substr(addr.find(':') + 1));
+
+            Message writeMsg;
+            writeMsg._Type = MessageType::WriteFile;
+            writeMsg._Filename = filename;
+            writeMsg._Content = data_to_write;
+            writeMsg._Offset = offset;
+
+            try {
+                Networking::Client client(ip.c_str(), port);
+                client.Send(Message::Serialize(writeMsg).c_str());
+                (void)client.Receive();
+                client.Disconnect();
+            } catch (const std::exception& e) {
+                Logger::getInstance().log(LogLevel::ERROR,
+                    "[MetadataManager] Failed to send write to primary node " + primaryID + ": " + e.what());
+            }
+
+            // Replicate to other nodes
+            for (size_t i = 1; i < nodes.size(); ++i) {
+                const std::string& replicaID = nodes[i];
+                auto itrep = registeredNodes.find(replicaID);
+                if (itrep == registeredNodes.end()) continue;
+
+                std::string replicaAddr = itrep->second.nodeAddress;
+                std::string replicaIp = replicaAddr.substr(0, replicaAddr.find(':'));
+                int replicaPort = std::stoi(replicaAddr.substr(replicaAddr.find(':') + 1));
+
+                Message replicateMsg;
+                replicateMsg._Type = MessageType::ReplicateFileCommand;
+                replicateMsg._Filename = filename;
+                replicateMsg._NodeAddress = replicaAddr;
+                replicateMsg._Content = primaryID;
+
+                Message receiveMsg;
+                receiveMsg._Type = MessageType::ReceiveFileCommand;
+                receiveMsg._Filename = filename;
+                receiveMsg._NodeAddress = it->second.nodeAddress;
+                receiveMsg._Content = replicaID;
+
+                try {
+                    Networking::Client clientPrimary(ip.c_str(), port);
+                    clientPrimary.Send(Message::Serialize(replicateMsg).c_str());
+                    (void)clientPrimary.Receive();
+                    clientPrimary.Disconnect();
+                } catch (const std::exception& e) {
+                    Logger::getInstance().log(LogLevel::ERROR,
+                        "[MetadataManager] Failed to send replicate command to " + primaryID + ": " + e.what());
+                }
+
+                try {
+                    Networking::Client clientReplica(replicaIp.c_str(), replicaPort);
+                    clientReplica.Send(Message::Serialize(receiveMsg).c_str());
+                    (void)clientReplica.Receive();
+                    clientReplica.Disconnect();
+                } catch (const std::exception& e) {
+                    Logger::getInstance().log(LogLevel::ERROR,
+                        "[MetadataManager] Failed to send receive command to " + replicaID + ": " + e.what());
+                }
+            }
+        }
+    }
+
     Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData for " + filename + ": " + std::to_string(out_size_written) + " bytes 'written' at offset " + std::to_string(offset) + ". New potential size: " + std::to_string(fileSizes[filename]));
     return 0; // Success
 }
