@@ -13,6 +13,7 @@
 #include "utilities/server.h"
 #include "utilities/client.h"
 #include "utilities/networkexception.h"
+#include "utilities/blockio.hpp"
 #include <thread>
 #include <string>        // Required for std::string, std::to_string
 #include "utilities/logger.h" // Include the Logger header
@@ -75,6 +76,11 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     fileMetadata[filename] = targetNodes;
     fileModes[filename] = mode;
     fileSizes[filename] = 0; // Initial size is 0
+    {
+        BlockIO bio;
+        DigestResult dr = bio.finalize_hashed();
+        fileHashes[filename] = dr.cid;
+    }
 
     std::ostringstream oss_add;
     oss_add << "[MetadataManager] File " << filename << " added with mode " << std::oct << mode << std::dec << ". Assigned to nodes: ";
@@ -128,6 +134,7 @@ bool MetadataManager::removeFile(const std::string& filename) {
     fileMetadata.erase(filename);
     fileModes.erase(filename);
     fileSizes.erase(filename);
+    fileHashes.erase(filename);
 
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " removed from metadata.");
 
@@ -262,6 +269,16 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
         Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
     }
 
+    // Update hash based on this write (simplified: hash only written data)
+    {
+        BlockIO bio;
+        std::vector<std::byte> bytes;
+        for(char c : data_to_write) bytes.push_back(std::byte(c));
+        if (!bytes.empty()) bio.ingest(bytes.data(), bytes.size());
+        DigestResult dr = bio.finalize_hashed();
+        fileHashes[filename] = dr.cid;
+    }
+
     // Send write command to the primary node (first in replica list)
     const auto& nodes = fileMetadata[filename];
     if (!nodes.empty()) {
@@ -366,6 +383,13 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
         if (!size_fh.empty()) {
             size_fh.key() = new_filename;
             fileSizes.insert(std::move(size_fh));
+        }
+    }
+    if (fileHashes.count(old_filename)) {
+        auto hash_fh = fileHashes.extract(old_filename);
+        if (!hash_fh.empty()) {
+            hash_fh.key() = new_filename;
+            fileHashes.insert(std::move(hash_fh));
         }
     }
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Renamed " + old_filename + " to " + new_filename);

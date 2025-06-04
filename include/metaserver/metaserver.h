@@ -63,6 +63,7 @@ private:
     // New private members for FUSE attributes
     std::unordered_map<std::string, uint32_t> fileModes;
     std::unordered_map<std::string, uint64_t> fileSizes;
+    std::unordered_map<std::string, std::string> fileHashes;
     std::atomic<bool> metadata_is_dirty_ {false};
     
     /** @brief Default number of replicas to create for each file. */
@@ -238,6 +239,16 @@ public:
     int checkAccess(const std::string& filename, uint32_t access_mask);
     int openFile(const std::string& filename, uint32_t flags); // flags from FUSE open
 
+    // Retrieve the current content hash (CID) for a file
+    std::string getFileHash(const std::string& filename) {
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        auto it = fileHashes.find(filename);
+        if (it != fileHashes.end()) {
+            return it->second;
+        }
+        return "";
+    }
+
     // Modified addFile signature and functionality
     int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode);
 
@@ -334,9 +345,9 @@ public:
     /**
      * @brief Saves the current state of metadata to persistence files.
      *
-     * The `fileMetadata` file now includes file mode and size in addition to
+     * The `fileMetadata` file now includes file hash, mode and size in addition to
      * the list of nodes. Each line has the format:
-     * `filename|mode|size|node1,node2,...`
+     * `filename|hash|mode|size|node1,node2,...`
      */
     void saveMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
         std::lock_guard<std::mutex> lock(metadataMutex);
@@ -348,8 +359,10 @@ public:
                 const std::string& filename = entry.first;
                 uint32_t mode = fileModes.count(filename) ? fileModes.at(filename) : 0;
                 uint64_t size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
+                std::string hash = fileHashes.count(filename) ? fileHashes.at(filename) : "";
 
                 fm_ofs << filename << METADATA_SEPARATOR
+                       << hash << METADATA_SEPARATOR
                        << mode << METADATA_SEPARATOR
                        << size << METADATA_SEPARATOR;
 
@@ -414,7 +427,29 @@ public:
                 }
                 parts.push_back(line.substr(start));
 
-                if (parts.size() == 4) {
+                if (parts.size() == 5) {
+                    const std::string& filename = parts[0];
+                    std::string hash = parts[1];
+                    uint32_t mode = 0;
+                    uint64_t size = 0;
+                    try { mode = static_cast<uint32_t>(std::stoul(parts[2])); } catch (...) {}
+                    try { size = std::stoull(parts[3]); } catch (...) {}
+                    std::string nodesStr = parts[4];
+
+                    std::vector<std::string> nodes;
+                    std::stringstream nodes_ss(nodesStr);
+                    std::string node;
+                    while(std::getline(nodes_ss, node, NODE_LIST_SEPARATOR)) {
+                        if (!node.empty()) nodes.push_back(node);
+                    }
+
+                    if (!filename.empty()) {
+                        fileMetadata[filename] = nodes;
+                        fileModes[filename] = mode;
+                        fileSizes[filename] = size;
+                        fileHashes[filename] = hash;
+                    }
+                } else if (parts.size() == 4) { // backward compatibility without hash
                     const std::string& filename = parts[0];
                     uint32_t mode = 0;
                     uint64_t size = 0;
@@ -433,8 +468,9 @@ public:
                         fileMetadata[filename] = nodes;
                         fileModes[filename] = mode;
                         fileSizes[filename] = size;
+                        fileHashes[filename] = "";
                     }
-                } else if (parts.size() == 2) { // backward compatibility
+                } else if (parts.size() == 2) { // very old format
                     const std::string& filename = parts[0];
                     std::string nodesStr = parts[1];
                     std::vector<std::string> nodes;
@@ -447,6 +483,7 @@ public:
                         fileMetadata[filename] = nodes;
                         fileModes[filename] = 0;
                         fileSizes[filename] = 0;
+                        fileHashes[filename] = "";
                     }
                 }
             }
