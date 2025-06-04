@@ -6,6 +6,7 @@
 #include <vector> // Required for std::vector
 #include <cstddef> // Required for std::byte
 #include <unordered_map>
+#include <unordered_set>
 #include <mutex> // Required for std::mutex and std::unique_lock
 // #include "utilities/blockio.hpp" // Forward declare or include only in .cpp if possible
 
@@ -109,6 +110,9 @@ public:
      * @return List of textual descriptions of differences.
      */
     std::vector<std::string> snapshotDiff(const std::string& name) const;
+
+    // Return set of all CIDs referenced by files and snapshots
+    std::unordered_set<std::string> getAllCids() const;
 
 private:
     /**

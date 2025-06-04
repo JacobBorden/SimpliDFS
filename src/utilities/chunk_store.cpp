@@ -25,3 +25,24 @@ std::vector<std::byte> ChunkStore::getChunk(const std::string& cid) const {
     }
     return {};
 }
+
+ChunkStore::GCStats ChunkStore::garbageCollect(const std::unordered_set<std::string>& referencedCids,
+                                               bool dryRun) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    GCStats stats{};
+    stats.totalChunks = chunks_.size();
+    for (auto it = chunks_.begin(); it != chunks_.end(); ) {
+        if (referencedCids.count(it->first) == 0) {
+            stats.reclaimableChunks++;
+            stats.reclaimableBytes += it->second.size();
+            if (!dryRun) {
+                stats.freedChunks++;
+                stats.freedBytes += it->second.size();
+                it = chunks_.erase(it);
+                continue;
+            }
+        }
+        ++it;
+    }
+    return stats;
+}
