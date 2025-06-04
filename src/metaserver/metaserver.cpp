@@ -372,8 +372,8 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
     return 0; // Success
 }
 
-// TODO: Update saveMetadata and loadMetadata to persist fileModes and fileSizes maps.
-// Definitions for saveMetadata and loadMetadata are now only in the header file.
+// saveMetadata and loadMetadata now persist fileModes and fileSizes alongside
+// fileMetadata and registeredNodes. Their definitions reside in the header file.
 
 
 // --- HandleClientConnection Update ---

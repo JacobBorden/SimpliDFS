@@ -332,22 +332,30 @@ public:
     }
 
     /**
-     * @brief Saves the current state of `fileMetadata` and `registeredNodes` to persistence files.
-     * @param fileMetadataPath Path to the file where file-to-node mappings will be stored.
-     * @param nodeRegistryPath Path to the file where node registration information will be stored.
-     * @note Uses `METADATA_SEPARATOR` and `NODE_LIST_SEPARATOR` for formatting.
-     *       Logs errors if files cannot be opened for writing.
+     * @brief Saves the current state of metadata to persistence files.
+     *
+     * The `fileMetadata` file now includes file mode and size in addition to
+     * the list of nodes. Each line has the format:
+     * `filename|mode|size|node1,node2,...`
      */
     void saveMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
         std::lock_guard<std::mutex> lock(metadataMutex);
 
-        // Save fileMetadata
+        // Save file metadata along with mode and size
         std::ofstream fm_ofs(fileMetadataPath);
         if (fm_ofs.is_open()) {
             for (const auto& entry : fileMetadata) {
-                fm_ofs << entry.first << METADATA_SEPARATOR;
+                const std::string& filename = entry.first;
+                uint32_t mode = fileModes.count(filename) ? fileModes.at(filename) : 0;
+                uint64_t size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
+
+                fm_ofs << filename << METADATA_SEPARATOR
+                       << mode << METADATA_SEPARATOR
+                       << size << METADATA_SEPARATOR;
+
                 for (size_t i = 0; i < entry.second.size(); ++i) {
-                    fm_ofs << entry.second[i] << (i == entry.second.size() - 1 ? "" : std::string(1, NODE_LIST_SEPARATOR));
+                    fm_ofs << entry.second[i]
+                          << (i == entry.second.size() - 1 ? "" : std::string(1, NODE_LIST_SEPARATOR));
                 }
                 fm_ofs << std::endl;
             }
@@ -373,36 +381,73 @@ public:
     }
 
     /**
-     * @brief Loads the state of `fileMetadata` and `registeredNodes` from persistence files.
-     * @param fileMetadataPath Path to the file from which file-to-node mappings will be loaded.
+     * @brief Loads the state of `fileMetadata`, `fileModes`, `fileSizes` and
+     *        `registeredNodes` from persistence files.
+     *
+     * @param fileMetadataPath Path to the file from which file metadata (mode,
+     *        size and node list) will be loaded.
      * @param nodeRegistryPath Path to the file from which node registration information will be loaded.
-     * @note Clears current in-memory metadata before loading. Uses `METADATA_SEPARATOR` and 
-     *       `NODE_LIST_SEPARATOR` for parsing. Logs errors if files cannot be opened or if parsing fails.
+     * @note Clears current in-memory metadata before loading. Uses `METADATA_SEPARATOR`
+     *       and `NODE_LIST_SEPARATOR` for parsing. Logs errors if files cannot be opened
+     *       or if parsing fails.
      */
     void loadMetadata(const std::string& fileMetadataPath, const std::string& nodeRegistryPath) {
         std::lock_guard<std::mutex> lock(metadataMutex); // metadataMutex should be mutable for lock_guard in const method
                                                        // Or isNodeRegistered should not be const if metadataMutex is not mutable.
                                                        // Making metadataMutex mutable.
 
-        // Load fileMetadata
+        // Load fileMetadata with modes and sizes
         std::ifstream fm_ifs(fileMetadataPath);
         std::string line;
         if (fm_ifs.is_open()) {
             fileMetadata.clear();
+            fileModes.clear();
+            fileSizes.clear();
             while (std::getline(fm_ifs, line)) {
-                std::stringstream ss(line);
-                std::string filename, nodesStr;
-                std::getline(ss, filename, METADATA_SEPARATOR);
-                std::getline(ss, nodesStr); // The rest is node list
-
-                std::vector<std::string> nodes;
-                std::stringstream nodes_ss(nodesStr);
-                std::string node;
-                while(std::getline(nodes_ss, node, NODE_LIST_SEPARATOR)) {
-                    nodes.push_back(node);
+                std::vector<std::string> parts;
+                size_t start = 0;
+                size_t pos = line.find(METADATA_SEPARATOR);
+                while (pos != std::string::npos) {
+                    parts.push_back(line.substr(start, pos - start));
+                    start = pos + 1;
+                    pos = line.find(METADATA_SEPARATOR, start);
                 }
-                if (!filename.empty()) {
-                    fileMetadata[filename] = nodes;
+                parts.push_back(line.substr(start));
+
+                if (parts.size() == 4) {
+                    const std::string& filename = parts[0];
+                    uint32_t mode = 0;
+                    uint64_t size = 0;
+                    try { mode = static_cast<uint32_t>(std::stoul(parts[1])); } catch (...) {}
+                    try { size = std::stoull(parts[2]); } catch (...) {}
+                    std::string nodesStr = parts[3];
+
+                    std::vector<std::string> nodes;
+                    std::stringstream nodes_ss(nodesStr);
+                    std::string node;
+                    while(std::getline(nodes_ss, node, NODE_LIST_SEPARATOR)) {
+                        if (!node.empty()) nodes.push_back(node);
+                    }
+
+                    if (!filename.empty()) {
+                        fileMetadata[filename] = nodes;
+                        fileModes[filename] = mode;
+                        fileSizes[filename] = size;
+                    }
+                } else if (parts.size() == 2) { // backward compatibility
+                    const std::string& filename = parts[0];
+                    std::string nodesStr = parts[1];
+                    std::vector<std::string> nodes;
+                    std::stringstream nodes_ss(nodesStr);
+                    std::string node;
+                    while(std::getline(nodes_ss, node, NODE_LIST_SEPARATOR)) {
+                        if (!node.empty()) nodes.push_back(node);
+                    }
+                    if (!filename.empty()) {
+                        fileMetadata[filename] = nodes;
+                        fileModes[filename] = 0;
+                        fileSizes[filename] = 0;
+                    }
                 }
             }
             fm_ifs.close();
