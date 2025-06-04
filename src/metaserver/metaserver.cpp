@@ -534,9 +534,9 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
         Logger::getInstance().log(LogLevel::INFO, "Saving metadata state.");
         metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
     }
-    std::cerr << "DIAGNOSTIC: HandleClientConnection: Request processed. Explicitly disconnecting client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
-    server_instance.DisconnectClient(_pClient);
-    std::cerr << "DIAGNOSTIC: HandleClientConnection: Client explicitly disconnected." << std::endl;
+    // std::cerr << "DIAGNOSTIC: HandleClientConnection: Request processed. Explicitly disconnecting client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
+    // server_instance.DisconnectClient(_pClient);
+    // std::cerr << "DIAGNOSTIC: HandleClientConnection: Client explicitly disconnected." << std::endl;
     } catch (const Networking::NetworkException& ne) {
         std::cerr << "DIAGNOSTIC: HandleClientConnection: NetworkException caught: " << ne.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
         Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(ne.what()));
