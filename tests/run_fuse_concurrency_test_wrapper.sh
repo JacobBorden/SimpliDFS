@@ -6,7 +6,7 @@ echo "INFO: Wrapper script starting..."
 METASERVER_EXEC=../metaserver
 FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
-TEST_EXEC=../build/tests/SimpliDFSFuseConcurrencyTest
+TEST_EXEC=./SimpliDFSFuseConcurrencyTest
 
 MOUNT_POINT="/tmp/myfusemount"
 METASERVER_PORT=50505 # Changed port
