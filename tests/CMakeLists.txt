@@ -76,8 +76,8 @@ if(BUILD_FUZZING)
     endif()
 
     # Common fuzzer compile flags (applied to each fuzzer target)
-    set(FUZZER_COMPILE_FLAGS "-fsanitize=fuzzer,address") # Also add -g for better stack traces
-    set(FUZZER_LINK_FLAGS "-fsanitize=fuzzer")
+    set(FUZZER_COMPILE_FLAGS "-fsanitize=fuzzer,address -g") # Also add -g for better stack traces
+    set(FUZZER_LINK_FLAGS "-fsanitize=fuzzer,address")
 
     # List of fuzzer source files
     set(FUZZER_SOURCES
