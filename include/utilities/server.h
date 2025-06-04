@@ -158,7 +158,8 @@ WSADATA wsaData; // Should this be a pointer or handled per InitServer call?
 	#endif
 addrinfo addressInfo; // Used for socket creation hints
 SOCKET serverSocket = 0; // Listening socket, initialize to 0 or INVALIDSOCKET_CONST
-sockaddr_in serverInfo;  // For IPv4 // TODO: support sockaddr_in6 for IPv6 with serverType_
+sockaddr_in serverInfo;  // Used for IPv4
+sockaddr_in6 serverInfo6; // Used when serverType_ == ServerType::IPv6
 bool serverIsConnected = false;
 std::vector<Networking::ClientConnection> clients;
 mutable std::mutex clients_mutex_; // Added mutable mutex for getClients() const
