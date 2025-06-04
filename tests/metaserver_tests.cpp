@@ -91,3 +91,38 @@ TEST_F(MetadataManagerTest, PrintMetadata) {
 
     ASSERT_NO_THROW(metadataManager.printMetadata());
 }
+
+TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
+    const std::string filename = "persist_file.txt";
+    const uint32_t mode = 0100644; // regular file with 0644 permissions
+    const std::string node1 = "NodePersist1";
+    const std::string node2 = "NodePersist2";
+
+    metadataManager.registerNode(node1, "127.0.0.1", 1111);
+    metadataManager.registerNode(node2, "127.0.0.1", 2222);
+
+    std::vector<std::string> nodes = {node1, node2};
+    ASSERT_EQ(metadataManager.addFile(filename, nodes, mode), 0);
+
+    uint64_t written = 0;
+    ASSERT_EQ(metadataManager.writeFileData(filename, 0, "hello world", written), 0);
+    ASSERT_EQ(written, static_cast<uint64_t>(11));
+
+    const std::string fm_path = "meta_save_test.dat";
+    const std::string nr_path = "node_save_test.dat";
+    metadataManager.saveMetadata(fm_path, nr_path);
+
+    MetadataManager mm2;
+    mm2.loadMetadata(fm_path, nr_path);
+
+    ASSERT_TRUE(mm2.fileExists(filename));
+    uint32_t loaded_mode, uid, gid; uint64_t loaded_size;
+    ASSERT_EQ(mm2.getFileAttributes(filename, loaded_mode, uid, gid, loaded_size), 0);
+    EXPECT_EQ(loaded_mode, mode);
+    EXPECT_EQ(loaded_size, static_cast<uint64_t>(11));
+    std::vector<std::string> loaded_nodes = mm2.getFileNodes(filename);
+    EXPECT_EQ(loaded_nodes, nodes);
+
+    std::remove(fm_path.c_str());
+    std::remove(nr_path.c_str());
+}
