@@ -29,8 +29,14 @@ std::string consume_string(const uint8_t** data, size_t* size, size_t max_len = 
     return str;
 }
 
+extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv) {
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
+    Logger::init("fuzzer_run.log", LogLevel::ERROR);
+    return 0;
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     FileSystem fs;
     const uint8_t* current_data = Data;
     size_t remaining_size = Size;

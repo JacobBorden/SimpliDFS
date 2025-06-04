@@ -28,9 +28,14 @@ std::vector<unsigned char> getNonce(const uint8_t* data, size_t size) {
     return std::vector<unsigned char>(data, data + crypto_aead_aes256gcm_NPUBBYTES);
 }
 
+extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv) {
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
+    Logger::init("fuzzer_run.log", LogLevel::ERROR);
+    return 0;
+}
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     BlockIO bio;
 
     // Use a portion of data for ingest

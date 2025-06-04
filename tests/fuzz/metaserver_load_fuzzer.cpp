@@ -23,8 +23,14 @@ std::string write_to_temp_file(const uint8_t* data, size_t size) {
     return temp_filename;
 }
 
+extern "C" int LLVMFuzzerInitialize(int *argc, char ***argv) {
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
+    Logger::init("fuzzer_run.log", LogLevel::ERROR);
+    return 0;
+}
+
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
-    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     if (Size == 0) {
         return 0;
     }
