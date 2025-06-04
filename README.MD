@@ -75,6 +75,19 @@ Significant progress has been made on core distributed file system logic:
    ./test/SimpliDFSTests
    ```
 
+### Optional: Fuzz Testing
+SimpliDFS includes fuzzers built with libFuzzer to stress test core components.
+To build them, configure the project with the `BUILD_FUZZING` option enabled and
+use Clang:
+
+```sh
+cmake -B build -S . -DBUILD_FUZZING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+cmake --build build
+```
+
+The resulting fuzzer executables are located in `build/tests/`. Refer to
+`TESTING_GUIDE.md` for usage details.
+
 ## Contributing
 Feel free to contribute to the project by opening issues, submitting pull requests, or suggesting new features.
 
