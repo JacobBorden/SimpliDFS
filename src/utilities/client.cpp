@@ -2,6 +2,7 @@
 #include "utilities/networkexception.h" // Include the NetworkException header
 #include "utilities/logger.h" // Include the Logger header
 #include <string>   // Required for std::to_string
+#include <sys/socket.h> // For SO_RCVTIMEO on POSIX
 #include <thread>         // For std::this_thread::sleep_for
 #include <chrono>         // For std::chrono::seconds, std::chrono::milliseconds
 #include <cmath>          // For std::pow
@@ -228,6 +229,28 @@ bool Networking::Client::ConnectClientSocket()
         throw Networking::NetworkException(tempSocket, errorCode, "Client connect failed");
     }
     clientIsConnected = true;
+
+    // Set receive timeout for the connected socket
+    #ifdef _WIN32
+        DWORD timeout = 5000; // 5 seconds in milliseconds
+        if (setsockopt(connectionSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof timeout) < 0) {
+            Logger::getInstance().log(LogLevel::WARN, "Failed to set SO_RCVTIMEO on client socket: " + std::to_string(WSAGetLastError()));
+            // Not failing fatally, connection is up, but receives might block indefinitely.
+        } else {
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 5 seconds on client socket.");
+        }
+    #else // POSIX
+        struct timeval tv;
+        tv.tv_sec = 5;  // 5 seconds timeout
+        tv.tv_usec = 0;
+        if (setsockopt(connectionSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
+            Logger::getInstance().log(LogLevel::WARN, "Failed to set SO_RCVTIMEO on client socket: " + std::string(strerror(errno)));
+            // Not failing fatally.
+        } else {
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 5 seconds on client socket.");
+        }
+    #endif
+
     return true;
 }
 
@@ -393,13 +416,42 @@ static bool recv_all(SOCKET sock, char* buffer, size_t length, bool& clientIsCon
         }
         if (bytesReceived == SOCKET_ERROR) {
             int errorCode = GETERROR();
-            Logger::getInstance().log(LogLevel::ERROR, "recv_all: recv() failed with error: " + std::to_string(errorCode));
+            std::string logMessagePrefix = "recv_all: recv() ";
+            bool isTimeout = false;
+
+            #ifdef _WIN32
+            if (errorCode == WSAETIMEDOUT) {
+                logMessagePrefix += "timed out (WSAETIMEDOUT). Error: ";
+                isTimeout = true;
+                Logger::getInstance().log(LogLevel::WARN, logMessagePrefix + std::to_string(errorCode));
+            } else {
+                logMessagePrefix += "failed with error: ";
+                Logger::getInstance().log(LogLevel::ERROR, logMessagePrefix + std::to_string(errorCode));
+            }
+            // Per subtask: "Let's maintain this behavior for timeouts as well for now" (close socket, set not connected)
             clientIsConnected_ref = false;
             CLOSESOCKET(sock);
-            #ifdef _WIN32
-            WSACleanup();
+            WSACleanup(); // Cleanup Winsock on any error
+            #else // POSIX
+            if (errorCode == EAGAIN || errorCode == EWOULDBLOCK) {
+                logMessagePrefix += "timed out (EAGAIN/EWOULDBLOCK). Error: ";
+                isTimeout = true;
+                Logger::getInstance().log(LogLevel::WARN, logMessagePrefix + std::to_string(errorCode) + " (" + strerror(errorCode) + ")");
+            } else {
+                logMessagePrefix += "failed with error: ";
+                Logger::getInstance().log(LogLevel::ERROR, logMessagePrefix + std::to_string(errorCode) + " (" + strerror(errorCode) + ")");
+            }
+            // Per subtask: "Let's maintain this behavior for timeouts as well for now"
+            clientIsConnected_ref = false;
+            CLOSESOCKET(sock); // Close socket on any error
             #endif
-            throw Networking::NetworkException(sock, errorCode, "recv_all failed");
+
+            // Throw exception, indicating timeout in message if applicable
+            std::string exceptionMessage = "recv_all failed";
+            if (isTimeout) {
+                exceptionMessage += " due to timeout";
+            }
+            throw Networking::NetworkException(sock, errorCode, exceptionMessage);
         }
         totalBytesReceived += bytesReceived;
     }
