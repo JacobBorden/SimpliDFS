@@ -616,37 +616,40 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
         }
 
         std::vector<char> received_vector = active_client->Receive();
-        // Node::handleClient sends raw data, or empty string for EOF, or "ERROR:..." string.
-        // It does not send a serialized Message object for ReadFile responses.
 
         if (received_vector.empty()) {
-            // This means 0 bytes were read. Could be EOF if offset was at/past end, or actual empty part of file.
-            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Received empty response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Assuming 0 bytes read (e.g. EOF).");
-            return 0; // 0 bytes copied
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Received empty (and unexpected) response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Expected a serialized Message.");
+            return -EIO;
         }
 
-        std::string res_data_str(received_vector.begin(), received_vector.end());
-
-        if (res_data_str.rfind("ERROR:", 0) == 0) { // Starts with "ERROR:"
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Storage node error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_data_str);
-            if (res_data_str.find("File not found") != std::string::npos) {
-                return -ENOENT;
-            } else if (res_data_str.find("Invalid offset") != std::string::npos) {
-                return -EINVAL; // Or -EIO, FUSE doesn't have a direct "invalid offset" error for read itself
-            }
-            return -EIO; // Generic I/O error for other errors
+        std::string serialized_res_str(received_vector.begin(), received_vector.end());
+        Message res_msg;
+        try {
+            res_msg = Message::Deserialize(serialized_res_str);
+        } catch (const std::runtime_error& e) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Failed to deserialize response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Data: '" + serialized_res_str + "'. Error: " + e.what());
+            return -EIO;
         }
 
-        // If not an error, res_data_str is the actual file data
-        size_t bytes_to_copy = std::min(size, res_data_str.length());
-        memcpy(buf, res_data_str.data(), bytes_to_copy);
+        if (res_msg._Type != MessageType::ReadResponse) {
+            Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Expected ReadResponse, but got " + std::to_string(static_cast<int>(res_msg._Type)) + " for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
+            // Depending on strictness, could return -EIO here. For now, proceed if ErrorCode is informative.
+        }
+
+        if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Storage node returned error " + std::to_string(res_msg._ErrorCode) + " for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Details: " + res_msg._Data);
+            return -res_msg._ErrorCode; // Return the negative of the errno value
+        }
+
+        // Success (_ErrorCode == 0)
+        size_t bytes_to_copy = std::min(size, static_cast<size_t>(res_msg._Data.length()));
+        // Also respect res_msg._Size which indicates actual data sent by node (e.g. for EOF)
+        // bytes_to_copy = std::min(bytes_to_copy, static_cast<size_t>(res_msg._Size));
+        memcpy(buf, res_msg._Data.data(), bytes_to_copy);
 
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Successfully read " + std::to_string(bytes_to_copy) + " bytes from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
         return static_cast<ssize_t>(bytes_to_copy);
 
-    } catch (const std::runtime_error& e) { // Catch Message::Serialize/Deserialize errors
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Runtime error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
-        return -EIO;
     } catch (const Networking::NetworkException& ne) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: NetworkException for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(ne.what()));
         return -EIO;
@@ -913,28 +916,34 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
 
         std::vector<char> received_vector = active_client->Receive();
         if (received_vector.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received empty response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received empty (and unexpected) response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Expected a serialized Message.");
             return -EIO;
         }
 
-        std::string res_str(received_vector.begin(), received_vector.end());
-
-        // Node::handleClient for WriteFile sends "SUCCESS:..." or "ERROR:..."
-        if (res_str.rfind("SUCCESS:", 0) == 0) { // Starts with "SUCCESS:"
-            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Successfully wrote " + std::to_string(size) + " bytes to storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Response: " + res_str);
-            return static_cast<ssize_t>(size); // Return the requested write size on success
-        } else if (res_str.rfind("ERROR:", 0) == 0) { // Starts with "ERROR:"
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Storage node error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_str);
-            // Specific error mapping could be done here if node provides more details
-            return -EIO; // Generic I/O error
-        } else {
-            Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Unexpected response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_str);
-            return -EIO; // Unexpected response format
+        std::string serialized_res_str(received_vector.begin(), received_vector.end());
+        Message res_msg;
+        try {
+            res_msg = Message::Deserialize(serialized_res_str);
+        } catch (const std::runtime_error& e) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to deserialize response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Data: '" + serialized_res_str + "'. Error: " + e.what());
+            return -EIO;
         }
 
-    } catch (const std::runtime_error& e) {
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Runtime error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
-        return -EIO;
+        if (res_msg._Type != MessageType::WriteResponse) {
+             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Expected WriteResponse, but got " + std::to_string(static_cast<int>(res_msg._Type)) + " for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
+            // Could be an error, but proceed to check ErrorCode.
+        }
+
+        if (res_msg._ErrorCode != 0) {
+            Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Storage node returned error " + std::to_string(res_msg._ErrorCode) + " for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Details: " + res_msg._Data);
+            return -res_msg._ErrorCode; // Return the negative of the errno value
+        }
+
+        // Success (_ErrorCode == 0)
+        // The _Data field might contain "SUCCESS:..." message from the node, which can be logged if desired.
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Successfully wrote " + std::to_string(size) + " bytes to storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Node response data: " + res_msg._Data);
+        return static_cast<ssize_t>(size); // Return the originally requested write size on success
+
     } catch (const Networking::NetworkException& ne) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: NetworkException for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(ne.what()));
         return -EIO;

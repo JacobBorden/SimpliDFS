@@ -153,24 +153,31 @@ public:
 
                         // Per instruction: "If message._Data is empty, it should still call fileSystem.createFile as before."
                         success = fileSystem.createFile(message._Filename);
+                        Message response_msg;
+                        response_msg._Type = MessageType::WriteResponse;
                         if (success) {
-                            server.Send(("SUCCESS: File " + message._Filename + " created.").c_str(), client);
+                            response_msg._ErrorCode = 0;
+                            response_msg._Data = "SUCCESS: File " + message._Filename + " created.";
                         } else {
-                            // createFile might fail if it exists. This could be an error or an idempotent success.
-                            // For FUSE `create` operation, if it exists, it's usually an error (EEXIST).
-                            // However, the previous logic tried to treat this as success.
-                            // Let's simplify and send an error if createFile fails, as it's more standard.
-                            // The client (FUSE adapter) can decide if EEXIST is okay for its operation.
-                            server.Send(("ERROR: Could not create file " + message._Filename + ". It may already exist or other FS issue.").c_str(), client);
+                            // Assuming EEXIST is the primary reason for createFile failure here,
+                            // as per typical create semantics. Other FS errors could lead to EIO.
+                            // For simplicity, we'll use EEXIST if it failed.
+                            response_msg._ErrorCode = EEXIST; // Or a generic EIO if preferred for all createFile failures
+                            response_msg._Data = "ERROR: Could not create file " + message._Filename + ". It may already exist or other FS issue.";
                         }
+                        server.Send(Message::Serialize(response_msg).c_str(), client);
                     } else { // Non-empty content, try to write (overwrite)
                         success = fileSystem.writeFile(message._Filename, message._Data); // Changed _Content to _Data
+                        Message response_msg;
+                        response_msg._Type = MessageType::WriteResponse;
                         if (success) {
-                            server.Send(("SUCCESS: File " + message._Filename + " written.").c_str(), client);
+                            response_msg._ErrorCode = 0;
+                            response_msg._Data = "SUCCESS: File " + message._Filename + " written.";
                         } else {
-                            // writeFile could fail if the path is invalid, FS error, etc.
-                            server.Send(("ERROR: Could not write to file " + message._Filename + ".").c_str(), client);
+                            response_msg._ErrorCode = EIO; // Generic I/O error for writeFile failure
+                            response_msg._Data = "ERROR: Could not write to file " + message._Filename + ".";
                         }
+                        server.Send(Message::Serialize(response_msg).c_str(), client);
                     }
                     break;
                 }
@@ -179,10 +186,15 @@ public:
                         std::string file_content = fileSystem.readFile(message._Filename); // Assumed to throw if not found
                         size_t file_size = file_content.length();
 
+                        Message response_msg;
+                        response_msg._Type = MessageType::ReadResponse;
+
                         if (message._Offset < 0) { // Basic sanity check for offset
-                            Logger::getInstance().log(LogLevel::WARNING, "Node " + nodeName +
+                            Logger::getInstance().log(LogLevel::WARN, "Node " + nodeName +
                                 ": Received ReadFile request for '" + message._Filename + "' with negative offset " + std::to_string(message._Offset));
-                            server.Send("ERROR: Invalid offset.", client);
+                            response_msg._ErrorCode = EINVAL;
+                            response_msg._Data = "ERROR: Invalid offset.";
+                            server.Send(Message::Serialize(response_msg).c_str(), client);
                             break;
                         }
 
@@ -190,14 +202,10 @@ public:
 
                         if (offset >= file_size) {
                             // Offset is at or beyond EOF. Send empty success (0 bytes read).
-                            // FUSE expects 0 bytes in this case for a valid file.
-                            // An empty string is a common way to signify success with 0 bytes payload.
-                            Message SucceededReply;
-                            SucceededReply._Type = MessageType::OperationSuccess; // Or some generic success
-                            SucceededReply._Data = ""; // Empty data
-                            SucceededReply._Size = 0; // Explicitly 0 bytes
-                            // server.Send(Message::Serialize(SucceededReply).c_str(), client);
-                            server.Send("", client); // Simpler: send empty body for "0 bytes read successfully"
+                            response_msg._ErrorCode = 0;
+                            response_msg._Data = "";
+                            response_msg._Size = 0;
+                            server.Send(Message::Serialize(response_msg).c_str(), client);
                         } else {
                             // Calculate the actual number of bytes to read
                             size_t len_to_read = message._Size;
@@ -206,26 +214,30 @@ public:
                             }
 
                             std::string data_to_send = file_content.substr(offset, len_to_read);
-                            // server.Send(data_to_send.c_str(), client); // Original way
-                            Message dataReply;
-                            dataReply._Type = MessageType::OperationSuccess; // Or FileData
-                            dataReply._Data = data_to_send;
-                            dataReply._Size = data_to_send.length();
-                             // server.Send(Message::Serialize(dataReply).c_str(), client);
-                            server.Send(data_to_send.c_str(), client); // Keep it simple: send raw data on success for read
-
+                            response_msg._ErrorCode = 0;
+                            response_msg._Data = data_to_send; // Raw data, no "SUCCESS:" prefix
+                            response_msg._Size = data_to_send.length();
+                            server.Send(Message::Serialize(response_msg).c_str(), client);
                         }
                     } catch (const std::ios_base::failure& e) {
                         // This is a common exception type for file I/O errors (like not found) from std::fstream.
                         // Assuming fileSystem.readFile might throw this or a derivative if file not found.
-                        Logger::getInstance().log(LogLevel::WARNING, "Node " + nodeName +
+                        Logger::getInstance().log(LogLevel::WARN, "Node " + nodeName +
                             ": ReadFile failed for '" + message._Filename + "' (likely not found). Exception: " + e.what());
-                        server.Send("ERROR: File not found.", client);
+                        Message error_response_msg;
+                        error_response_msg._Type = MessageType::ReadResponse;
+                        error_response_msg._ErrorCode = ENOENT; // File Not Found
+                        error_response_msg._Data = "ERROR: File not found.";
+                        server.Send(Message::Serialize(error_response_msg).c_str(), client);
                     } catch (const std::exception& e) {
                         // Catch-all for other errors (e.g., bad_alloc, out_of_range from substr if logic is flawed)
                         Logger::getInstance().log(LogLevel::ERROR, "Node " + nodeName +
                             ": Error processing ReadFile for '" + message._Filename + "'. Exception: " + e.what());
-                        server.Send("ERROR: Could not read file due to server error.", client);
+                        Message error_response_msg;
+                        error_response_msg._Type = MessageType::ReadResponse;
+                        error_response_msg._ErrorCode = EIO; // Generic I/O error
+                        error_response_msg._Data = "ERROR: Could not read file due to server error.";
+                        server.Send(Message::Serialize(error_response_msg).c_str(), client);
                     }
                     break;
                 }
