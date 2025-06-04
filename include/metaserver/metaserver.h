@@ -276,6 +276,19 @@ public:
     // The old implementation block is removed here.
     // getFileNodes is defined below, so its separate declaration was removed.
 
+    // --- Methods for asynchronous saving dirty flag ---
+    void markDirty() {
+        metadata_is_dirty_ = true;
+    }
+
+    bool isDirty() const {
+        return metadata_is_dirty_.load();
+    }
+
+    void clearDirty() {
+        metadata_is_dirty_ = false;
+    }
+
     /**
      * @brief Checks if a node with the given identifier is registered.
      * @param nodeIdentifier The unique identifier of the node.
@@ -449,8 +462,3 @@ namespace Networking { class ClientConnection; } // Forward declare ClientConnec
 // The `registerNode` method is part of it.
 // The Node object makes a network call. So the test needs a server that
 // can receive this call and then call the `registerNode` on the `MetadataManager` instance.
-
-    // Dirty flag management
-    void markDirty() { metadata_is_dirty_ = true; }
-    bool isDirty() const { return metadata_is_dirty_.load(); }
-    void clearDirty() { metadata_is_dirty_ = false; }
