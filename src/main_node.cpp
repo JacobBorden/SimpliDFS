@@ -7,8 +7,8 @@
 #include <chrono> // For std::chrono::seconds
 
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <NodeName> <Port>" << std::endl;
+    if (argc < 5) {
+        std::cerr << "Usage: " << argv[0] << " <NodeName> <Port> <MetaserverAddress> <MetaserverPort>" << std::endl;
         return 1;
     }
 
@@ -33,6 +33,18 @@ int main(int argc, char* argv[]) {
 
     Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " starting on port " + std::to_string(port));
 
+    std::string metaserverAddress = argv[3];
+    int metaserverPort = 0;
+    try {
+        metaserverPort = std::stoi(argv[4]);
+    } catch (const std::invalid_argument& ia) {
+        std::cerr << "Invalid metaserver port number: " << argv[4] << ". " << ia.what() << std::endl;
+        return 1;
+    } catch (const std::out_of_range& oor) {
+        std::cerr << "Metaserver port number out of range: " << argv[4] << ". " << oor.what() << std::endl;
+        return 1;
+    }
+
     try {
         Node node(nodeName, port);
         Logger::getInstance().log(LogLevel::INFO, "Node object '" + nodeName + "' created.");
@@ -40,10 +52,10 @@ int main(int argc, char* argv[]) {
         node.start();
         Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " server started.");
 
-        // Register with the MetadataManager
-        // TODO: Make Metaserver address/port configurable
-        Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " registering with MetadataManager at 127.0.0.1:50505.");
-        node.registerWithMetadataManager("127.0.0.1", 50505);
+        // Register with the MetadataManager using provided address and port
+        Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " registering with MetadataManager at " +
+                                      metaserverAddress + ":" + std::to_string(metaserverPort) + ".");
+        node.registerWithMetadataManager(metaserverAddress, metaserverPort);
         Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " registration attempt completed.");
 
         Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " running. Main thread entering idle loop.");
