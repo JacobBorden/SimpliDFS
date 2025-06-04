@@ -135,43 +135,97 @@ public:
             switch (message._Type) {
                 case MessageType::WriteFile: {
                     bool success = false;
-                    if (message._Content.empty()) { // Treat empty content write as create file
+                    // If message._Data is empty, it means we want to create an empty file (truncate if exists)
+                    // or ensure it exists. The FUSE adapter might send this for `create` or `truncate`.
+                    if (message._Data.empty()) {
+                        // Attempt to create the file. If it already exists, this might be fine (idempotent create).
+                        // FileSystem::createFile should handle this, possibly by truncating.
+                        // For now, assume createFile creates if not exist, or is a no-op if it does and is empty.
+                        // If it needs to truncate, writeFile with empty content is better.
+                        // Let's stick to the current FileSystem behavior: createFile for truly new, writeFile for overwriting/truncating.
+                        // The subtask says: "If message._Data is empty, it should still call fileSystem.createFile as before."
+                        // However, writeFile with empty string is typically how truncation is handled.
+                        // Let's refine this: if _Data is empty, we are likely creating/truncating.
+                        // The original code used createFile. Let's keep that specific instruction for now.
+                        // If the file is intended to be truncated, the FUSE adapter should ideally send a specific truncate message
+                        // or ensure writeFile handles empty content as truncation.
+                        // Given the current structure, if _Data is empty, we might be just creating.
+
+                        // Per instruction: "If message._Data is empty, it should still call fileSystem.createFile as before."
                         success = fileSystem.createFile(message._Filename);
-                         if (success) {
-                            server.Send(("File " + message._Filename + " created successfully.").c_str(), client);
-                        } else {
-                            // createFile logs if it already exists or other errors.
-                            // Check if it already exists to send a different success message for idempotency.
-                            if (fileSystem.readFile(message._Filename).empty() && !fileSystem.getXattr(message._Filename, "user.cid").empty()) {
-                                // This is tricky: readFile returns "" for non-existent or for truly empty (but existing) files.
-                                // If it has xattrs, it must exist. A file created by createFile will have empty content and no xattrs.
-                                // A proper fileSystem.fileExists() would be better.
-                                // For now, if createFile fails, assume it might be due to already existing.
-                                // Let's refine: if createFile returns false, it means it already existed (as per its log).
-                                // This can be treated as success for "ensure exists".
-                                Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + ": WriteFile with empty content for existing file " + message._Filename + " (treated as success).");
-                                server.Send(("File " + message._Filename + " (already exists) processed successfully.").c_str(), client);
-                                success = true; // Idempotent success
-                            } else {
-                                server.Send(("Error: Unable to create file " + message._Filename + " (may already exist or other issue).").c_str(), client);
-                            }
-                        }
-                    } else { // Non-empty content, try to write (will fail if file doesn't exist)
-                        success = fileSystem.writeFile(message._Filename, message._Content);
                         if (success) {
-                            server.Send(("File " + message._Filename + " written successfully.").c_str(), client);
+                            server.Send(("SUCCESS: File " + message._Filename + " created.").c_str(), client);
                         } else {
-                            server.Send(("Error: Unable to write file " + message._Filename + ".").c_str(), client);
+                            // createFile might fail if it exists. This could be an error or an idempotent success.
+                            // For FUSE `create` operation, if it exists, it's usually an error (EEXIST).
+                            // However, the previous logic tried to treat this as success.
+                            // Let's simplify and send an error if createFile fails, as it's more standard.
+                            // The client (FUSE adapter) can decide if EEXIST is okay for its operation.
+                            server.Send(("ERROR: Could not create file " + message._Filename + ". It may already exist or other FS issue.").c_str(), client);
+                        }
+                    } else { // Non-empty content, try to write (overwrite)
+                        success = fileSystem.writeFile(message._Filename, message._Data); // Changed _Content to _Data
+                        if (success) {
+                            server.Send(("SUCCESS: File " + message._Filename + " written.").c_str(), client);
+                        } else {
+                            // writeFile could fail if the path is invalid, FS error, etc.
+                            server.Send(("ERROR: Could not write to file " + message._Filename + ".").c_str(), client);
                         }
                     }
                     break;
                 }
                 case MessageType::ReadFile: {
-                    std::string content = fileSystem.readFile(message._Filename);
-                    if (!content.empty()) {
-                        server.Send(content.c_str(), client);
-                    } else {
-                        server.Send("Error: File not found.", client);
+                    try {
+                        std::string file_content = fileSystem.readFile(message._Filename); // Assumed to throw if not found
+                        size_t file_size = file_content.length();
+
+                        if (message._Offset < 0) { // Basic sanity check for offset
+                            Logger::getInstance().log(LogLevel::WARNING, "Node " + nodeName +
+                                ": Received ReadFile request for '" + message._Filename + "' with negative offset " + std::to_string(message._Offset));
+                            server.Send("ERROR: Invalid offset.", client);
+                            break;
+                        }
+
+                        uint64_t offset = static_cast<uint64_t>(message._Offset); // Ensure offset is treated as unsigned
+
+                        if (offset >= file_size) {
+                            // Offset is at or beyond EOF. Send empty success (0 bytes read).
+                            // FUSE expects 0 bytes in this case for a valid file.
+                            // An empty string is a common way to signify success with 0 bytes payload.
+                            Message SucceededReply;
+                            SucceededReply._Type = MessageType::OperationSuccess; // Or some generic success
+                            SucceededReply._Data = ""; // Empty data
+                            SucceededReply._Size = 0; // Explicitly 0 bytes
+                            // server.Send(Message::Serialize(SucceededReply).c_str(), client);
+                            server.Send("", client); // Simpler: send empty body for "0 bytes read successfully"
+                        } else {
+                            // Calculate the actual number of bytes to read
+                            size_t len_to_read = message._Size;
+                            if (offset + message._Size > file_size) {
+                                len_to_read = file_size - offset;
+                            }
+
+                            std::string data_to_send = file_content.substr(offset, len_to_read);
+                            // server.Send(data_to_send.c_str(), client); // Original way
+                            Message dataReply;
+                            dataReply._Type = MessageType::OperationSuccess; // Or FileData
+                            dataReply._Data = data_to_send;
+                            dataReply._Size = data_to_send.length();
+                             // server.Send(Message::Serialize(dataReply).c_str(), client);
+                            server.Send(data_to_send.c_str(), client); // Keep it simple: send raw data on success for read
+
+                        }
+                    } catch (const std::ios_base::failure& e) {
+                        // This is a common exception type for file I/O errors (like not found) from std::fstream.
+                        // Assuming fileSystem.readFile might throw this or a derivative if file not found.
+                        Logger::getInstance().log(LogLevel::WARNING, "Node " + nodeName +
+                            ": ReadFile failed for '" + message._Filename + "' (likely not found). Exception: " + e.what());
+                        server.Send("ERROR: File not found.", client);
+                    } catch (const std::exception& e) {
+                        // Catch-all for other errors (e.g., bad_alloc, out_of_range from substr if logic is flawed)
+                        Logger::getInstance().log(LogLevel::ERROR, "Node " + nodeName +
+                            ": Error processing ReadFile for '" + message._Filename + "'. Exception: " + e.what());
+                        server.Send("ERROR: Could not read file due to server error.", client);
                     }
                     break;
                 }

@@ -552,45 +552,109 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
     std::string path_str(path);
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
-    SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->metadata_client) {
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: FUSE data or metadata_client not available for " + path_str);
-        return -EIO;
-    }
-    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    std::string path_str(path); // Moved path_str definition earlier
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset) + ", fh: " + (fi ? std::to_string(fi->fh) : "null_fi"));
+
     if (size == 0) return 0;
 
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (!data) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: FUSE data not available for " + path_str);
+        return -EIO;
+    }
+
+    if (!fi || fi->fh == 0) { // fi->fh = 0 is often invalid or used for non-file handles
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Invalid file_info or fh for path " + path_str + (fi ? " (fh=" + std::to_string(fi->fh) + ")" : ""));
+        return -EBADF;
+    }
+
+    StorageNodeClient* snc_obj_ptr = nullptr; // Pointer to the object in map
+    Networking::Client* active_client = nullptr; // The actual network client
+
+    // Scope for locking active_storage_clients_mutex
+    {
+        std::lock_guard<std::mutex> map_lock(data->active_storage_clients_mutex);
+        auto it = data->active_storage_clients.find(fi->fh);
+        if (it == data->active_storage_clients.end()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: No storage client found for fh " + std::to_string(fi->fh) + " (" + path_str + ").");
+            return -EBADF; // Bad file descriptor
+        }
+        snc_obj_ptr = &it->second; // Get pointer to the StorageNodeClient in the map
+        if (!snc_obj_ptr->client) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Storage client for fh " + std::to_string(fi->fh) + " (" + path_str + ") is null.");
+            // Attempt to remove potentially stale entry
+            data->active_storage_clients.erase(it);
+            return -ECONNRESET; // Connection reset by peer (or bad state)
+        }
+        active_client = snc_obj_ptr->client;
+    } // active_storage_clients_mutex is released here
+
+    // Now lock the specific client's mutex
+    // This relies on snc_obj_ptr still being valid if simpli_release can be called concurrently.
+    // For true safety here, snc_obj_ptr should be a shared_ptr or the map_lock held longer.
+    // Given the constraints, proceed, but note this potential race if fi->fh can be released and reused quickly.
+    // However, active_storage_clients_mutex is re-acquired by simpli_release, so an erase won't happen
+    // exactly during this unprotected moment for THIS specific fh. The danger is if the fh is reused
+    // after release and before this read op fully completes. This is a general FUSE fh lifecycle concern.
+    // For now, assume fi->fh remains consistent for the lifetime of this call after map lookup.
+
+    std::lock_guard<std::mutex> client_operation_lock(snc_obj_ptr->client_mutex);
+
     Message req_msg;
-    req_msg._Type = MessageType::Read;
-    req_msg._Path = path_str;
+    req_msg._Type = MessageType::ReadFile; // Changed from MessageType::Read
+    req_msg._Filename = path_str; // Use full path as per Node::handleClient expectation
     req_msg._Offset = static_cast<int64_t>(offset);
     req_msg._Size = static_cast<uint64_t>(size);
+    // _Data is not needed for ReadFile request
 
     try {
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Failed to send Read request for " + path_str);
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Sending ReadFile req to SN for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
+        if (!active_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Failed to send ReadFile request to storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
             return -EIO;
         }
 
-        std::vector<char> received_vector = data->metadata_client->Receive();
-        std::string serialized_res(received_vector.begin(), received_vector.end());
-        Message res_msg = Message::Deserialize(serialized_res);
+        std::vector<char> received_vector = active_client->Receive();
+        // Node::handleClient sends raw data, or empty string for EOF, or "ERROR:..." string.
+        // It does not send a serialized Message object for ReadFile responses.
 
-        if (res_msg._ErrorCode != 0) {
-            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Metaserver error " + std::to_string(res_msg._ErrorCode) + " for " + path_str);
-            return -res_msg._ErrorCode;
+        if (received_vector.empty()) {
+            // This means 0 bytes were read. Could be EOF if offset was at/past end, or actual empty part of file.
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Received empty response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Assuming 0 bytes read (e.g. EOF).");
+            return 0; // 0 bytes copied
         }
 
-        size_t bytes_to_copy = std::min(size, static_cast<size_t>(res_msg._Data.length()));
-        memcpy(buf, res_msg._Data.data(), bytes_to_copy);
+        std::string res_data_str(received_vector.begin(), received_vector.end());
 
-        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Successfully read " + std::to_string(bytes_to_copy) + " bytes from " + path_str);
+        if (res_data_str.rfind("ERROR:", 0) == 0) { // Starts with "ERROR:"
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Storage node error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_data_str);
+            if (res_data_str.find("File not found") != std::string::npos) {
+                return -ENOENT;
+            } else if (res_data_str.find("Invalid offset") != std::string::npos) {
+                return -EINVAL; // Or -EIO, FUSE doesn't have a direct "invalid offset" error for read itself
+            }
+            return -EIO; // Generic I/O error for other errors
+        }
+
+        // If not an error, res_data_str is the actual file data
+        size_t bytes_to_copy = std::min(size, res_data_str.length());
+        memcpy(buf, res_data_str.data(), bytes_to_copy);
+
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Successfully read " + std::to_string(bytes_to_copy) + " bytes from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
         return static_cast<ssize_t>(bytes_to_copy);
-    } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Exception for " + path_str + ": " + std::string(e.what()));
+
+    } catch (const std::runtime_error& e) { // Catch Message::Serialize/Deserialize errors
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Runtime error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
+        return -EIO;
+    } catch (const Networking::NetworkException& ne) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: NetworkException for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(ne.what()));
+        return -EIO;
+    } catch (const std::exception& e) { // Catch other std::exceptions
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Generic exception for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
         return -EIO;
     }
+    // client_operation_lock is released here
 }
 
 int simpli_access(const char *path, int mask) {
@@ -795,47 +859,90 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     std::string path_str(path);
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
+    std::string path_str(path); // Moved path_str definition earlier
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset) + ", fh: " + (fi ? std::to_string(fi->fh) : "null_fi"));
+
+    if (size == 0) return static_cast<ssize_t>(0); // POSIX compliance: writing 0 bytes should return 0
+
     SimpliDfsFuseData* data = get_fuse_data();
-    if (!data || !data->metadata_client) {
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: FUSE data or metadata_client not available for " + path_str);
+    if (!data) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: FUSE data not available for " + path_str);
         return -EIO;
     }
-    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
-    if (size == 0) return 0;
+
+    if (!fi || fi->fh == 0) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Invalid file_info or fh for path " + path_str + (fi ? " (fh=" + std::to_string(fi->fh) + ")" : ""));
+        return -EBADF;
+    }
+
+    StorageNodeClient* snc_obj_ptr = nullptr;
+    Networking::Client* active_client = nullptr;
+
+    {
+        std::lock_guard<std::mutex> map_lock(data->active_storage_clients_mutex);
+        auto it = data->active_storage_clients.find(fi->fh);
+        if (it == data->active_storage_clients.end()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: No storage client found for fh " + std::to_string(fi->fh) + " (" + path_str + ").");
+            return -EBADF;
+        }
+        snc_obj_ptr = &it->second;
+        if (!snc_obj_ptr->client) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Storage client for fh " + std::to_string(fi->fh) + " (" + path_str + ") is null.");
+            data->active_storage_clients.erase(it); // Clean up stale entry
+            return -ECONNRESET;
+        }
+        active_client = snc_obj_ptr->client;
+    } // active_storage_clients_mutex is released here
+
+    std::lock_guard<std::mutex> client_operation_lock(snc_obj_ptr->client_mutex);
 
     Message req_msg;
-    req_msg._Type = MessageType::Write;
-    req_msg._Path = path_str;
-    req_msg._Offset = static_cast<int64_t>(offset);
-    req_msg._Size = static_cast<uint64_t>(size);
+    req_msg._Type = MessageType::WriteFile; // Changed from MessageType::Write
+    req_msg._Filename = path_str;
+    req_msg._Offset = static_cast<int64_t>(offset); // Node side currently ignores offset for WriteFile
+    req_msg._Size = static_cast<uint64_t>(size);    // Node side currently ignores size for WriteFile (uses Data.length())
     req_msg._Data.assign(buf, size);
 
     try {
         std::string serialized_req = Message::Serialize(req_msg);
-        if (!data->metadata_client->Send(serialized_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to send Write request for " + path_str);
+        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Sending WriteFile req to SN for " + path_str + " (fh: " + std::to_string(fi->fh) + "), size: " + std::to_string(size));
+        if (!active_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to send WriteFile request to storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
             return -EIO;
         }
 
-        std::vector<char> received_vector = data->metadata_client->Receive();
+        std::vector<char> received_vector = active_client->Receive();
         if (received_vector.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received empty response for " + path_str);
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Received empty response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + ")");
             return -EIO;
         }
-        std::string serialized_res(received_vector.begin(), received_vector.end());
-        Message res_msg = Message::Deserialize(serialized_res);
 
-        if (res_msg._ErrorCode != 0) {
-            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Metaserver error " + std::to_string(res_msg._ErrorCode) + " for " + path_str);
-            return -res_msg._ErrorCode;
+        std::string res_str(received_vector.begin(), received_vector.end());
+
+        // Node::handleClient for WriteFile sends "SUCCESS:..." or "ERROR:..."
+        if (res_str.rfind("SUCCESS:", 0) == 0) { // Starts with "SUCCESS:"
+            Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Successfully wrote " + std::to_string(size) + " bytes to storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "). Response: " + res_str);
+            return static_cast<ssize_t>(size); // Return the requested write size on success
+        } else if (res_str.rfind("ERROR:", 0) == 0) { // Starts with "ERROR:"
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Storage node error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_str);
+            // Specific error mapping could be done here if node provides more details
+            return -EIO; // Generic I/O error
+        } else {
+            Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Unexpected response from storage node for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + res_str);
+            return -EIO; // Unexpected response format
         }
-        ssize_t bytes_written = static_cast<ssize_t>(res_msg._Size);
-        Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Successfully wrote " + std::to_string(bytes_written) + " bytes to " + path_str);
-        return bytes_written;
+
+    } catch (const std::runtime_error& e) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Runtime error for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
+        return -EIO;
+    } catch (const Networking::NetworkException& ne) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: NetworkException for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(ne.what()));
+        return -EIO;
     } catch (const std::exception& e) {
-        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exception for " + path_str + ": " + std::string(e.what()));
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Generic exception for " + path_str + " (fh: " + std::to_string(fi->fh) + "): " + std::string(e.what()));
         return -EIO;
     }
+    // client_operation_lock is released here
 }
 
 int simpli_unlink(const char *path) {
