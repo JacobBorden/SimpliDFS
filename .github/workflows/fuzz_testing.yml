@@ -2,9 +2,9 @@ name: Fuzz Testing
 
 on:
   push:
-    branches: [ main, development ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, development ]
+    branches: [ main ]
 
 jobs:
   fuzz:
@@ -13,10 +13,10 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Clang
+    - name: Install Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang llvm
+        sudo apt-get install -y libsodium-dev libzstd-dev libfuse3-dev pkg-config clang llvm
 
     - name: Configure CMake for Fuzzing
       run: |
