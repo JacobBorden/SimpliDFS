@@ -226,6 +226,29 @@ TEST_F(FileSystemTestFix, ReadFile_TamperedCID_Simulated) {
     EXPECT_EQ(fs.readFile(filename), ""); // Expect empty string due to CID mismatch exception
 }
 
+TEST_F(FileSystemTestFix, SnapshotCreateCheckout) {
+    const std::string filename = "snap.txt";
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, "good"));
+    ASSERT_TRUE(fs.snapshotCreate("s1"));
+
+    ASSERT_TRUE(fs.writeFile(filename, "bad"));
+    ASSERT_TRUE(fs.snapshotCheckout("s1"));
+    EXPECT_EQ(fs.readFile(filename), "good");
+}
+
+TEST_F(FileSystemTestFix, SnapshotDiff) {
+    const std::string filename = "diff.txt";
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, "a"));
+    ASSERT_TRUE(fs.snapshotCreate("snap"));
+
+    ASSERT_TRUE(fs.writeFile(filename, "b"));
+    auto diff = fs.snapshotDiff("snap");
+    ASSERT_FALSE(diff.empty());
+    EXPECT_EQ(diff[0], "Modified: " + filename);
+}
+
 // Test for the original extendedAttributes test logic, ensuring general xattr functions work
 TEST_F(FileSystemTestFix, ExtendedAttributeGeneralOperations) {
     const std::string filename = "xattr_general_ops.txt";
