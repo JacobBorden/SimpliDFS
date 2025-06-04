@@ -5,6 +5,7 @@
 #include <cstdio>   // For std::remove
 #include <string>   // For std::to_string in TearDown
 #include <vector>
+#include <algorithm>
 #include <cstddef> // For std::byte
 #include <stdexcept> // For std::runtime_error
 
