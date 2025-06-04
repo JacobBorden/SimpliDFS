@@ -1,6 +1,7 @@
 // Unit Tests for MetadataManager
 #include "gtest/gtest.h"
 #include "metaserver/metaserver.h"
+#include "utilities/blockio.hpp"
 
 // Test Fixture for MetadataManager
 class MetadataManagerTest : public ::testing::Test {
@@ -122,6 +123,13 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
     EXPECT_EQ(loaded_size, static_cast<uint64_t>(11));
     std::vector<std::string> loaded_nodes = mm2.getFileNodes(filename);
     EXPECT_EQ(loaded_nodes, nodes);
+
+    BlockIO bio;
+    std::vector<std::byte> bytes;
+    for(char c : std::string("hello world")) bytes.push_back(std::byte(c));
+    bio.ingest(bytes.data(), bytes.size());
+    DigestResult dr = bio.finalize_hashed();
+    EXPECT_EQ(mm2.getFileHash(filename), dr.cid);
 
     std::remove(fm_path.c_str());
     std::remove(nr_path.c_str());

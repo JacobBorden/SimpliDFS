@@ -12,6 +12,8 @@ add_library(SimpliDFS_Utils
     cid_utils.cpp  # Added cid_utils.cpp
     blockio.cpp    # Moved from BlockIOLib
     key_manager.cpp
+    chunk_store.cpp
+    merkle_tree.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC
