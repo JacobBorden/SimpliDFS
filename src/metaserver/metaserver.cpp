@@ -531,8 +531,8 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
         }
 
         if (shouldSave) {
-        Logger::getInstance().log(LogLevel::INFO, "Saving metadata state.");
-        metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
+        Logger::getInstance().log(LogLevel::DEBUG, "[Metaserver] Metadata modified, marking as dirty.");
+        metadataManager.markDirty();
     }
     // std::cerr << "DIAGNOSTIC: HandleClientConnection: Request processed. Explicitly disconnecting client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
     // server_instance.DisconnectClient(_pClient);

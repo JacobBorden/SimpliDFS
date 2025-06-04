@@ -17,6 +17,7 @@
 #include <fstream>   // For std::ofstream, std::ifstream
 #include <sstream>   // For std::stringstream
 #include <stdexcept> // For std::invalid_argument in std::stol
+#include <atomic>    // For std::atomic<bool>
 
 // Persistence constants
 /** @brief Separator character used in metadata persistence files. */
@@ -62,6 +63,7 @@ private:
     // New private members for FUSE attributes
     std::unordered_map<std::string, uint32_t> fileModes;
     std::unordered_map<std::string, uint64_t> fileSizes;
+    std::atomic<bool> metadata_is_dirty_ {false};
     
     /** @brief Default number of replicas to create for each file. */
     static const int DEFAULT_REPLICATION_FACTOR = 3;
@@ -447,3 +449,8 @@ namespace Networking { class ClientConnection; } // Forward declare ClientConnec
 // The `registerNode` method is part of it.
 // The Node object makes a network call. So the test needs a server that
 // can receive this call and then call the `registerNode` on the `MetadataManager` instance.
+
+    // Dirty flag management
+    void markDirty() { metadata_is_dirty_ = true; }
+    bool isDirty() const { return metadata_is_dirty_.load(); }
+    void clearDirty() { metadata_is_dirty_ = false; }
