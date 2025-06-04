@@ -4,6 +4,7 @@
 
 ### Added
 - Unit tests for the core networking library functionalities (`Networking::Client`, `Networking::Server`).
+- Fuzz testing suite integrated with libFuzzer (build with `-DBUILD_FUZZING=ON`).
 
 ### Changed
 - Integrated an internal networking library (providing `Networking::Client` and `Networking::Server` classes) directly into the project source (`src/client.cpp`, `src/client.h`, `src/server.cpp`, `src/server.h`).
@@ -15,6 +16,7 @@
 
 ### Removed
 - `src/networking_stubs.h` and its references.
+- Deprecated `FuseConcurrencyTest` in favour of fuzz testing.
 
 All notable changes to this project will be documented in this file.
 

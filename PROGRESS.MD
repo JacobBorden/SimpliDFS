@@ -58,6 +58,8 @@
 - **Refactor Messaging**: Complete (Serialization/deserialization moved to `Message` class static methods).
 - **Documentation**: Initial comprehensive Doxygen documentation for core modules is complete.
 - **Unit Testing**: Write unit tests for `MetadataManager`, `FileSystem`, and messaging functionality to ensure reliability.
+- **Fuzz Testing**: Integrated libFuzzer-based fuzzers with optional CMake build
+  flag (`BUILD_FUZZING`) and a GitHub Actions workflow.
 
 ### 7. Security
 - **File Encryption**: Implement file encryption for data at rest.
