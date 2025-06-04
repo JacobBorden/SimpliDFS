@@ -391,7 +391,10 @@ Networking::ClientConnection Networking::Server::Accept()
 	}
 
 // Add the client connection to the list of clients
-	clients.push_back(client);
+    { // Scope for lock_guard
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients.push_back(client);
+    }
     Logger::getInstance().log(LogLevel::INFO, "New connection from " + GetClientIPAddress(client) + " on socket " + std::to_string(client.clientSocket));
 	return client;
 }
@@ -585,7 +588,12 @@ int Networking::Server::SendToAll(PCSTR _pSendBuffer)
 	int bytesSent;
 	int retries =0;
 	// Iterate over all connected clients
-	for (auto client : clients)
+    std::vector<Networking::ClientConnection> clients_copy_for_send;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients_copy_for_send = clients;
+    }
+	for (auto client : clients_copy_for_send) // Iterate over the copy
 	{
 		try
 		{
@@ -921,6 +929,7 @@ void Networking::Server::DisconnectClient(Networking::ClientConnection _pClient)
 	CLOSESOCKET(_pClient.clientSocket);
 
 	// Remove the client from the list of clients
+    std::lock_guard<std::mutex> lock(clients_mutex_);
 	clients.erase(std::remove(clients.begin(), clients.end(), _pClient), clients.end());
 }
 
@@ -932,8 +941,12 @@ void Networking::Server::Shutdown()
 
     // First, disconnect all active clients
     Logger::getInstance().log(LogLevel::INFO, "Starting disconnection of all clients...");
-    auto clients_copy = clients; // Create a copy to iterate safely
-    for (auto& client_conn : clients_copy) {
+    std::vector<Networking::ClientConnection> clients_copy_for_shutdown;
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex_);
+        clients_copy_for_shutdown = clients; // Create a copy to iterate safely
+    }
+    for (auto& client_conn : clients_copy_for_shutdown) { // Iterate over the copy
         try {
             Logger::getInstance().log(LogLevel::DEBUG, "Attempting to disconnect client: " + GetClientIPAddress(client_conn) + " on socket " + std::to_string(client_conn.clientSocket));
             DisconnectClient(client_conn);
@@ -1000,6 +1013,7 @@ void Networking::Server::Shutdown()
 // Return a vector of ClientConnection objects representing the currently connected clients
 std::vector<Networking::ClientConnection> Networking::Server::getClients() const
 {
+    std::lock_guard<std::mutex> lock(clients_mutex_);
 	return clients;
 }
 

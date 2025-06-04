@@ -58,11 +58,13 @@ target_link_libraries(SimpliDFSFuseConcurrencyTest
 # Add the FUSE concurrency test to CTest
 add_test(
     NAME FuseConcurrencyTest
-    COMMAND SimpliDFSFuseConcurrencyTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Or specific path if needed
 )
 
 # Define a test for running the setup script
+# Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
+# Keeping these test definitions if they are useful for standalone execution.
 add_test(
     NAME FuseTestEnvSetup
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/setup_fuse_test_env.sh
@@ -77,8 +79,9 @@ add_test(
 )
 
 # Set test properties for fixtures
-set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_SETUP FuseTestEnvSetup)
-set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_CLEANUP FuseTestEnvCleanup)
-set_property(TEST FuseConcurrencyTest PROPERTY DEPENDS FuseTestEnvSetup)
+# These are removed as the wrapper script now handles setup/cleanup for FuseConcurrencyTest.
+# set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_SETUP FuseTestEnvSetup)
+# set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_CLEANUP FuseTestEnvCleanup)
+# set_property(TEST FuseConcurrencyTest PROPERTY DEPENDS FuseTestEnvSetup)
 
 # --- End of FUSE Concurrency Test Addition ---

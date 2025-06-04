@@ -42,6 +42,7 @@ typedef const char* PCSTR;
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <mutex> // Added for std::mutex
 #include "utilities/networkexception.h"
 #include "utilities/errorcodes.h"
 #include "utilities/logger.h"
@@ -160,6 +161,7 @@ SOCKET serverSocket = 0; // Listening socket, initialize to 0 or INVALIDSOCKET_C
 sockaddr_in serverInfo;  // For IPv4 // TODO: support sockaddr_in6 for IPv6 with serverType_
 bool serverIsConnected = false;
 std::vector<Networking::ClientConnection> clients;
+mutable std::mutex clients_mutex_; // Added mutable mutex for getClients() const
 // Logger logger; // Removed - logging is done via Logger::getInstance() or std::cout
 };
 }

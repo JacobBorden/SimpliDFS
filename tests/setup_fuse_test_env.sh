@@ -8,14 +8,14 @@ echo "INFO: Mount point /tmp/myfusemount ensured."
 
 # Start the metaserver
 echo "INFO: Starting Metaserver..."
-../metaserver 60000 > /tmp/metaserver.log 2>&1 &
+nohup ../metaserver 60000 > /tmp/metaserver.log 2>&1 < /dev/null &
 METASERVER_PID=$!
 echo $! > /tmp/metaserver.pid
 echo "INFO: Metaserver PID: $METASERVER_PID"
 
 # Start the FUSE adapter
 echo "INFO: Starting FUSE adapter (simpli_fuse_adapter)..."
-../simpli_fuse_adapter 127.0.0.1 60000 /tmp/myfusemount -f > /tmp/fuse_adapter.log 2>&1 &
+nohup ../simpli_fuse_adapter 127.0.0.1 60000 /tmp/myfusemount -f > /tmp/fuse_adapter.log 2>&1 < /dev/null &
 FUSE_ADAPTER_PID=$!
 echo $! > /tmp/fuse_adapter.pid
 echo "INFO: FUSE Adapter PID: $FUSE_ADAPTER_PID"

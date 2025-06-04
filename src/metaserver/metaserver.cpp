@@ -277,22 +277,27 @@ static std::string normalize_path_to_filename(const std::string& fuse_path) {
 
 void HandleClientConnection(Networking::Server& server_instance, Networking::ClientConnection _pClient)
 {
+    std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread started for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
     try {
         Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + server_instance.GetClientIPAddress(_pClient));
         std::vector<char> received_vector = server_instance.Receive(_pClient);
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: Received " << received_vector.size() << " bytes from client." << std::endl;
         if (received_vector.empty()) {
             Logger::getInstance().log(LogLevel::WARN, "Received empty data from client " + server_instance.GetClientIPAddress(_pClient));
+            std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing due to empty receive for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
             return; 
         }
         std::string received_data_str(received_vector.begin(), received_vector.end());
         Logger::getInstance().log(LogLevel::DEBUG, "Received data from " + server_instance.GetClientIPAddress(_pClient) + ": " + received_data_str);
         Message request = Message::Deserialize(received_data_str);
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: Deserialized request type " << static_cast<int>(request._Type) << " for path '" << request._Path << "' from client." << std::endl;
         bool shouldSave = false;
 
         switch (request._Type)
         {
             case MessageType::GetAttr:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case GetAttr for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received GetAttr for: " + request._Path);
                 Message res_msg;
                 res_msg._Type = MessageType::GetAttrResponse;
@@ -307,11 +312,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.getFileAttributes(norm_path, res_msg._Mode, res_msg._Uid, res_msg._Gid, res_msg._Size);
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case GetAttr, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Readdir:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Readdir for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Readdir for: " + request._Path);
                 Message res_msg;
                 res_msg._Type = MessageType::ReaddirResponse;
@@ -326,11 +333,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 } else {
                     res_msg._ErrorCode = ENOTDIR;
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Readdir, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Access:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Access for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Access for: " + request._Path + " with mode " + std::to_string(request._Mode));
                 Message res_msg;
                 res_msg._Type = MessageType::AccessResponse;
@@ -341,11 +350,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     std::string norm_path = normalize_path_to_filename(request._Path);
                     res_msg._ErrorCode = metadataManager.checkAccess(norm_path, static_cast<uint32_t>(request._Mode));
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Access, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Open:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Open for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Open for: " + request._Path + " with flags " + std::to_string(request._Mode));
                 Message res_msg;
                 res_msg._Type = MessageType::OpenResponse;
@@ -359,11 +370,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     // which checkAccess implicitly does for now.
                     res_msg._ErrorCode = metadataManager.openFile(norm_path, static_cast<uint32_t>(request._Mode));
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Open, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::CreateFile:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case CreateFile for path '" << request._Path << "'" << std::endl;
                 std::ostringstream oss_create;
                 oss_create << "[Metaserver] Received CreateFile for: " << request._Path << " with mode " << std::oct << request._Mode << std::dec;
                 Logger::getInstance().log(LogLevel::INFO, oss_create.str());
@@ -380,11 +393,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                         shouldSave = true;
                     }
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case CreateFile, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::ReadFile:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case ReadFile for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Read for: " + request._Path + " Offset: " + std::to_string(request._Offset) + " Size: " + std::to_string(request._Size));
                 Message res_msg;
                 res_msg._Type = MessageType::ReadResponse;
@@ -392,11 +407,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
 
                 res_msg._ErrorCode = metadataManager.readFileData(norm_path_filename, request._Offset, request._Size, res_msg._Data, res_msg._Size);
                 // readFileData sets res_msg._Size to actual bytes read/to be sent
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case ReadFile, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::WriteFile:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case WriteFile for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Write for: " + request._Path + " Offset: " + std::to_string(request._Offset) + " Size: " + std::to_string(request._Size) + " DataLen: " + std::to_string(request._Data.length()));
                 Message res_msg;
                 res_msg._Type = MessageType::WriteResponse;
@@ -410,11 +427,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 } else {
                     res_msg._Size = 0; // Ensure size is 0 on error
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case WriteFile, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Unlink:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Unlink for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Unlink for: " + request._Path);
                 Message res_msg;
                 res_msg._Type = MessageType::UnlinkResponse;
@@ -430,11 +449,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                         res_msg._ErrorCode = ENOENT;
                     }
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Unlink, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             case MessageType::Rename:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Rename for path '" << request._Path << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received Rename for: " + request._Path + " to " + request._NewPath);
                 Message res_msg;
                 res_msg._Type = MessageType::RenameResponse;
@@ -452,28 +473,34 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                          shouldSave = true;
                      }
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Rename, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
                 break;
             }
             // Node Management Cases (existing)
             case MessageType::RegisterNode:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case RegisterNode for node '" << request._Filename << "'" << std::endl;
                 metadataManager.registerNode(request._Filename, request._NodeAddress, request._NodePort);
                 shouldSave = true;
                 Message reg_res;
                 reg_res._Type = MessageType::RegisterNode;
                 reg_res._ErrorCode = 0;
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case RegisterNode, node '" << request._Filename << "'" << std::endl;
                 server_instance.Send(Message::Serialize(reg_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "Sent registration confirmation to node " + request._Filename);
                 break;
             }
             case MessageType::Heartbeat:
             {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Heartbeat for node '" << request._Filename << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::DEBUG, "Received Heartbeat from node " + request._Filename);
                 metadataManager.processHeartbeat(request._Filename);
+                // No response sent for heartbeat
                 break;
             }
             case MessageType::DeleteFile: { // Legacy DeleteFile, treat like unlink
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case DeleteFile for path '" << request._Filename << "'" << std::endl;
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received (legacy) DeleteFile request for " + request._Filename);
                 Message del_res;
                 del_res._Type = MessageType::FileRemoved;
@@ -487,15 +514,18 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 } else {
                     del_res._ErrorCode = ENOENT;
                 }
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case DeleteFile, path '" << request._Filename << "'" << std::endl;
                 server_instance.Send(Message::Serialize(del_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
                 break;
             }
             default:
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case Default (Unknown Type) for type " << static_cast<int>(request._Type) << std::endl;
                 Logger::getInstance().log(LogLevel::WARN, "Received unhandled or unknown message type: " + std::to_string(static_cast<int>(request._Type)) + " from client " + server_instance.GetClientIPAddress(_pClient));
                 Message err_res;
                 err_res._Type = request._Type;
                 err_res._ErrorCode = ENOSYS;
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Default (Unknown Type)" << std::endl;
                 server_instance.Send(Message::Serialize(err_res).c_str(), _pClient);
                 break;
         }
@@ -504,15 +534,24 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
         Logger::getInstance().log(LogLevel::INFO, "Saving metadata state.");
         metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
     }
+    std::cerr << "DIAGNOSTIC: HandleClientConnection: Request processed. Explicitly disconnecting client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
+    server_instance.DisconnectClient(_pClient);
+    std::cerr << "DIAGNOSTIC: HandleClientConnection: Client explicitly disconnected." << std::endl;
     } catch (const Networking::NetworkException& ne) {
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: NetworkException caught: " << ne.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
         Logger::getInstance().log(LogLevel::ERROR, "Network error in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(ne.what()));
     } catch (const std::runtime_error& re) {
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: runtime_error caught: " << re.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
         Logger::getInstance().log(LogLevel::ERROR, "Runtime error (e.g., deserialization) in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(re.what()));
     } catch (const std::exception& e) {
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: std::exception caught: " << e.what() << " for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
         Logger::getInstance().log(LogLevel::ERROR, "Generic exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient) + ": " + std::string(e.what()));
     }  catch (...) {
+        std::cerr << "DIAGNOSTIC: HandleClientConnection: UNHANDLED EXCEPTION CAUGHT IN THREAD for client " << server_instance.GetClientIPAddress(_pClient) << ". Thread terminating." << std::endl;
+        // Potentially log more details if possible, then allow thread to exit.
         Logger::getInstance().log(LogLevel::ERROR, "Unknown exception in HandleClientConnection for " + server_instance.GetClientIPAddress(_pClient));
     }
+    std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
 }
 
 // main() function has been moved to src/main_metaserver.cpp
