@@ -110,9 +110,6 @@ bool Networking::Server::CreateServerSocketInternal()
     std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] CreateServerSocketInternal: Entry. Port: " << portNumber_ << " Type: " << serverType_ << std::endl;
     // Use serverType_ to determine address family, though current logic might default to IPv4
     int addressFamily = (serverType_ == ServerType::IPv6) ? AF_INET6 : AF_INET;
-    // The original code consistently used AF_INET. Sticking to that for minimal change for now.
-    // Forcing IPv4 as per original logic until IPv6 is fully plumbed for serverInfo
-    addressFamily = AF_INET;
 
 
     ZeroMemory(&addressInfo, sizeof(addressInfo));
@@ -123,9 +120,18 @@ bool Networking::Server::CreateServerSocketInternal()
     // Set up the sockaddr_in structure
     // TODO: Adapt for IPv6 if addressFamily is AF_INET6 using sockaddr_in6
     memset(&serverInfo, 0, sizeof(serverInfo));
-    serverInfo.sin_family = addressFamily;
-    serverInfo.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
-    serverInfo.sin_port = htons(portNumber_); // Use member variable
+    memset(&serverInfo6, 0, sizeof(serverInfo6));
+
+    if (addressFamily == AF_INET6) {
+        serverInfo6.sin6_family = AF_INET6;
+        serverInfo6.sin6_addr = in6addr_any;
+        serverInfo6.sin6_port = htons(portNumber_);
+        serverInfo.sin_family = AF_INET6; // for functions still using serverInfo
+    } else {
+        serverInfo.sin_family = AF_INET;
+        serverInfo.sin_addr.s_addr = htonl(INADDR_ANY); // Listen on all interfaces
+        serverInfo.sin_port = htons(portNumber_); // Use member variable
+    }
 
     CreateSocket(); // Internally uses serverInfo.sin_family
     BindSocket();   // Internally uses serverInfo
@@ -234,11 +240,21 @@ void Networking::Server::CreateSocket()
 
 void Networking::Server::BindSocket()
 {
-	static int retries=0;
-	// Bind the socket to a local address and port
-	try{
-		if (bind(serverSocket, (sockaddr*)&serverInfo, sizeof(serverInfo)) == SOCKET_ERROR)
-		{
+    static int retries=0;
+    // Bind the socket to a local address and port
+    try{
+                const sockaddr* addr = nullptr;
+                socklen_t addrlen = 0;
+                if(serverInfo.sin_family == AF_INET6) {
+                    addr = (sockaddr*)&serverInfo6;
+                    addrlen = sizeof(serverInfo6);
+                } else {
+                    addr = (sockaddr*)&serverInfo;
+                    addrlen = sizeof(serverInfo);
+                }
+
+                if (bind(serverSocket, addr, addrlen) == SOCKET_ERROR)
+                {
 			// Get the error code
 			int errorCode = GETERROR();
 			// Throw an exception
@@ -1038,5 +1054,8 @@ Networking::ServerType Networking::Server::GetServerType()
 
 int Networking::Server::GetPort()
 {
-	return ntohs(serverInfo.sin_port);
+        if(serverInfo.sin_family == AF_INET6) {
+            return ntohs(serverInfo6.sin6_port);
+        }
+        return ntohs(serverInfo.sin_port);
 }
