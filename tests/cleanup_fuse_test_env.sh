@@ -2,6 +2,8 @@
 
 echo "Starting FUSE test environment cleanup..."
 
+NUM_NODES=3
+
 # Kill FUSE adapter
 if [ -f /tmp/fuse_adapter.pid ]; then
     FUSE_ADAPTER_PID=$(cat /tmp/fuse_adapter.pid)
@@ -37,6 +39,31 @@ else
     echo "Metaserver PID file not found."
 fi
 
+# Kill Storage Nodes
+for i in $(seq 1 $NUM_NODES)
+do
+    NODE_NAME="Node$i"
+    NODE_PID_FILE="/tmp/$NODE_NAME.pid"
+    echo "Processing $NODE_NAME..."
+    if [ -f "$NODE_PID_FILE" ]; then
+        NODE_PID=$(cat $NODE_PID_FILE)
+        echo "Killing $NODE_NAME process $NODE_PID..."
+        kill $NODE_PID
+        # Wait for a bit to allow graceful shutdown, then force if necessary
+        if ps -p $NODE_PID > /dev/null; then
+            sleep 1 # Shorter sleep for nodes, assuming they are quicker to shut down
+            if ps -p $NODE_PID > /dev/null; then
+                echo "$NODE_NAME still running, sending SIGKILL..."
+                kill -9 $NODE_PID
+            fi
+        fi
+        rm -f $NODE_PID_FILE
+        echo "$NODE_NAME PID file $NODE_PID_FILE removed."
+    else
+        echo "$NODE_NAME PID file $NODE_PID_FILE not found."
+    fi
+done
+
 # Unmount FUSE filesystem
 echo "Unmounting /tmp/myfusemount..."
 # Try fusermount first, then umount as a fallback.
@@ -70,6 +97,11 @@ fi
 
 # Remove log files
 echo "Removing log files..."
-rm -f /tmp/metaserver.log /tmp/fuse_adapter.log
+NODE_LOG_FILES_TO_REMOVE=""
+for i in $(seq 1 $NUM_NODES)
+do
+    NODE_LOG_FILES_TO_REMOVE="$NODE_LOG_FILES_TO_REMOVE /tmp/Node$i.log"
+done
+rm -f /tmp/metaserver.log /tmp/fuse_adapter.log /tmp/fuse_adapter_main.log $NODE_LOG_FILES_TO_REMOVE
 
 echo "FUSE test environment cleanup complete."

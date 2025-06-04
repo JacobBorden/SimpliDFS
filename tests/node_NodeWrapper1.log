@@ -1,0 +1,25 @@
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node NodeWrapper1 starting on port 50011"}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node object 'NodeWrapper1' created."}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node NodeWrapper1 server started."}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node NodeWrapper1 registering with MetadataManager at 127.0.0.1:50505."}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node NodeWrapper1 registration attempt completed."}
+{"timestamp": "2025-06-04 11:22:28", "level": "INFO", "message": "Node NodeWrapper1 running. Main thread entering idle loop."}
+{"timestamp": "2025-06-04 11:22:33", "level": "WARN", "message": "recv_all: recv() timed out (EAGAIN/EWOULDBLOCK). Error: 11 (Resource temporarily unavailable)"}
+{"timestamp": "2025-06-04 11:22:33", "level": "ERROR", "message": "Client::Receive: Failed to receive header: recv_all failed due to timeout"}
+{"timestamp": "2025-06-04 11:22:43", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:22:49", "level": "WARN", "message": "recv_all: recv() timed out (EAGAIN/EWOULDBLOCK). Error: 11 (Resource temporarily unavailable)"}
+{"timestamp": "2025-06-04 11:22:49", "level": "ERROR", "message": "Client::Receive: Failed to receive header: recv_all failed due to timeout"}
+{"timestamp": "2025-06-04 11:22:59", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node NodeWrapper1 starting on port 50011"}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node object 'NodeWrapper1' created."}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node NodeWrapper1 server started."}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node NodeWrapper1 registering with MetadataManager at 127.0.0.1:50505."}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node NodeWrapper1 registration attempt completed."}
+{"timestamp": "2025-06-04 11:23:44", "level": "INFO", "message": "Node NodeWrapper1 running. Main thread entering idle loop."}
+{"timestamp": "2025-06-04 11:23:49", "level": "WARN", "message": "recv_all: recv() timed out (EAGAIN/EWOULDBLOCK). Error: 11 (Resource temporarily unavailable)"}
+{"timestamp": "2025-06-04 11:23:49", "level": "ERROR", "message": "Client::Receive: Failed to receive header: recv_all failed due to timeout"}
+{"timestamp": "2025-06-04 11:23:59", "level": "INFO", "message": "Client initialized and connected to 127.0.0.1:50505"}
