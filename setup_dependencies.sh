@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+# Install core packages
+sudo apt-get update -y
+sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
+    build-essential cmake meson ninja-build libudev-dev curl git
+
+# Install libfuse3 from source if pkg-config cannot find it
+if ! pkg-config --exists fuse3; then
+    FUSE_VERSION="3.16.2"
+    echo "Installing libfuse ${FUSE_VERSION} from source..."
+    curl -L -o fuse-${FUSE_VERSION}.tar.gz \
+        https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/fuse-${FUSE_VERSION}.tar.gz
+    tar xzf fuse-${FUSE_VERSION}.tar.gz
+    cd fuse-${FUSE_VERSION}
+    meson setup build --prefix=/usr
+    ninja -C build
+    sudo ninja -C build install
+    sudo ldconfig
+    cd ..
+    rm -rf fuse-${FUSE_VERSION} fuse-${FUSE_VERSION}.tar.gz
+fi
+
+echo "Dependency installation complete." 

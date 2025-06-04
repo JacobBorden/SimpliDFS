@@ -64,13 +64,17 @@ Significant progress has been made on core distributed file system logic:
    git clone https://github.com/JacobBorden/SimpliDFS.git
    cd SimpliDFS
    ```
-2. Create a build directory and run CMake:
+2. Run the setup script to install dependencies:
+   ```sh
+   ./setup_dependencies.sh
+   ```
+3. Create a build directory and run CMake:
    ```sh
    mkdir build && cd build
    cmake ..
    make
    ```
-3. Run the tests:
+4. Run the tests:
    ```sh
    ./test/SimpliDFSTests
    ```
