@@ -106,6 +106,22 @@ metaserver running on `127.0.0.1` port `50505`:
 ./node NodeA 60010 127.0.0.1 50505
 ```
 
+### Snapshot CLI Example
+The `snapshot` command lets you capture the current state of the in-memory file
+system and restore it later.  Rolling back a corrupted file takes only a few
+steps:
+
+```sh
+# 1. Capture a snapshot of the healthy state
+./simpli_fuse_adapter snapshot create clean
+
+# 2. Restore after corruption
+./simpli_fuse_adapter snapshot checkout clean
+
+# 3. Inspect changes relative to the snapshot
+./simpli_fuse_adapter snapshot diff clean
+```
+
 ## Contributing
 Feel free to contribute to the project by opening issues, submitting pull requests, or suggesting new features.
 

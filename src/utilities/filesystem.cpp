@@ -250,3 +250,57 @@ bool FileSystem::fileExists(const std::string& _pFilename) const {
     std::lock_guard<std::mutex> lock(_Mutex); // _Mutex is now mutable in the header
     return _Files.count(_pFilename);
 }
+
+bool FileSystem::snapshotCreate(const std::string& name) {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    if (_Snapshots.count(name)) {
+        return false;
+    }
+    _Snapshots[name] = _Files;
+    _SnapshotXattrs[name] = _FileXattrs;
+    return true;
+}
+
+std::vector<std::string> FileSystem::snapshotList() const {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    std::vector<std::string> names;
+    for (const auto& kv : _Snapshots) {
+        names.push_back(kv.first);
+    }
+    return names;
+}
+
+bool FileSystem::snapshotCheckout(const std::string& name) {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    auto it = _Snapshots.find(name);
+    if (it == _Snapshots.end()) {
+        return false;
+    }
+    _Files = it->second;
+    _FileXattrs = _SnapshotXattrs[name];
+    return true;
+}
+
+std::vector<std::string> FileSystem::snapshotDiff(const std::string& name) const {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    std::vector<std::string> diff;
+    auto it = _Snapshots.find(name);
+    if (it == _Snapshots.end()) {
+        return diff;
+    }
+    const auto& snapFiles = it->second;
+    for (const auto& kv : snapFiles) {
+        const auto& fname = kv.first;
+        if (!_Files.count(fname)) {
+            diff.push_back("Deleted: " + fname);
+        } else if (_Files.at(fname) != kv.second) {
+            diff.push_back("Modified: " + fname);
+        }
+    }
+    for (const auto& kv : _Files) {
+        if (!snapFiles.count(kv.first)) {
+            diff.push_back("Added: " + kv.first);
+        }
+    }
+    return diff;
+}

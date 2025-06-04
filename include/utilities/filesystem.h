@@ -83,12 +83,44 @@ public:
      */
     bool fileExists(const std::string& _pFilename) const;
 
+    /**
+     * @brief Create a snapshot of the current filesystem state.
+     * @param name Identifier for the snapshot.
+     * @return True if the snapshot was created, false if a snapshot with the
+     *         same name already exists.
+     */
+    bool snapshotCreate(const std::string& name);
+
+    /**
+     * @brief List available snapshot names.
+     */
+    std::vector<std::string> snapshotList() const;
+
+    /**
+     * @brief Replace current filesystem state with the contents of a snapshot.
+     * @param name The snapshot name to restore.
+     * @return True if successful, false if the snapshot does not exist.
+     */
+    bool snapshotCheckout(const std::string& name);
+
+    /**
+     * @brief Show differences between a snapshot and the current state.
+     * @param name The snapshot to compare against.
+     * @return List of textual descriptions of differences.
+     */
+    std::vector<std::string> snapshotDiff(const std::string& name) const;
+
 private:
     /**
      * @brief In-memory storage for files, mapping filename to its content (now binary).
      */
     std::unordered_map<std::string, std::vector<std::byte>> _Files;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> _FileXattrs;
+
+    /// Stored snapshots of file data
+    std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::byte>>> _Snapshots;
+    /// Stored snapshots of xattr metadata
+    std::unordered_map<std::string, std::unordered_map<std::string, std::unordered_map<std::string, std::string>>> _SnapshotXattrs;
 
     /**
      * @brief Mutex to protect the _Files map, ensuring thread-safe access to file data.
