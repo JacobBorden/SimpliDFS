@@ -43,6 +43,8 @@ jobs:
         # Loop through the fuzzers found by the previous step
         for fuzzer_name in ${{ steps.list_fuzzers.outputs.fuzzers }}; do
           echo "Running fuzzer: ${fuzzer_name}"
+          # Create an empty corpus directory if it doesn't exist for the fuzzer to use as input/output
+          mkdir -p ./fuzz_artifacts/corpus_${fuzzer_name}/
           # Run each fuzzer for a short duration. -max_total_time is in seconds.
           # -rss_limit_mb sets a memory limit.
           # Crashes will be saved in the current directory (fuzz_artifacts)
@@ -50,8 +52,6 @@ jobs:
           # Use timeout to ensure the command does not run indefinitely if libFuzzer's -max_total_time is ignored or too long.
           timeout 60s build/tests/${fuzzer_name} -max_total_time=50 -rss_limit_mb=2048 -artifact_prefix=./fuzz_artifacts/ ./fuzz_artifacts/corpus_${fuzzer_name}/ -seed=1 || true
           # '|| true' ensures the workflow continues even if a fuzzer exits with non-zero (e.g. on crash)
-          # Create an empty corpus directory if it doesn't exist for the fuzzer to pick up new inputs from past runs
-          mkdir -p ./fuzz_artifacts/corpus_${fuzzer_name}/
         done
 
     - name: Upload Fuzzing Artifacts
