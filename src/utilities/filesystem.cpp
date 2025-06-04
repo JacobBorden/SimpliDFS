@@ -304,3 +304,23 @@ std::vector<std::string> FileSystem::snapshotDiff(const std::string& name) const
     }
     return diff;
 }
+
+std::unordered_set<std::string> FileSystem::getAllCids() const {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    std::unordered_set<std::string> cids;
+    for (const auto& [file, attrs] : _FileXattrs) {
+        auto it = attrs.find("user.cid");
+        if (it != attrs.end() && !it->second.empty()) {
+            cids.insert(it->second);
+        }
+    }
+    for (const auto& [snapName, snapAttrs] : _SnapshotXattrs) {
+        for (const auto& [file, attrs] : snapAttrs) {
+            auto it = attrs.find("user.cid");
+            if (it != attrs.end() && !it->second.empty()) {
+                cids.insert(it->second);
+            }
+        }
+    }
+    return cids;
+}
