@@ -25,11 +25,11 @@ const char*  what() const noexcept override {
 	return m_message.c_str();
 }
 
-SOCKET GetSocket(){
+SOCKET GetSocket() const {
 	return m_socket;
 }
 
-int GetErrorCode(){
+int GetErrorCode() const {
 	return m_errorCode;
 }
 

@@ -49,7 +49,19 @@ enum class MessageType{
     Rename,
     RenameResponse,
     Utimens,
-    UtimensResponse
+    UtimensResponse,
+
+    // Operations for Mkdir, Rmdir, StatFs
+    Mkdir,
+    MkdirResponse,
+    Rmdir,
+    RmdirResponse,
+    StatFs,
+    StatFsResponse,
+
+    // For FUSE adapter to request node locations for a file from metaserver
+    GetFileNodeLocationsRequest,    // _Path will contain the file path
+    GetFileNodeLocationsResponse    // _Data will contain comma-separated "ip:port" strings for nodes; _ErrorCode for status
 };
 
 /**

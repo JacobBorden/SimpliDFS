@@ -122,14 +122,26 @@ target_link_libraries(metaserver
 target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
-# Define the node executable
-add_executable(node src/node/node.cpp) 
-target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(node 
+# Define the SimpliDFS_NodeLib library
+add_library(SimpliDFS_NodeLib src/node/node.cpp)
+target_include_directories(SimpliDFS_NodeLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(SimpliDFS_NodeLib
+    PUBLIC # If Node.h includes headers from SimpliDFS_Utils that are needed by users of SimpliDFS_NodeLib
+    SimpliDFS_Utils
     PRIVATE
-    SimpliDFS_Utils # This is fine as SimpliDFS_Utils is a separate utility library
     Threads::Threads
 )
+
+# Define the node executable
+add_executable(node src/main_node.cpp) # Assuming a main_node.cpp for the executable
+target_link_libraries(node 
+    PRIVATE
+    SimpliDFS_NodeLib
+    # SimpliDFS_Utils and Threads::Threads are linked via SimpliDFS_NodeLib
+)
+# Ensure node executable can find headers if main_node.cpp needs them directly
+target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
 
 # Define the FUSE adapter executable
 add_executable(simpli_fuse_adapter src/utilities/fuse_adapter.cpp)

@@ -23,11 +23,25 @@
 #include <string>
 #include <vector> // Keep for now, might be useful elsewhere or by fuse.h
 // #include <set> // Removed
+#include <mutex>
+#include <map>
+
+// Structure to hold client connection to a storage node
+struct StorageNodeClient {
+    Networking::Client* client = nullptr;
+    // std::string node_id; // Optional: Could be added later if needed for logic/debugging
+    // std::string node_address; // Optional: Could be added later
+};
 
 struct SimpliDfsFuseData {
     Networking::Client* metadata_client = nullptr;
+    std::mutex metadata_client_mutex;
     std::string metaserver_host;
     int metaserver_port = 0;
+
+    // Connections to storage nodes
+    std::map<uint64_t, StorageNodeClient> active_storage_clients;
+    std::mutex active_storage_clients_mutex;
 };
 
 // FUSE operation functions

@@ -76,6 +76,13 @@ public:
      */
     std::string getXattr(const std::string& filename, const std::string& attrName);
 
+    /**
+     * @brief Checks if a file exists in the file system.
+     * @param _pFilename The name of the file to check.
+     * @return True if the file exists, false otherwise.
+     */
+    bool fileExists(const std::string& _pFilename) const;
+
 private:
     /**
      * @brief In-memory storage for files, mapping filename to its content (now binary).
@@ -87,7 +94,7 @@ private:
      * @brief Mutex to protect the _Files map, ensuring thread-safe access to file data.
      * All public methods acquire this mutex before accessing _Files.
      */
-    std::mutex _Mutex; 
+    mutable std::mutex _Mutex;
 };
 
 
