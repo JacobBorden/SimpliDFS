@@ -114,6 +114,14 @@ public:
     // Return set of all CIDs referenced by files and snapshots
     std::unordered_set<std::string> getAllCids() const;
 
+    /**
+     * @brief Export a snapshot as an IPLD CAR file.
+     * @param name The snapshot name to export.
+     * @param carPath Destination path for the CAR file.
+     * @return True on success, false if the snapshot does not exist or on I/O error.
+     */
+    bool snapshotExportCar(const std::string& name, const std::string& carPath) const;
+
 private:
     /**
      * @brief In-memory storage for files, mapping filename to its content (now binary).

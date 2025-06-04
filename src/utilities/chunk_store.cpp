@@ -46,3 +46,8 @@ ChunkStore::GCStats ChunkStore::garbageCollect(const std::unordered_set<std::str
     }
     return stats;
 }
+
+std::unordered_map<std::string, std::vector<std::byte>> ChunkStore::getAllChunks() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return chunks_;
+}

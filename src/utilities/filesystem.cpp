@@ -2,6 +2,8 @@
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/blockio.hpp" // Already in .h, but good for explicitness or if .h changes
 #include "utilities/cid_utils.hpp" // For digest_to_cid, though BlockIO handles it internally
+#include "utilities/chunk_store.hpp"
+#include "utilities/merkle_tree.hpp"
 
 #include <string>
 #include <vector>
@@ -9,6 +11,8 @@
 #include <stdexcept> // For std::runtime_error
 #include <algorithm> // For std::copy, std::transform
 #include <iterator>  // For std::back_inserter
+#include <fstream>   // For file output
+#include <map>
 
 // Helper function to convert string to vector<byte>
 inline std::vector<std::byte> string_to_bytes(const std::string& str) {
@@ -323,4 +327,88 @@ std::unordered_set<std::string> FileSystem::getAllCids() const {
         }
     }
     return cids;
+}
+
+// Helper: encode unsigned varint (LEB128)
+static void write_uvarint(std::ostream& os, uint64_t value) {
+    while (value >= 0x80) {
+        uint8_t b = static_cast<uint8_t>(value) | 0x80;
+        os.put(static_cast<char>(b));
+        value >>= 7;
+    }
+    os.put(static_cast<char>(value));
+}
+
+static bool write_car_file(const std::map<std::string, std::vector<std::byte>>& chunks,
+                           const std::string& rootCid,
+                           const std::string& path) {
+    std::ofstream out(path, std::ios::binary);
+    if (!out.is_open()) return false;
+
+    std::vector<uint8_t> rootBytes = sgns::utils::cid_to_bytes(rootCid);
+
+    // Build minimal CARv1 header using CBOR encoding
+    std::vector<uint8_t> header;
+    header.push_back(0xa2);                        // map of 2 items
+    header.push_back(0x65); header.insert(header.end(), {'r','o','o','t','s'}); // key "roots"
+    header.push_back(0x81);                        // array[1]
+    header.push_back(0x58); header.push_back(static_cast<uint8_t>(rootBytes.size()));
+    header.insert(header.end(), rootBytes.begin(), rootBytes.end());
+    header.push_back(0x67); header.insert(header.end(), {'v','e','r','s','i','o','n'}); // key "version"
+    header.push_back(0x01);                        // value 1
+
+    write_uvarint(out, header.size());
+    out.write(reinterpret_cast<const char*>(header.data()), header.size());
+
+    for (const auto& [cid, data] : chunks) {
+        std::vector<uint8_t> cidBytes = sgns::utils::cid_to_bytes(cid);
+        uint64_t section_len = cidBytes.size() + data.size();
+        write_uvarint(out, section_len);
+        out.write(reinterpret_cast<const char*>(cidBytes.data()), cidBytes.size());
+        out.write(reinterpret_cast<const char*>(data.data()), data.size());
+    }
+    return true;
+}
+
+bool FileSystem::snapshotExportCar(const std::string& name, const std::string& carPath) const {
+    std::lock_guard<std::mutex> lock(_Mutex);
+    auto snapIt = _Snapshots.find(name);
+    if (snapIt == _Snapshots.end()) return false;
+
+    auto attrsIt = _SnapshotXattrs.find(name);
+    if (attrsIt == _SnapshotXattrs.end()) return false;
+
+    ChunkStore store;
+    std::vector<std::pair<std::string, std::string>> entries;
+
+    for (const auto& [file, data] : snapIt->second) {
+        auto attrMapIt = attrsIt->second.find(file);
+        if (attrMapIt == attrsIt->second.end()) continue;
+        const auto& attrMap = attrMapIt->second;
+        auto cidIt = attrMap.find("user.cid");
+        auto nonceIt = attrMap.find("user.nonce");
+        auto encIt = attrMap.find("user.encrypted_size");
+        if (cidIt == attrMap.end() || nonceIt == attrMap.end() || encIt == attrMap.end()) continue;
+
+        std::string cid = cidIt->second;
+        std::string nonce_str = nonceIt->second;
+        size_t enc_size = std::stoul(encIt->second);
+
+        std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
+        std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key; key.fill('A');
+        BlockIO local;
+        std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
+        std::vector<std::byte> raw = local.decrypt_data(decompressed, key, nonce);
+        store.addChunk(raw); // cid should match but ignore
+        entries.emplace_back(file, cid);
+    }
+
+    std::string rootCid = MerkleTree::hashDirectory(entries, store);
+
+    std::map<std::string, std::vector<std::byte>> orderedChunks;
+    for (const auto& [cid, bytes] : store.getAllChunks()) {
+        orderedChunks[cid] = bytes;
+    }
+
+    return write_car_file(orderedChunks, rootCid, carPath);
 }

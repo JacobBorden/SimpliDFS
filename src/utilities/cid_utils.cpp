@@ -59,4 +59,12 @@ std::array<uint8_t, crypto_hash_sha256_BYTES> cid_to_digest(const std::string& c
     return digest;
 }
 
+std::vector<uint8_t> cid_to_bytes(const std::string& cid) {
+    auto digest = cid_to_digest(cid);
+    std::vector<uint8_t> bytes;
+    bytes.insert(bytes.end(), CID_PREFIX.begin(), CID_PREFIX.end());
+    bytes.insert(bytes.end(), digest.begin(), digest.end());
+    return bytes;
+}
+
 } // namespace sgns::utils
