@@ -366,7 +366,7 @@ Networking::ClientConnection Networking::Server::Accept()
 				Accept();
 			}
             Logger::getInstance().log(LogLevel::ERROR, "Accept failed (WSAEINTR) after max retries or during retry: " + std::string(ex.what()));
-			return Networking::ClientConnection();
+			throw ex;
 
 			#else
 
@@ -380,13 +380,13 @@ Networking::ClientConnection Networking::Server::Accept()
 			}
 
             Logger::getInstance().log(LogLevel::ERROR, "Accept failed (EINTR) after max retries or during retry: " + std::string(ex.what()));
-			return Networking::ClientConnection();
+			throw ex;
 
 			#endif
 
 		default:
             Logger::getInstance().log(LogLevel::ERROR, "Accept failed (default case): " + std::string(ex.what()));
-			return Networking::ClientConnection();
+			throw ex;
 		}
 	}
 
