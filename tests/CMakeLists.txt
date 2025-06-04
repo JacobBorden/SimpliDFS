@@ -79,5 +79,6 @@ add_test(
 # Set test properties for fixtures
 set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_SETUP FuseTestEnvSetup)
 set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_CLEANUP FuseTestEnvCleanup)
+set_property(TEST FuseConcurrencyTest PROPERTY DEPENDS FuseTestEnvSetup)
 
 # --- End of FUSE Concurrency Test Addition ---
