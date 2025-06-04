@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(SimpliDFS)
 
+option(BUILD_FUZZING "Enable fuzz testing builds" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # Corrected True to ON
 set(CMAKE_CXX_EXTENSIONS OFF) # Prefer not to use GNU extensions, stick to standard C++

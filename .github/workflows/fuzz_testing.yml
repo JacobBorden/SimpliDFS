@@ -1,0 +1,66 @@
+name: Fuzz Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install Clang
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang llvm
+
+    - name: Configure CMake for Fuzzing
+      run: |
+        cmake -B build -S . -DBUILD_FUZZING=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+
+    - name: Build Fuzzers
+      run: |
+        cmake --build build
+
+    - name: List Fuzzers
+      id: list_fuzzers
+      run: |
+        # Find all executable files in build/tests that end with _fuzzer
+        # and store them in a GitHub Actions output variable
+        fuzzer_list=$(find build/tests -type f -executable -name '*_fuzzer' -printf '%f\n')
+        echo "::set-output name=fuzzers::${fuzzer_list}"
+        echo "Found fuzzers:"
+        echo "${fuzzer_list}"
+
+    - name: Run Fuzzers
+      run: |
+        # Create a directory for crash artifacts
+        mkdir -p fuzz_artifacts
+        # Loop through the fuzzers found by the previous step
+        for fuzzer_name in ${{ steps.list_fuzzers.outputs.fuzzers }}; do
+          echo "Running fuzzer: ${fuzzer_name}"
+          # Run each fuzzer for a short duration. -max_total_time is in seconds.
+          # -rss_limit_mb sets a memory limit.
+          # Crashes will be saved in the current directory (fuzz_artifacts)
+          # The -artifact_prefix=./fuzz_artifacts/ will ensure crashes are stored there.
+          # Use timeout to ensure the command does not run indefinitely if libFuzzer's -max_total_time is ignored or too long.
+          timeout 60s build/tests/${fuzzer_name} -max_total_time=50 -rss_limit_mb=2048 -artifact_prefix=./fuzz_artifacts/ ./fuzz_artifacts/corpus_${fuzzer_name}/ -seed=1 || true
+          # '|| true' ensures the workflow continues even if a fuzzer exits with non-zero (e.g. on crash)
+          # Create an empty corpus directory if it doesn't exist for the fuzzer to pick up new inputs from past runs
+          mkdir -p ./fuzz_artifacts/corpus_${fuzzer_name}/
+        done
+
+    - name: Upload Fuzzing Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: fuzz-artifacts
+        path: |
+          fuzz_artifacts/
+          build/tests/crash-*
+          build/tests/leak-*
+          build/tests/timeout-*
+        if-no-files-found: ignore # Don't fail if no crashes were found

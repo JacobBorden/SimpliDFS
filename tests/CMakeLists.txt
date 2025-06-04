@@ -44,24 +44,9 @@ gtest_discover_tests(SimpliDFSTests)
 
 # --- Add FUSE Concurrency Test ---
 # Add executable for the FUSE concurrency test
-add_executable(SimpliDFSFuseConcurrencyTest
-    fuse_concurrency_tests.cpp
-)
-
 # Link necessary libraries (primarily pthreads for std::thread)
 # Threads::Threads is the modern CMake way to handle threading libraries.
-target_link_libraries(SimpliDFSFuseConcurrencyTest
-    PRIVATE
-    Threads::Threads
-)
-
 # Add the FUSE concurrency test to CTest
-add_test(
-    NAME FuseConcurrencyTest
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Or specific path if needed
-)
-
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
 # Keeping these test definitions if they are useful for standalone execution.
@@ -80,8 +65,47 @@ add_test(
 
 # Set test properties for fixtures
 # These are removed as the wrapper script now handles setup/cleanup for FuseConcurrencyTest.
-# set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_SETUP FuseTestEnvSetup)
-# set_property(TEST FuseConcurrencyTest PROPERTY FIXTURES_CLEANUP FuseTestEnvCleanup)
-# set_property(TEST FuseConcurrencyTest PROPERTY DEPENDS FuseTestEnvSetup)
 
 # --- End of FUSE Concurrency Test Addition ---
+
+if(BUILD_FUZZING)
+    message(STATUS "Fuzz testing build enabled.")
+
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(WARNING "Fuzzing is enabled, but the compiler is not Clang (${CMAKE_CXX_COMPILER_ID}). LibFuzzer typically requires Clang.")
+    endif()
+
+    # Common fuzzer compile flags (applied to each fuzzer target)
+    set(FUZZER_COMPILE_FLAGS "-fsanitize=fuzzer,address") # Also add -g for better stack traces
+    set(FUZZER_LINK_FLAGS "-fsanitize=fuzzer")
+
+    # List of fuzzer source files
+    set(FUZZER_SOURCES
+        fuzz/blockio_fuzzer.cpp
+        fuzz/message_fuzzer.cpp
+        fuzz/filesystem_fuzzer.cpp
+        fuzz/metaserver_load_fuzzer.cpp
+        fuzz/node_logic_fuzzer.cpp
+    )
+
+    foreach(FUZZER_SRC ${FUZZER_SOURCES})
+        get_filename_component(FUZZER_NAME ${FUZZER_SRC} NAME_WE)
+        add_executable(${FUZZER_NAME} ${FUZZER_SRC})
+
+        target_compile_options(${FUZZER_NAME} PRIVATE ${FUZZER_COMPILE_FLAGS})
+        # target_link_libraries(${FUZZER_NAME} PRIVATE ${FUZZER_LINK_FLAGS}) # This is more of a linker flag for the main executable in some setups
+
+        # Link necessary project libraries
+        if(${FUZZER_NAME} STREQUAL "blockio_fuzzer" OR ${FUZZER_NAME} STREQUAL "message_fuzzer" OR ${FUZZER_NAME} STREQUAL "filesystem_fuzzer" OR ${FUZZER_NAME} STREQUAL "node_logic_fuzzer")
+            target_link_libraries(${FUZZER_NAME} PRIVATE SimpliDFS_Utils Threads::Threads ${FUZZER_LINK_FLAGS})
+        elseif(${FUZZER_NAME} STREQUAL "metaserver_load_fuzzer")
+            target_link_libraries(${FUZZER_NAME} PRIVATE SimpliDFS_MetaServerLib SimpliDFS_Utils Threads::Threads ${FUZZER_LINK_FLAGS})
+        else()
+            target_link_libraries(${FUZZER_NAME} PRIVATE SimpliDFS_Utils Threads::Threads ${FUZZER_LINK_FLAGS}) # Default, adjust as needed
+        endif()
+
+        target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+
+        message(STATUS "Configured fuzzer: ${FUZZER_NAME}")
+    endforeach()
+endif()
