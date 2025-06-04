@@ -5,12 +5,14 @@
 #include <cstddef>
 #include <string>
 #include <stdexcept> // Required for try-catch blocks
+#include "utilities/logger.h"
 
 // This fuzzer tests the logic within Node::handleClient by simulating
 // the processing of messages and their effects on the internal FileSystem.
 // It does not involve actual networking.
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     if (Size == 0) {
         return 0;
     }

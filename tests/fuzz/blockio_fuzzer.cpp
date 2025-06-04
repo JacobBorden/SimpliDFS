@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <string> // Required by blockio.hpp for DigestResult::cid
+#include "utilities/logger.h"
 
 // Helper function to create a key from fuzzer data
 std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> getKey(const uint8_t* data, size_t size) {
@@ -29,6 +30,7 @@ std::vector<unsigned char> getNonce(const uint8_t* data, size_t size) {
 
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     BlockIO bio;
 
     // Use a portion of data for ingest

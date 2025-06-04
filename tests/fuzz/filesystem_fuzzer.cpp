@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include "utilities/logger.h"
 
 // Helper to consume a part of the data as a string.
 // Returns a string and advances the data pointer.
@@ -29,6 +30,7 @@ std::string consume_string(const uint8_t** data, size_t* size, size_t max_len = 
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     FileSystem fs;
     const uint8_t* current_data = Data;
     size_t remaining_size = Size;

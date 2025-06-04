@@ -5,6 +5,7 @@
 #include <vector>
 #include <fstream> // For std::ofstream
 #include <cstdio>  // For std::tmpnam, remove
+#include "utilities/logger.h"
 
 // Helper function to write data to a temporary file and return its name
 std::string write_to_temp_file(const uint8_t* data, size_t size) {
@@ -23,6 +24,7 @@ std::string write_to_temp_file(const uint8_t* data, size_t size) {
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
+    Logger::getInstance().initialize("fuzzer_run.log", LogLevel::ERROR);
     if (Size == 0) {
         return 0;
     }
