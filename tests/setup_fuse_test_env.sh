@@ -37,7 +37,7 @@ do
     NODE_NAME="Node$i"
     NODE_PORT=$((NODE_START_PORT + i))
     echo "INFO: Starting $NODE_NAME on port $NODE_PORT..."
-    nohup ../node $NODE_NAME $NODE_PORT > /tmp/$NODE_NAME.log 2>&1 < /dev/null &
+    nohup ../node $NODE_NAME $NODE_PORT 127.0.0.1 50505 > /tmp/$NODE_NAME.log 2>&1 < /dev/null &
     NODE_PID=$!
     echo $NODE_PID > /tmp/$NODE_NAME.pid
     # Store PIDs in an array for later checks and cleanup
