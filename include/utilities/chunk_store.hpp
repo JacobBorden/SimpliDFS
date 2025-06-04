@@ -32,6 +32,9 @@ public:
     GCStats garbageCollect(const std::unordered_set<std::string>& referencedCids,
                            bool dryRun);
 
+    // Retrieve copy of all stored chunks
+    std::unordered_map<std::string, std::vector<std::byte>> getAllChunks() const;
+
 private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, std::vector<std::byte>> chunks_;

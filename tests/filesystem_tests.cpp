@@ -3,6 +3,7 @@
 #include "utilities/logger.h"
 #include "utilities/blockio.hpp" // For crypto_aead_aes256gcm_ABYTES, etc.
 #include <cstdio>   // For std::remove
+#include <sys/stat.h>
 #include <string>   // For std::to_string in TearDown
 #include <vector>
 #include <algorithm>
@@ -247,6 +248,21 @@ TEST_F(FileSystemTestFix, SnapshotDiff) {
     auto diff = fs.snapshotDiff("snap");
     ASSERT_FALSE(diff.empty());
     EXPECT_EQ(diff[0], "Modified: " + filename);
+}
+
+TEST_F(FileSystemTestFix, SnapshotExportCarCreatesFile) {
+    const std::string filename = "car_file.txt";
+    ASSERT_TRUE(fs.createFile(filename));
+    ASSERT_TRUE(fs.writeFile(filename, "carcontent"));
+    ASSERT_TRUE(fs.snapshotCreate("carSnap"));
+
+    const std::string carPath = "/tmp/test_snapshot.car";
+    ASSERT_TRUE(fs.snapshotExportCar("carSnap", carPath));
+
+    struct stat st{};
+    EXPECT_EQ(stat(carPath.c_str(), &st), 0);
+    EXPECT_GT(st.st_size, 0);
+    std::remove(carPath.c_str());
 }
 
 // Test for the original extendedAttributes test logic, ensuring general xattr functions work

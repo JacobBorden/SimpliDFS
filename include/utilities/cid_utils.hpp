@@ -16,6 +16,8 @@
 
 namespace sgns::utils {
 
+extern const std::vector<uint8_t> CID_PREFIX;
+
 /**
  * @brief Converts a SHA-256 digest to a CIDv1 string.
  * @param digest The SHA-256 digest.
@@ -30,6 +32,11 @@ std::string digest_to_cid(const std::array<uint8_t, crypto_hash_sha256_BYTES>& d
  * @throws std::runtime_error if the CID is invalid.
  */
 std::array<uint8_t, crypto_hash_sha256_BYTES> cid_to_digest(const std::string& cid);
+
+/**
+ * @brief Convert a CIDv1 string to its raw byte representation.
+ */
+std::vector<uint8_t> cid_to_bytes(const std::string& cid);
 
 } // namespace sgns::utils
 
