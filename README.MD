@@ -128,7 +128,7 @@ steps:
 Feel free to contribute to the project by opening issues, submitting pull requests, or suggesting new features.
 
 ## License
-This project is licensed under the MIT License.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## Chaos Testing
 The `tests/chaos_kill_node.sh` script simulates node failures by randomly killing
