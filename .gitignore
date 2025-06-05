@@ -11,3 +11,17 @@ dependencies/googletest
 compile_commands.json
 dependencies/googletest
 .vscode/*
+# Ignore generated executables
+metaserver
+node
+simpli_fuse_adapter
+
+# Ignore log and data files
+*.log
+*.dat
+
+# Specific log files
+fuse_adapter_main.log
+fuse_adapter_run.log
+fuse_test_results.log
+tests/node_NodeWrapper*.log
