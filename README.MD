@@ -1,4 +1,4 @@
-# SimpliDFS
+#SimpliDFS
 
 SimpliDFS is a distributed file system project designed to manage files across multiple nodes. The system includes components for metadata management, file operations, message handling, and will soon include network communication between nodes for efficient file distribution and fault tolerance.
 
@@ -29,6 +29,8 @@ SimpliDFS is a distributed file system project designed to manage files across m
 - Implements a replication strategy during file creation to distribute multiple copies of files across available live nodes.
 - Includes logic to detect node failures (via heartbeats) and identify files needing re-replication.
 - Note: Actual network communication for data transfer (including initial replication and re-replication) now utilizes the integrated networking library.
+- Default replication factor is **3** and block writes are replicated to all replicas.
+- Each storage node runs a background verifier thread that checks file hashes and heals corrupted replicas by fetching a clean copy from peers.
 
 ## Current Progress
 Significant progress has been made on core distributed file system logic:
@@ -127,3 +129,8 @@ Feel free to contribute to the project by opening issues, submitting pull reques
 
 ## License
 This project is licensed under the MIT License.
+
+## Chaos Testing
+The `tests/chaos_kill_node.sh` script simulates node failures by randomly killing
+one storage node every five minutes for two hours. Use this after launching the
+metaserver and nodes to evaluate replication healing.
