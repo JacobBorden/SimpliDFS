@@ -6,6 +6,7 @@
 #include "utilities/networkexception.h" // For Networking::NetworkException
 #include "utilities/logger.h" // For Logger
 #include "metaserver/metaserver.h" // For MetadataManager (declaration)
+#include "utilities/raft.h"
 
 #include <cstdlib> // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -20,6 +21,7 @@
 // This allows main() to use them.
 // extern Networking::Server server; // REMOVED
 extern MetadataManager metadataManager;
+extern std::unique_ptr<RaftNode> gRaftNode;
 
 std::atomic<bool> g_server_running(true);
 std::condition_variable g_shutdown_cv;
@@ -94,6 +96,28 @@ int main(int argc, char* argv[])
     Logger::getInstance().log(LogLevel::INFO, "Loading metadata from file_metadata.dat and node_registry.dat");
     metadataManager.loadMetadata("file_metadata.dat", "node_registry.dat");
 
+    const char* id_env = std::getenv("RAFT_ID");
+    const char* peers_env = std::getenv("RAFT_PEERS");
+    std::string raft_id = id_env ? id_env : "metaserver";
+    std::vector<std::string> peers;
+    if (peers_env) {
+        std::stringstream ss(peers_env);
+        std::string p;
+        while (std::getline(ss, p, ',')) { if(!p.empty()) peers.push_back(p); }
+    }
+    gRaftNode = std::make_unique<RaftNode>(raft_id, peers, [](const std::string& addr, const Message& m){
+        try {
+            std::string ip = addr.substr(0, addr.find(':'));
+            int port = std::stoi(addr.substr(addr.find(':') + 1));
+            Networking::Client c(ip.c_str(), port);
+            c.Send(Message::Serialize(m).c_str());
+            c.Disconnect();
+        } catch(const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR, std::string("[RaftSend] ")+e.what());
+        }
+    });
+    gRaftNode->start();
+
     Logger::getInstance().log(LogLevel::INFO, "Main: Starting persistence thread.");
     std::thread persist_thread(persistence_thread_function);
 
@@ -157,6 +181,11 @@ int main(int argc, char* argv[])
         Logger::getInstance().log(LogLevel::INFO, "Main: Joining persistence thread.");
         persist_thread.join();
         Logger::getInstance().log(LogLevel::INFO, "Main: Persistence thread joined.");
+    }
+
+    if (gRaftNode) {
+        Logger::getInstance().log(LogLevel::INFO, "Main: Stopping Raft node.");
+        gRaftNode->stop();
     }
 
     // Perform a final save if metadata is still dirty
