@@ -1,0 +1,114 @@
+---
+# Bootstrap an edge node with 1 metadata follower and local data cache
+- name: Install required packages
+  apt:
+    name:
+      - git
+      - build-essential
+      - cmake
+      - ninja-build
+      - libsodium-dev
+      - libzstd-dev
+      - libudev-dev
+      - pkg-config
+      - curl
+    state: present
+    update_cache: yes
+
+- name: Create simpliDFS user
+  user:
+    name: simplidfs
+    system: yes
+    create_home: yes
+
+- name: Ensure base directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: simplidfs
+    group: simplidfs
+    mode: '0755'
+  loop:
+    - /opt/simplidfs
+    - /opt/simplidfs/cache
+    - /opt/simplidfs/metadata
+
+- name: Clone SimpliDFS repository
+  git:
+    repo: https://github.com/JacobBorden/SimpliDFS.git
+    dest: /opt/simplidfs/src
+    version: "{{ simplidfs_repo_version }}"
+    force: yes
+  become_user: simplidfs
+
+- name: Run dependency setup script
+  command: ./setup_dependencies.sh chdir=/opt/simplidfs/src
+  become: yes
+  become_user: root
+
+- name: Build SimpliDFS
+  command: bash -c "mkdir -p build && cd build && cmake .. && make -j$(nproc)"
+  args:
+    chdir: /opt/simplidfs/src
+  become_user: simplidfs
+
+- name: Install binaries
+  copy:
+    remote_src: yes
+    src: "/opt/simplidfs/src/build/src/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+  loop:
+    - simpli_metaserver
+    - node
+
+- name: Create systemd unit for edge node metaserver follower
+  copy:
+    dest: /etc/systemd/system/simplidfs-metafollower.service
+    content: |
+      [Unit]
+      Description=SimpliDFS Metadata Follower
+      After=network.target
+
+      [Service]
+      User=simplidfs
+      Group=simplidfs
+      Environment=RAFT_ID={{ raft_id }}
+      Environment=RAFT_PEERS={{ raft_peers }}
+      ExecStart=/usr/local/bin/simpli_metaserver 0
+      WorkingDirectory=/opt/simplidfs/metadata
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Reload systemd
+
+- name: Create systemd unit for edge node storage
+  copy:
+    dest: /etc/systemd/system/simplidfs-node.service
+    content: |
+      [Unit]
+      Description=SimpliDFS Edge Node
+      After=network.target simplidfs-metafollower.service
+
+      [Service]
+      User=simplidfs
+      Group=simplidfs
+      ExecStart=/usr/local/bin/node {{ node_name }} {{ node_port }} 127.0.0.1 50505
+      WorkingDirectory=/opt/simplidfs/cache
+      Restart=on-failure
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Reload systemd
+
+- name: Enable and start services
+  systemd:
+    name: "{{ item }}"
+    enabled: yes
+    state: started
+  loop:
+    - simplidfs-metafollower.service
+    - simplidfs-node.service
+
+...
