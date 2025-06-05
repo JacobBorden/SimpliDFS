@@ -52,80 +52,94 @@ void RaftNode::resetElectionTimer() {
 }
 
 void RaftNode::handleMessage(const Message& msg, const std::string& from) {
-    std::lock_guard<std::mutex> lk(mtx);
-    if (msg._Type == MessageType::RaftAppendEntries) {
-        int term = std::stoi(msg._Content);
-        if (term >= currentTerm) {
-            currentTerm = term;
-            currentLeader = from;
-            role = RaftRole::Follower;
-            votedFor.clear();
-            resetElectionTimer();
-            if (!msg._Data.empty()) {
-                log.clear();
-                std::stringstream ss(msg._Data);
-                std::string entry;
-                while (std::getline(ss, entry, ';')) {
-                    if (entry.empty()) continue;
-                    size_t pos = entry.find(':');
-                    if (pos == std::string::npos) continue;
-                    int t = std::stoi(entry.substr(0, pos));
-                    std::string cmd = entry.substr(pos+1);
-                    log.push_back({t, cmd});
+    Message resp;
+    bool sendResp = false;
+
+    {
+        std::lock_guard<std::mutex> lk(mtx);
+        if (msg._Type == MessageType::RaftAppendEntries) {
+            int term = std::stoi(msg._Content);
+            if (term >= currentTerm) {
+                currentTerm = term;
+                currentLeader = from;
+                role = RaftRole::Follower;
+                votedFor.clear();
+                resetElectionTimer();
+                if (!msg._Data.empty()) {
+                    log.clear();
+                    std::stringstream ss(msg._Data);
+                    std::string entry;
+                    while (std::getline(ss, entry, ';')) {
+                        if (entry.empty()) continue;
+                        size_t pos = entry.find(':');
+                        if (pos == std::string::npos) continue;
+                        int t = std::stoi(entry.substr(0, pos));
+                        std::string cmd = entry.substr(pos+1);
+                        log.push_back({t, cmd});
+                    }
                 }
             }
-        }
-        Message resp;
-        resp._Type = MessageType::RaftAppendEntriesResponse;
-        resp._NodeAddress = nodeId;
-        resp._Content = std::to_string(currentTerm);
-        sendMessage(from, resp);
-    } else if (msg._Type == MessageType::RaftRequestVote) {
-        int term = std::stoi(msg._Content);
-        Message resp;
-        resp._Type = MessageType::RaftRequestVoteResponse;
-        resp._NodeAddress = nodeId;
-        if (term > currentTerm) {
-            currentTerm = term;
-            role = RaftRole::Follower;
-            votedFor.clear();
-        }
-        bool grant = false;
-        if (term == currentTerm && (votedFor.empty() || votedFor == from)) {
-            grant = true;
-            votedFor = from;
-            resetElectionTimer();
-        }
-        resp._Content = std::to_string(currentTerm);
-        resp._Data = grant ? "1" : "0";
-        sendMessage(from, resp);
-    } else if (msg._Type == MessageType::RaftRequestVoteResponse) {
-        if (role == RaftRole::Candidate) {
+            resp._Type = MessageType::RaftAppendEntriesResponse;
+            resp._NodeAddress = nodeId;
+            resp._Content = std::to_string(currentTerm);
+            sendResp = true;
+        } else if (msg._Type == MessageType::RaftRequestVote) {
             int term = std::stoi(msg._Content);
+            resp._Type = MessageType::RaftRequestVoteResponse;
+            resp._NodeAddress = nodeId;
             if (term > currentTerm) {
-                becomeFollower(term);
-                return;
+                currentTerm = term;
+                role = RaftRole::Follower;
+                votedFor.clear();
             }
-            if (msg._Data == "1") {
-                ++voteCount;
-                if (voteCount > (static_cast<int>(peerIds.size()) + 1) / 2) {
-                    becomeLeader();
+            bool grant = false;
+            if (term == currentTerm && (votedFor.empty() || votedFor == from)) {
+                grant = true;
+                votedFor = from;
+                resetElectionTimer();
+            }
+            resp._Content = std::to_string(currentTerm);
+            resp._Data = grant ? "1" : "0";
+            sendResp = true;
+        } else if (msg._Type == MessageType::RaftRequestVoteResponse) {
+            if (role == RaftRole::Candidate) {
+                int term = std::stoi(msg._Content);
+                if (term > currentTerm) {
+                    becomeFollower(term);
+                    return;
+                }
+                if (msg._Data == "1") {
+                    ++voteCount;
+                    if (voteCount > (static_cast<int>(peerIds.size()) + 1) / 2) {
+                        becomeLeader();
+                    }
                 }
             }
         }
     }
+
+    if (sendResp) {
+        sendMessage(from, resp);
+    }
 }
 
 void RaftNode::startElection() {
-    voteCount = 1;
-    currentTerm++;
-    votedFor = nodeId;
-    for (const auto& p : peerIds) {
-        Message req;
-        req._Type = MessageType::RaftRequestVote;
-        req._NodeAddress = nodeId;
-        req._Content = std::to_string(currentTerm);
-        sendMessage(p, req);
+    std::vector<std::pair<std::string, Message>> toSend;
+    {
+        std::lock_guard<std::mutex> lk(mtx);
+        voteCount = 1;
+        currentTerm++;
+        votedFor = nodeId;
+        for (const auto& p : peerIds) {
+            Message req;
+            req._Type = MessageType::RaftRequestVote;
+            req._NodeAddress = nodeId;
+            req._Content = std::to_string(currentTerm);
+            toSend.emplace_back(p, req);
+        }
+    }
+    for (const auto& pr : toSend) {
+        sendMessage(pr.first, pr.second);
     }
 }
 
@@ -152,23 +166,32 @@ void RaftNode::electionLoop() {
     int timeout = dist(rng);
     while (running) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        std::lock_guard<std::mutex> lk(mtx);
-        if (role == RaftRole::Leader) continue;
-        auto now = std::chrono::steady_clock::now();
-        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeat).count() > timeout) {
-            role = RaftRole::Candidate;
+        bool start = false;
+        {
+            std::lock_guard<std::mutex> lk(mtx);
+            if (role == RaftRole::Leader) continue;
+            auto now = std::chrono::steady_clock::now();
+            if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeat).count() > timeout) {
+                role = RaftRole::Candidate;
+                start = true;
+                timeout = dist(rng);
+                lastHeartbeat = std::chrono::steady_clock::now();
+            }
+        }
+        if (start) {
             startElection();
-            timeout = dist(rng);
-            lastHeartbeat = std::chrono::steady_clock::now();
         }
     }
 }
 
 void RaftNode::heartbeatLoop() {
     while (running) {
+        std::vector<std::pair<std::string, Message>> toSend;
         {
             std::lock_guard<std::mutex> lk(mtx);
-            if (role != RaftRole::Leader) return;
+            if (role != RaftRole::Leader)
+                return;
+
             Message hb;
             hb._Type = MessageType::RaftAppendEntries;
             hb._NodeAddress = nodeId;
@@ -178,10 +201,16 @@ void RaftNode::heartbeatLoop() {
                 ss << e.term << ':' << e.command << ';';
             }
             hb._Data = ss.str();
+
             for (const auto& p : peerIds) {
-                sendMessage(p, hb);
+                toSend.emplace_back(p, hb);
             }
         }
+
+        for (const auto& pr : toSend) {
+            sendMessage(pr.first, pr.second);
+        }
+
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 }
