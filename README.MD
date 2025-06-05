@@ -59,6 +59,8 @@ Significant progress has been made on core distributed file system logic:
 - CMake 3.10 or later.
 - A C++ compiler (e.g., GCC or Clang).
 - Google Test for unit testing.
+- FUSE 3 (libfuse) installed.
+- Root privileges or the `fusermount` utility to mount the filesystem.
 
 ### Build Instructions
 1. Clone the repository:
@@ -80,6 +82,7 @@ Significant progress has been made on core distributed file system logic:
    ```sh
    ./test/SimpliDFSTests
    ```
+   For more detailed testing instructions, see `TESTING_GUIDE.md`.
 
 ### Optional: Fuzz Testing
 SimpliDFS includes fuzzers built with libFuzzer to stress test core components.
