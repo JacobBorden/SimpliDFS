@@ -1,4 +1,4 @@
-# SimpliDFS Project - Current Progress and TODO List
+#SimpliDFS Project - Current Progress and TODO List
 
 ## Current Progress
 
@@ -46,6 +46,8 @@
 ### 3. Fault Tolerance
 - **Replication**: Implement replication of file chunks (Currently, whole file replication logic is in place during creation; re-replication data transfer is stubbed).
 - **Failure Handling**: Define behavior and implement data transfer when a node goes offline (Currently, node failure detection and selection of new nodes for replicas is implemented; data transfer is stubbed).
+- **Background Verification**: Nodes now periodically verify local file hashes and automatically heal corrupted copies by fetching clean data from peers.
+- **Replication Factor**: System defaults to a replication factor of 3 for all blocks.
 
 ### 4. Metadata Persistence
 - **Metadata Persistence**: Complete.
@@ -68,4 +70,3 @@
 - Implement the actual data transfer mechanisms for file replication and re-replication.
 - Develop comprehensive unit tests for all implemented features.
 - Begin work on file encryption.
-
