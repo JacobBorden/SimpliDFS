@@ -1,2 +1,0 @@
-fuse: warning: library too old, some operations may not not work
-Ignoring invalid max threads value 4294967295 > max (100000).
