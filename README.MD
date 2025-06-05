@@ -134,3 +134,17 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 The `tests/chaos_kill_node.sh` script simulates node failures by randomly killing
 one storage node every five minutes for two hours. Use this after launching the
 metaserver and nodes to evaluate replication healing.
+
+## Security
+SimpliDFS relies on a cluster-wide encryption key. Set the
+`SIMPLIDFS_CLUSTER_KEY` environment variable on every node before starting the
+metaserver or storage nodes to ensure they share the same key. The value must be
+a 64-character hex string (32 bytes). Example:
+
+```sh
+export SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
+```
+
+If this variable is missing or malformed, each process generates a new random
+key, preventing other nodes from decrypting its data. See
+[SECURITY.md](SECURITY.md) for details.
