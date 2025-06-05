@@ -61,7 +61,13 @@ enum class MessageType{
 
     // For FUSE adapter to request node locations for a file from metaserver
     GetFileNodeLocationsRequest,    // _Path will contain the file path
-    GetFileNodeLocationsResponse    // _Data will contain comma-separated "ip:port" strings for nodes; _ErrorCode for status
+    GetFileNodeLocationsResponse,   // _Data will contain comma-separated "ip:port" strings for nodes; _ErrorCode for status
+
+    // Raft consensus messages used by the metadata server cluster
+    RaftRequestVote,
+    RaftRequestVoteResponse,
+    RaftAppendEntries,
+    RaftAppendEntriesResponse
 };
 
 /**

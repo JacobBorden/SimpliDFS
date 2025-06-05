@@ -14,6 +14,7 @@
 #include "utilities/client.h"
 #include "utilities/networkexception.h"
 #include "utilities/blockio.hpp"
+#include "utilities/raft.h"
 #include <thread>
 #include <string>        // Required for std::string, std::to_string
 #include "utilities/logger.h" // Include the Logger header
@@ -25,6 +26,7 @@
 
 // Networking::Server server(50505); // Global server instance REMOVED
 MetadataManager metadataManager;  // Global metadata manager instance
+std::unique_ptr<RaftNode> gRaftNode; // Raft instance for leader election
 
 // --- MetadataManager Method Implementations ---
 
@@ -725,6 +727,16 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case DeleteFile, path '" << request._Filename << "'" << std::endl;
                 server_instance.Send(Message::Serialize(del_res).c_str(), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
+                break;
+            }
+            case MessageType::RaftRequestVote:
+            case MessageType::RaftRequestVoteResponse:
+            case MessageType::RaftAppendEntries:
+            case MessageType::RaftAppendEntriesResponse:
+            {
+                if (gRaftNode) {
+                    gRaftNode->handleMessage(request, request._NodeAddress);
+                }
                 break;
             }
             default:

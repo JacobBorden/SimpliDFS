@@ -13,6 +13,7 @@ add_executable(SimpliDFSTests
     key_manager_tests.cpp
     chunk_store_tests.cpp
     integration_tests.cpp # Added new integration tests file
+    raft_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
