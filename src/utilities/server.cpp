@@ -117,8 +117,7 @@ bool Networking::Server::CreateServerSocketInternal()
     SetSocketType(SOCK_STREAM);
     SetProtocol(IPPROTO_TCP);
 
-    // Set up the sockaddr_in structure
-    // TODO: Adapt for IPv6 if addressFamily is AF_INET6 using sockaddr_in6
+    // Set up the sockaddr structures for IPv4 or IPv6
     memset(&serverInfo, 0, sizeof(serverInfo));
     memset(&serverInfo6, 0, sizeof(serverInfo6));
 
@@ -126,6 +125,8 @@ bool Networking::Server::CreateServerSocketInternal()
         serverInfo6.sin6_family = AF_INET6;
         serverInfo6.sin6_addr = in6addr_any;
         serverInfo6.sin6_port = htons(portNumber_);
+        serverInfo6.sin6_flowinfo = 0;
+        serverInfo6.sin6_scope_id = 0;
         serverInfo.sin_family = AF_INET6; // for functions still using serverInfo
     } else {
         serverInfo.sin_family = AF_INET;

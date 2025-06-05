@@ -21,6 +21,7 @@
 #include <sys/stat.h>    // For S_IFDIR, S_IFREG modes
 #include <cerrno>        // For ENOENT, EACCES etc.
 #include <algorithm>     // For std::min, std::remove
+#include <fcntl.h>       // For open flags like O_RDONLY, O_WRONLY
 
 // Define persistence file paths and separators (already in metaserver.h)
 
@@ -196,28 +197,59 @@ std::vector<std::string> MetadataManager::getAllFileNames() {
 
 int MetadataManager::checkAccess(const std::string& filename, uint32_t access_mask) {
     std::lock_guard<std::mutex> lock(metadataMutex);
-    (void)access_mask; // access_mask is not used in this simplified version
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    // TODO: Implement actual permission checking based on stored fileModes[filename] and access_mask.
-    // This would involve bitwise operations to see if the requested permissions (R_OK, W_OK, X_OK in mask)
-    // are granted by the file's mode.
-    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] checkAccess for " + filename + " (mask: " + std::to_string(access_mask) + "). Optimistically returning success.");
-    return 0; // Optimistic: if file exists, access is granted for now.
+
+    uint32_t mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644);
+    uint32_t perms = mode & 0777; // only permission bits
+
+    if ((access_mask & R_OK) && !(perms & (S_IRUSR | S_IRGRP | S_IROTH))) {
+        return EACCES;
+    }
+    if ((access_mask & W_OK) && !(perms & (S_IWUSR | S_IWGRP | S_IWOTH))) {
+        return EACCES;
+    }
+    if ((access_mask & X_OK) && !(perms & (S_IXUSR | S_IXGRP | S_IXOTH))) {
+        return EACCES;
+    }
+
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[MetadataManager] checkAccess for " + filename + " (mask: " + std::to_string(access_mask) + ") passed.");
+    return 0;
 }
 
 int MetadataManager::openFile(const std::string& filename, uint32_t flags) {
     std::lock_guard<std::mutex> lock(metadataMutex);
-    (void)flags; // flags (like O_RDONLY, O_WRONLY, O_RDWR) are not fully utilized yet.
-                 // O_CREAT is handled by addFile. O_EXCL would need check here.
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
-    // TODO: More sophisticated open logic if needed (e.g., check flags like O_EXCL if O_CREAT was also set,
-    // though FUSE usually separates create() and open() calls).
-    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] openFile for " + filename + " (flags: " + std::to_string(flags) + "). Optimistically returning success.");
-    return 0; // Optimistic: if file exists, open is allowed.
+
+    // O_EXCL without O_CREAT is invalid per POSIX
+    if ((flags & O_EXCL) && !(flags & O_CREAT)) {
+        return EINVAL;
+    }
+
+    uint32_t mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644);
+    uint32_t perms = mode & 0777;
+
+    bool writeRequested = (flags & O_WRONLY) || (flags & O_RDWR) || (flags & O_TRUNC);
+    bool readRequested = !(flags & O_WRONLY); // read for RDONLY or RDWR
+
+    if (writeRequested && !(perms & (S_IWUSR | S_IWGRP | S_IWOTH))) {
+        return EACCES;
+    }
+    if (readRequested && !(perms & (S_IRUSR | S_IRGRP | S_IROTH))) {
+        return EACCES;
+    }
+
+    if (flags & O_TRUNC) {
+        fileSizes[filename] = 0;
+    }
+
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[MetadataManager] openFile for " + filename + " (flags: " + std::to_string(flags) + ") succeeded.");
+    return 0;
 }
 
 int MetadataManager::readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read) {
