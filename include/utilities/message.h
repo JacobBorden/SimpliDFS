@@ -67,7 +67,9 @@ enum class MessageType{
     RaftRequestVote,
     RaftRequestVoteResponse,
     RaftAppendEntries,
-    RaftAppendEntriesResponse
+    RaftAppendEntriesResponse,
+    /// Snapshot delta from edge node during hot-cache mode
+    SnapshotDelta
 };
 
 /**

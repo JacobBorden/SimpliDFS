@@ -39,6 +39,10 @@ private:
   Networking::Server server; ///< Server instance from NetworkingLibrary to
                              ///< listen for incoming connections.
   FileSystem fileSystem;     ///< Local file system manager for this node.
+  bool hotCacheMode{false};
+  std::string hotCacheSnapshotName;
+  std::vector<std::string> hotCacheDeltas;
+  bool lastHeartbeatSuccess{true};
   void verifyLoop(const std::string &metaAddr, int metaPort,
                   int intervalSeconds) {
     while (true) {
@@ -95,6 +99,45 @@ private:
       }
       std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
     }
+  }
+
+  void enterHotCacheMode() {
+    if (!hotCacheMode) {
+      hotCacheSnapshotName = "hotcache_base";
+      fileSystem.snapshotCreate(hotCacheSnapshotName);
+      hotCacheDeltas.clear();
+      hotCacheMode = true;
+      std::cout << "[NODE " << nodeName << "] Hot cache mode enabled." << std::endl;
+    }
+  }
+
+  void recordSnapshotDelta() {
+    if (!hotCacheMode)
+      return;
+    auto diff = fileSystem.snapshotDiff(hotCacheSnapshotName);
+    if (!diff.empty()) {
+      std::string combined;
+      for (const auto &d : diff) {
+        combined += d + "\n";
+      }
+      hotCacheDeltas.push_back(combined);
+      hotCacheSnapshotName = "hotcache_" + std::to_string(hotCacheDeltas.size());
+      fileSystem.snapshotCreate(hotCacheSnapshotName);
+    }
+  }
+
+  void forwardSnapshotDeltas(const std::string &addr, int port) {
+    for (const auto &d : hotCacheDeltas) {
+      Message m;
+      m._Type = MessageType::SnapshotDelta;
+      m._Filename = nodeName;
+      m._Content = d;
+      sendMessageToMetadataManager(addr, port, m);
+    }
+    if (!hotCacheDeltas.empty()) {
+      std::cout << "[NODE " << nodeName << "] Snapshot deltas forwarded." << std::endl;
+    }
+    hotCacheDeltas.clear();
   }
 
 public:
@@ -227,6 +270,7 @@ public:
             server.Send(("File " + message._Filename + " created successfully.")
                             .c_str(),
                         client);
+            recordSnapshotDelta();
           } else {
             // createFile logs if it already exists or other errors.
             // Check if it already exists to send a different success message
@@ -265,6 +309,7 @@ public:
             server.Send(("File " + message._Filename + " written successfully.")
                             .c_str(),
                         client);
+            recordSnapshotDelta();
           } else {
             server.Send(
                 ("Error: Unable to write file " + message._Filename + ".")
@@ -365,6 +410,7 @@ public:
           std::cout << "[NODE " << nodeName
                     << "_STUB] Sent delete confirmation to metaserver/client."
                     << std::endl;
+          recordSnapshotDelta();
         } else {
           std::cout << "[NODE " << nodeName << "] Error: Unable to delete file "
                     << message._Filename << " (not found or other error)."
@@ -405,7 +451,7 @@ public:
    * @note This method currently uses STUBs for actual network sending via
    * NetworkingLibrary.
    */
-  void sendMessageToMetadataManager(const std::string &metadataManagerAddress,
+  bool sendMessageToMetadataManager(const std::string &metadataManagerAddress,
                                     int metadataManagerPort,
                                     const Message &message) {
     try {
@@ -414,6 +460,7 @@ public:
       std::string serializedMessage = Message::Serialize(message);
       client.Send(serializedMessage.c_str());
       std::vector<char> response_vector = client.Receive();
+      client.Disconnect();
       if (response_vector.empty()) {
         std::cout << "Node " << nodeName
                   << " received empty response from MetadataManager."
@@ -428,6 +475,7 @@ public:
       // Suppress noisy cout during tests, consider logging framework if complex
       // logs needed std::cout << "Response from MetadataManager: " << response
       // << std::endl;
+      return true;
     } catch (const Networking::NetworkException &ne) {
       std::cerr << "Network error sending message to MetadataManager: "
                 << ne.what() << std::endl;
@@ -435,6 +483,7 @@ public:
       std::cerr << "Error sending message to MetadataManager: " << e.what()
                 << std::endl;
     }
+    return false;
   }
 
 private:
@@ -448,17 +497,21 @@ private:
    */
   void sendHeartbeatPeriodically(const std::string &metadataManagerAddress,
                                  int metadataManagerPort, int intervalSeconds) {
-    while (true) { // Or use a running flag to control the loop
+    while (true) {
       Message msg;
       msg._Type = MessageType::Heartbeat;
       msg._Filename =
           this->nodeName; // Using _Filename to carry the node identifier
 
-      // This function would make a network call to the MetadataManager
-      sendMessageToMetadataManager(metadataManagerAddress, metadataManagerPort,
-                                   msg);
-      // std::cout << "Node " << nodeName << " sent heartbeat to
-      // MetadataManager." << std::endl; // Optional: for debugging
+      bool success = sendMessageToMetadataManager(metadataManagerAddress,
+                                   metadataManagerPort, msg);
+      if (!success && lastHeartbeatSuccess) {
+        enterHotCacheMode();
+      } else if (success && !lastHeartbeatSuccess) {
+        forwardSnapshotDeltas(metadataManagerAddress, metadataManagerPort);
+        hotCacheMode = false;
+      }
+      lastHeartbeatSuccess = success;
 
       std::this_thread::sleep_for(std::chrono::seconds(intervalSeconds));
     }
