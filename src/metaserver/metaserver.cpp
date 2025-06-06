@@ -393,7 +393,6 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                 }
             }
         }
-    }
 
     Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData for " + filename + ": " + std::to_string(out_size_written) + " bytes 'written' at offset " + std::to_string(offset) + ". New potential size: " + std::to_string(current_size));
     return 0; // Success
