@@ -26,6 +26,10 @@ enum class NodeState { HEALTHY, SUSPECT, DEAD };
  */
 class NodeHealthCache {
 public:
+    struct StateInfo { NodeState state; SteadyClock::time_point lastChange; };
+
+    explicit NodeHealthCache(std::chrono::seconds suspect = std::chrono::seconds(30),
+                             std::chrono::seconds dead = std::chrono::seconds(90));
     /**
      * @brief Get the current state of a node.
      * @param id Node identifier.
@@ -51,11 +55,13 @@ public:
      */
     std::vector<NodeID> healthyNodes(size_t max) const;
 
+    std::unordered_map<NodeID, StateInfo> snapshot() const;
+
 private:
     struct Entry { NodeState state; SteadyClock::time_point lastChange; };
     mutable std::unordered_map<NodeID, Entry> map_;
-    const std::chrono::seconds suspectTimeout{10};
-    const std::chrono::seconds deadTimeout{30};
+    std::chrono::seconds suspectTimeout;
+    std::chrono::seconds deadTimeout;
     void updateState(const NodeID &id) const;
 };
 

@@ -102,7 +102,8 @@ message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEF
 add_library(SimpliDFS_MetaServerLib
     src/metaserver/metaserver.cpp
     src/metaserver/node_health_tracker.cpp
-    src/cluster/NodeHealthCache.cpp)
+    src/cluster/NodeHealthCache.cpp
+    src/repair/RepairWorker.cpp)
 target_include_directories(SimpliDFS_MetaServerLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(SimpliDFS_MetaServerLib
     PRIVATE # Should be PUBLIC if SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
@@ -146,6 +147,12 @@ target_link_libraries(node
 )
 # Ensure node executable can find headers if main_node.cpp needs them directly
 target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+
+# Control CLI
+add_executable(simplidfs src/simplidfs_ctl.cpp)
+target_link_libraries(simplidfs PRIVATE SimpliDFS_MetaServerLib)
+target_include_directories(simplidfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
 # Define the FUSE adapter executable

@@ -1,4 +1,9 @@
 #include "cluster/NodeHealthCache.h"
+#include <algorithm>
+
+NodeHealthCache::NodeHealthCache(std::chrono::seconds suspect,
+                                 std::chrono::seconds dead)
+    : suspectTimeout(suspect), deadTimeout(dead) {}
 
 void NodeHealthCache::updateState(const NodeID &id) const {
     auto it = map_.find(id);
@@ -28,11 +33,16 @@ void NodeHealthCache::recordSuccess(const NodeID &id) {
 
 void NodeHealthCache::recordFailure(const NodeID &id) {
     Entry &e = map_[id];
+    auto now = SteadyClock::now();
     if (e.state == NodeState::DEAD) {
-        e.lastChange = SteadyClock::now();
+        e.lastChange = now;
+    } else if (e.state == NodeState::SUSPECT &&
+               now - e.lastChange >= suspectTimeout) {
+        e.state = NodeState::DEAD;
+        e.lastChange = now;
     } else {
         e.state = NodeState::SUSPECT;
-        e.lastChange = SteadyClock::now();
+        e.lastChange = now;
     }
 }
 
@@ -55,6 +65,14 @@ std::vector<NodeID> NodeHealthCache::healthyNodes(size_t max) const {
             if (result.size() == max) break;
         }
         ++it;
+    }
+    return result;
+}
+
+std::unordered_map<NodeID, NodeHealthCache::StateInfo> NodeHealthCache::snapshot() const {
+    std::unordered_map<NodeID, StateInfo> result;
+    for (const auto &kv : map_) {
+        result.emplace(kv.first, StateInfo{kv.second.state, kv.second.lastChange});
     }
     return result;
 }
