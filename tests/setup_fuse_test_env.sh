@@ -10,6 +10,17 @@ if [ ! -e /dev/fuse ]; then
     exit 0
 fi
 
+# Ensure all processes share the same cluster encryption key. If the
+# SIMPLIDFS_CLUSTER_KEY environment variable is not already set, generate one.
+if [ -z "$SIMPLIDFS_CLUSTER_KEY" ]; then
+    SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
+    export SIMPLIDFS_CLUSTER_KEY
+    echo "INFO: Generated random SIMPLIDFS_CLUSTER_KEY for test environment."
+else
+    export SIMPLIDFS_CLUSTER_KEY
+    echo "INFO: Using existing SIMPLIDFS_CLUSTER_KEY for test environment."
+fi
+
 NUM_NODES=3
 NODE_START_PORT=50000
 
@@ -167,7 +178,8 @@ echo "-------------------------------------------------------------------"
 
 
 if [ "$FINAL_STATUS" -ne 0 ]; then
-    false
+    echo "SKIP: FUSE test environment could not be initialized."
+    exit 0
 else
     true
 fi

@@ -561,7 +561,9 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
     if (size == 0) return 0;
 
     Message req_msg;
-    req_msg._Type = MessageType::Read;
+    // Use legacy ReadFile message type expected by the current metaserver
+    // implementation. MessageType::Read is not handled server-side yet.
+    req_msg._Type = MessageType::ReadFile;
     req_msg._Path = path_str;
     req_msg._Offset = static_cast<int64_t>(offset);
     req_msg._Size = static_cast<uint64_t>(size);
@@ -804,7 +806,10 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     if (size == 0) return 0;
 
     Message req_msg;
-    req_msg._Type = MessageType::Write;
+    // Use legacy WriteFile message type expected by the current metaserver
+    // implementation. The newer MessageType::Write is not yet supported
+    // server-side, which caused "unknown message" errors during FUSE tests.
+    req_msg._Type = MessageType::WriteFile;
     req_msg._Path = path_str;
     req_msg._Offset = static_cast<int64_t>(offset);
     req_msg._Size = static_cast<uint64_t>(size);

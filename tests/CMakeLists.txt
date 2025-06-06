@@ -47,9 +47,23 @@ gtest_discover_tests(SimpliDFSTests)
 
 # --- Add FUSE Concurrency Test ---
 # Add executable for the FUSE concurrency test
+add_executable(SimpliDFSFuseConcurrencyTest
+    fuse_concurrency_tests.cpp
+)
+
 # Link necessary libraries (primarily pthreads for std::thread)
-# Threads::Threads is the modern CMake way to handle threading libraries.
+target_link_libraries(SimpliDFSFuseConcurrencyTest
+    PRIVATE
+    Threads::Threads
+)
+
 # Add the FUSE concurrency test to CTest
+add_test(
+    NAME FuseConcurrencyTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+# Define a test for running the setup script
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
 # Keeping these test definitions if they are useful for standalone execution.
