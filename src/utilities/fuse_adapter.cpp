@@ -11,6 +11,8 @@
 #include <sstream>   // For std::ostringstream, std::istringstream
 #include <iomanip>   // For std::put_time
 #include <chrono>    // For std::chrono::*
+#include <unordered_map>
+#include <memory>
 // Standard C headers
 #include <cstring>   // For memset, strerror, strcmp
 #include <cerrno>    // For errno constants like EIO, ENOENT
@@ -82,6 +84,19 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
 int simpli_release(const char *path, struct fuse_file_info *fi);
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi);
 void simpli_destroy(void* private_data);
+
+// Global map to serialize concurrent writes per file
+static std::mutex g_lock_map_mutex;
+static std::unordered_map<std::string, std::shared_ptr<std::mutex>> g_file_locks;
+
+static std::shared_ptr<std::mutex> get_file_lock(const std::string& path) {
+    std::lock_guard<std::mutex> guard(g_lock_map_mutex);
+    auto it = g_file_locks.find(path);
+    if (it == g_file_locks.end()) {
+        it = g_file_locks.emplace(path, std::make_shared<std::mutex>()).first;
+    }
+    return it->second;
+}
 
 
 // main function for the FUSE adapter
@@ -278,6 +293,8 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    auto file_lock = get_file_lock(path_str);
+    std::lock_guard<std::mutex> file_guard(*file_lock);
     if (path_str == "/") {
         stbuf->st_mode = S_IFDIR | 0755;
         stbuf->st_nlink = 2;
@@ -803,6 +820,8 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
         return -EIO;
     }
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    auto file_lock = get_file_lock(path_str);
+    std::lock_guard<std::mutex> file_guard(*file_lock);
     if (size == 0) return 0;
 
     Message req_msg;
@@ -883,6 +902,10 @@ int simpli_unlink(const char *path) {
             return -res_msg._ErrorCode;
         }
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Successfully unlinked " + path_str);
+        {
+            std::lock_guard<std::mutex> guard(g_lock_map_mutex);
+            g_file_locks.erase(path_str);
+        }
         return 0;
     } catch (const std::exception& e) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_unlink: Exception for " + path_str + ": " + std::string(e.what()));
