@@ -15,6 +15,8 @@
 #include <iostream>
 #include <ctime> // Required for time(nullptr)
 #include <unordered_map> // Required for std::unordered_map
+#include <unordered_set>
+#include <thread>
 #include <algorithm> // Required for std::find
 #include <fstream>   // For std::ofstream, std::ifstream
 #include <sstream>   // For std::stringstream
@@ -71,6 +73,25 @@ private:
     std::unordered_map<std::string, uint64_t> fileSizes;
     std::unordered_map<std::string, std::string> fileHashes;
     std::atomic<bool> metadata_is_dirty_ {false};
+
+    /** @brief Mutex protecting the active client set. */
+    mutable std::mutex clientMutex;
+    /** @brief Set of active client thread ids for debugging. */
+    std::unordered_set<std::thread::id> activeClients;
+
+    /**
+     * @brief Waits for metadata about a file to appear.
+     *
+     * Helper used by read/write operations to reduce races when
+     * metadata updates are slightly delayed.
+     * @param filename File to check.
+     * @param retries  Number of retries.
+     * @param delay_ms Delay between retries in milliseconds.
+     * @return True if metadata became available.
+     */
+    bool waitForFileMetadata(const std::string& filename,
+                             int retries = 2,
+                             int delay_ms = 10);
 
     NodeHealthTracker healthTracker_;
     NodeHealthCache healthCache_;
@@ -552,6 +573,32 @@ public:
         } else {
             std::cerr << "Info: Could not open " << nodeRegistryPath << " for reading. Starting fresh or assuming no prior state." << std::endl;
         }
+    }
+
+    /**
+     * @brief Registers a client thread for diagnostic tracking.
+     * @param tid Thread id of the client handler.
+     */
+    void registerClientThread(std::thread::id tid) {
+        std::lock_guard<std::mutex> lock(clientMutex);
+        activeClients.insert(tid);
+    }
+
+    /**
+     * @brief Removes a client thread from tracking.
+     * @param tid Thread id of the client handler.
+     */
+    void unregisterClientThread(std::thread::id tid) {
+        std::lock_guard<std::mutex> lock(clientMutex);
+        activeClients.erase(tid);
+    }
+
+    /**
+     * @brief Gets the number of active client threads.
+     */
+    size_t getActiveClientCount() const {
+        std::lock_guard<std::mutex> lock(clientMutex);
+        return activeClients.size();
     }
 };
 

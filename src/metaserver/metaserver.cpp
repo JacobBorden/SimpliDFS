@@ -16,6 +16,7 @@
 #include "utilities/blockio.hpp"
 #include "utilities/raft.h"
 #include <thread>
+#include <chrono>
 #include <string>        // Required for std::string, std::to_string
 #include "utilities/logger.h" // Include the Logger header
 #include <sys/stat.h>    // For S_IFDIR, S_IFREG modes
@@ -30,6 +31,24 @@ MetadataManager metadataManager;  // Global metadata manager instance
 std::unique_ptr<RaftNode> gRaftNode; // Raft instance for leader election
 
 // --- MetadataManager Method Implementations ---
+
+bool MetadataManager::waitForFileMetadata(const std::string& filename,
+                                           int retries,
+                                           int delay_ms) {
+    for (int i = 0; i <= retries; ++i) {
+        {
+            std::lock_guard<std::mutex> lock(metadataMutex);
+            if (fileMetadata.count(filename)) return true;
+        }
+        if (i < retries) {
+            Logger::getInstance().log(LogLevel::DEBUG,
+                "[MetadataManager] waitForFileMetadata retry " +
+                std::to_string(i+1) + " for " + filename);
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+        }
+    }
+    return false;
+}
 
 // Constructor, registerNode, processHeartbeat, checkForDeadNodes, printMetadata, saveMetadata, loadMetadata
 // are assumed to be already implemented (or their stubs are sufficient for now).
@@ -209,10 +228,10 @@ bool MetadataManager::removeFile(const std::string& filename) {
 
 
 int MetadataManager::getFileAttributes(const std::string& filename, uint32_t& mode, uint32_t& uid, uint32_t& gid, uint64_t& size) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(filename)) {
+    if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+    std::lock_guard<std::mutex> lock(metadataMutex);
     mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644); // Default if not in map
     size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;             // Default if not in map
     uid = 0; // Placeholder UID, SimpliDFS doesn't manage users yet
@@ -234,10 +253,10 @@ std::vector<std::string> MetadataManager::getAllFileNames() {
 }
 
 int MetadataManager::checkAccess(const std::string& filename, uint32_t access_mask) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(filename)) {
+    if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+    std::lock_guard<std::mutex> lock(metadataMutex);
 
     uint32_t mode = fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644);
     uint32_t perms = mode & 0777; // only permission bits
@@ -258,10 +277,10 @@ int MetadataManager::checkAccess(const std::string& filename, uint32_t access_ma
 }
 
 int MetadataManager::openFile(const std::string& filename, uint32_t flags) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(filename)) {
+    if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+    std::lock_guard<std::mutex> lock(metadataMutex);
 
     // O_EXCL without O_CREAT is invalid per POSIX
     if ((flags & O_EXCL) && !(flags & O_CREAT)) {
@@ -291,10 +310,10 @@ int MetadataManager::openFile(const std::string& filename, uint32_t flags) {
 }
 
 int MetadataManager::readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(filename)) {
+    if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+    std::lock_guard<std::mutex> lock(metadataMutex);
     Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] readFileData: Actual read from storage node not implemented. Returning placeholder for " + filename);
 
     // Using stored size for more realistic placeholder behavior
@@ -324,11 +343,11 @@ int MetadataManager::readFileData(const std::string& filename, int64_t offset, u
 }
 
 int MetadataManager::writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written) {
-    std::vector<std::pair<std::string, std::string>> nodeAddrs;
-    std::unique_lock<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(filename)) {
+    if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+    std::vector<std::pair<std::string, std::string>> nodeAddrs;
+    std::unique_lock<std::mutex> lock(metadataMutex);
     Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] writeFileData: Actual write to storage node not implemented for " + filename + ". Updating size only.");
 
     out_size_written = data_to_write.length();
@@ -441,10 +460,10 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 }
 
 int MetadataManager::renameFileEntry(const std::string& old_filename, const std::string& new_filename) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    if (!fileMetadata.count(old_filename)) {
+    if (!waitForFileMetadata(old_filename)) {
         return ENOENT;
     }
+    std::lock_guard<std::mutex> lock(metadataMutex);
     if (fileMetadata.count(new_filename)) {
         return EEXIST;
     }
@@ -504,10 +523,13 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
 {
     std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread started for client " << server_instance.GetClientIPAddress(_pClient) << std::endl;
     std::string client_ip_str = server_instance.GetClientIPAddress(_pClient); // Store for logging after disconnect
+    metadataManager.registerClientThread(std::this_thread::get_id());
 
     while(true) { // Loop to handle multiple requests
         try {
-            Logger::getInstance().log(LogLevel::DEBUG, "Handling client connection from " + client_ip_str);
+            Logger::getInstance().log(LogLevel::DEBUG,
+                "Handling client connection from " + client_ip_str +
+                ", active clients: " + std::to_string(metadataManager.getActiveClientCount()));
             std::vector<char> received_vector = server_instance.Receive(_pClient);
             std::cerr << "DIAGNOSTIC: HandleClientConnection: Received " << received_vector.size() << " bytes from client." << std::endl;
             if (received_vector.empty()) {
@@ -866,6 +888,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
         Logger::getInstance().log(LogLevel::ERROR, "Network error during DisconnectClient for " + client_ip_str + ": " + std::string(ne.what()));
     }
 
+    metadataManager.unregisterClientThread(std::this_thread::get_id());
     std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing for client " << client_ip_str << std::endl;
 }
 
