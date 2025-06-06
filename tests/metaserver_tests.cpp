@@ -1,6 +1,7 @@
 // Unit Tests for MetadataManager
 #include "gtest/gtest.h"
 #include "metaserver/metaserver.h"
+#include "cluster/NodeHealthCache.h"
 #include "utilities/blockio.hpp"
 #include "utilities/server.h"
 #include "utilities/message.h"
@@ -223,4 +224,21 @@ TEST_F(MetadataManagerTest, RollbackOnPartial) {
     ASSERT_EQ(sa.received.size(), 2u);
     EXPECT_EQ(sa.received[0], MessageType::WriteFile);
     EXPECT_EQ(sa.received[1], MessageType::DeleteFile);
+}
+
+TEST_F(MetadataManagerTest, NodeHealthCacheMarksFailures) {
+    metadataManager.registerNode("A", "127.0.0.1", 15001);
+    metadataManager.registerNode("B", "127.0.0.1", 15002);
+    metadataManager.registerNode("C", "127.0.0.1", 15003);
+
+    DummyServer sb(15002,2), sc(15003,2); // A has no server -> fails
+    std::vector<std::string> nodes = {"A","B","C"};
+
+    int res = metadataManager.addFile("health.txt", nodes, 0644);
+    EXPECT_EQ(res, ERR_INSUFFICIENT_REPLICA);
+    EXPECT_EQ(metadataManager.getNodeHealthState("A"), NodeState::SUSPECT);
+    EXPECT_EQ(metadataManager.getNodeHealthState("B"), NodeState::HEALTHY);
+
+    sb.stop();
+    sc.stop();
 }
