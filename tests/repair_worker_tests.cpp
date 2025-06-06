@@ -2,7 +2,7 @@
 #include "repair/RepairWorker.h"
 
 TEST(RepairWorker, HealsPartial) {
-    NodeHealthCache cache(std::chrono::seconds(1), std::chrono::seconds(5));
+    NodeHealthCache cache(2,3,std::chrono::seconds(1));
     cache.recordSuccess("nodeB");
     cache.recordSuccess("nodeC");
     std::unordered_map<std::string, InodeEntry> table;

@@ -177,5 +177,16 @@ add_subdirectory(src/utilities)
 enable_testing()
 add_subdirectory(tests)
 
+# ⭐ NEW CODE
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.5.2
+)
+FetchContent_MakeAvailable(Catch2)
+add_executable(health_tests tests/test_health.cpp)
+target_link_libraries(health_tests PRIVATE Catch2::Catch2WithMain SimpliDFS_MetaServerLib)
+add_test(NAME health_tests COMMAND health_tests)
+
 # Add benchmark subdirectory
 add_subdirectory(bench)

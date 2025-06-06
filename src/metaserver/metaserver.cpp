@@ -69,7 +69,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         auto it = registeredNodes.find(nodeID);
         if (it != registeredNodes.end() && it->second.isAlive &&
             !healthTracker_.isNodeDead(nodeID) &&
-            healthCache_.state(nodeID) == NodeState::HEALTHY) {
+            healthCache_.state(nodeID) == NodeState::ALIVE) {
             if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                 targetNodes.push_back(nodeID);
                 targetAddrs.push_back(it->second.nodeAddress);
@@ -82,7 +82,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
             if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
             const std::string& nodeID = entry.first;
             if (entry.second.isAlive && !healthTracker_.isNodeDead(nodeID) &&
-                healthCache_.state(nodeID) == NodeState::HEALTHY) {
+                healthCache_.state(nodeID) == NodeState::ALIVE) {
                 if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                     targetNodes.push_back(nodeID);
                     targetAddrs.push_back(entry.second.nodeAddress);
@@ -895,6 +895,21 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
 
     metadataManager.unregisterClientThread(std::this_thread::get_id());
     std::cerr << "DIAGNOSTIC: HandleClientConnection: Thread finishing for client " << client_ip_str << std::endl;
+}
+
+// ⭐ NEW CODE
+std::vector<std::string> MetadataManager::pickLiveNodes(size_t count) {
+    std::vector<std::string> healthy = healthCache_.getHealthyNodes();
+    std::vector<std::string> result;
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    for (const auto& id : healthy) {
+        auto it = registeredNodes.find(id);
+        if (it != registeredNodes.end() && it->second.isAlive && !healthTracker_.isNodeDead(id)) {
+            result.push_back(id);
+            if (result.size() == count) break;
+        }
+    }
+    return result;
 }
 
 // main() function has been moved to src/main_metaserver.cpp

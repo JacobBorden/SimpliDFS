@@ -7,7 +7,7 @@ extern MetadataManager metadataManager;
 
 static std::string stateToString(NodeState s) {
     switch (s) {
-        case NodeState::HEALTHY: return "HEALTHY";
+        case NodeState::ALIVE: return "ALIVE";
         case NodeState::SUSPECT: return "SUSPECT";
         default: return "DEAD";
     }
