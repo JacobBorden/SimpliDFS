@@ -2,11 +2,40 @@
 #include "gtest/gtest.h"
 #include "metaserver/metaserver.h"
 #include "utilities/blockio.hpp"
+#include "utilities/server.h"
+#include "utilities/message.h"
+#include <thread>
 
 // Test Fixture for MetadataManager
 class MetadataManagerTest : public ::testing::Test {
 protected:
     MetadataManager metadataManager;
+
+    struct DummyServer {
+        Networking::Server server;
+        std::thread th;
+        std::vector<MessageType> received;
+        DummyServer(int port, int expected)
+            : server(port) {
+            server.startListening();
+            th = std::thread([this, expected](){
+                for(int i=0;i<expected;i++) {
+                    auto conn = server.Accept();
+                    auto raw = server.Receive(conn);
+                    if(!raw.empty()) {
+                        Message msg = Message::Deserialize(std::string(raw.begin(), raw.end()));
+                        received.push_back(msg._Type);
+                    }
+                    server.Send("", conn);
+                    server.DisconnectClient(conn);
+                }
+            });
+        }
+        void stop() {
+            if(th.joinable()) th.join();
+            server.Shutdown();
+        }
+    };
 };
 
 // Test adding a new file
@@ -15,12 +44,14 @@ TEST_F(MetadataManagerTest, AddFile) {
     std::vector<std::string> nodes = {"Node1", "Node2", "Node3"};
     
     // Register nodes to make them available and alive
-    metadataManager.registerNode("Node1", "localhost", 1001);
-    metadataManager.registerNode("Node2", "localhost", 1002);
-    metadataManager.registerNode("Node3", "localhost", 1003);
+    metadataManager.registerNode("Node1", "127.0.0.1", 1001);
+    metadataManager.registerNode("Node2", "127.0.0.1", 1002);
+    metadataManager.registerNode("Node3", "127.0.0.1", 1003);
+
+    DummyServer s1(1001,1), s2(1002,1), s3(1003,1);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
-    int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
+    int add_result = metadataManager.addFile(filename, nodes, 0644);
     ASSERT_EQ(add_result, 0); // 0 indicates success
 
     std::vector<std::string> storedNodes; 
@@ -28,6 +59,8 @@ TEST_F(MetadataManagerTest, AddFile) {
        storedNodes = metadataManager.getFileNodes(filename);
     });
     EXPECT_EQ(storedNodes, nodes);
+
+    s1.stop(); s2.stop(); s3.stop();
 }
 
 // Test retrieving nodes for an existing file
@@ -35,10 +68,11 @@ TEST_F(MetadataManagerTest, GetFileNodes) {
     std::string filename = "testfile2.txt";
     std::vector<std::string> nodes = {"Node3", "Node4", "Node5"};
 
-    // Register nodes
-    metadataManager.registerNode("Node3", "localhost", 1003);
-    metadataManager.registerNode("Node4", "localhost", 1004);
-    metadataManager.registerNode("Node5", "localhost", 1005);
+    metadataManager.registerNode("Node3", "127.0.0.1", 1003);
+    metadataManager.registerNode("Node4", "127.0.0.1", 1004);
+    metadataManager.registerNode("Node5", "127.0.0.1", 1005);
+
+    DummyServer s1(1003,1), s2(1004,1), s3(1005,1);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
@@ -49,6 +83,8 @@ TEST_F(MetadataManagerTest, GetFileNodes) {
         retrievedNodes = metadataManager.getFileNodes(filename);
     });
     EXPECT_EQ(retrievedNodes, nodes);
+
+    s1.stop(); s2.stop(); s3.stop();
 }
 
 // Test retrieving nodes for a non-existent file
@@ -62,9 +98,11 @@ TEST_F(MetadataManagerTest, RemoveFile) {
     std::string filename = "testfile3.txt";
     std::vector<std::string> nodes = {"Node5", "Node6", "Node7"};
     // Register nodes to make them available for addFile
-    metadataManager.registerNode("Node5", "localhost", 1005);
-    metadataManager.registerNode("Node6", "localhost", 1006);
-    metadataManager.registerNode("Node7", "localhost", 1007);
+    metadataManager.registerNode("Node5", "127.0.0.1", 1005);
+    metadataManager.registerNode("Node6", "127.0.0.1", 1006);
+    metadataManager.registerNode("Node7", "127.0.0.1", 1007);
+
+    DummyServer s1(1005,2), s2(1006,2), s3(1007,2);
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // Ensure file was added successfully
 
@@ -72,6 +110,8 @@ TEST_F(MetadataManagerTest, RemoveFile) {
     bool remove_result = metadataManager.removeFile(filename);
     ASSERT_TRUE(remove_result); // true indicates success
     EXPECT_THROW(metadataManager.getFileNodes(filename), std::runtime_error);
+
+    s1.stop(); s2.stop(); s3.stop();
 }
 
 // Test removing a non-existent file
@@ -87,14 +127,18 @@ TEST_F(MetadataManagerTest, PrintMetadata) {
     std::string filename = "testfile4.txt";
     std::vector<std::string> nodes = {"Node7", "Node8", "Node9"};
     // Register nodes before adding file that uses them
-    metadataManager.registerNode("Node7", "localhost", 1007);
-    metadataManager.registerNode("Node8", "localhost", 1008);
-    metadataManager.registerNode("Node9", "localhost", 1009);
+    metadataManager.registerNode("Node7", "127.0.0.1", 1007);
+    metadataManager.registerNode("Node8", "127.0.0.1", 1008);
+    metadataManager.registerNode("Node9", "127.0.0.1", 1009);
+
+    DummyServer s1(1007,1), s2(1008,1), s3(1009,1);
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // 0 indicates success
 
     ASSERT_NO_THROW(metadataManager.printMetadata());
+
+    s1.stop(); s2.stop(); s3.stop();
 }
 
 TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
@@ -107,6 +151,10 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
     metadataManager.registerNode(node1, "127.0.0.1", 1111);
     metadataManager.registerNode(node2, "127.0.0.1", 2222);
     metadataManager.registerNode(node3, "127.0.0.1", 3333);
+
+    DummyServer s1(1111,4); // create + write + two replicate
+    DummyServer s2(2222,2); // create + receive
+    DummyServer s3(3333,2); // create + receive
 
     std::vector<std::string> nodes = {node1, node2, node3};
     ASSERT_EQ(metadataManager.addFile(filename, nodes, mode), 0);
@@ -139,13 +187,40 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
 
     std::remove(fm_path.c_str());
     std::remove(nr_path.c_str());
+
+    s1.stop(); s2.stop(); s3.stop();
 }
 
 TEST_F(MetadataManagerTest, InsufficientNodesAddFileFails) {
-    metadataManager.registerNode("Node1", "localhost", 1001);
-    metadataManager.registerNode("Node2", "localhost", 1002);
+    metadataManager.registerNode("Node1", "127.0.0.1", 1001);
+    metadataManager.registerNode("Node2", "127.0.0.1", 1002);
     std::vector<std::string> nodes = {"Node1", "Node2"};
     int res = metadataManager.addFile("insuff.txt", nodes, 0644);
-    EXPECT_EQ(res, EAGAIN);
+    EXPECT_EQ(res, ERR_NO_REPLICA);
     EXPECT_FALSE(metadataManager.fileExists("insuff.txt"));
+}
+
+TEST_F(MetadataManagerTest, ZeroReplicaFails) {
+    metadataManager.registerNode("A", "127.0.0.1", 13001);
+    metadataManager.registerNode("B", "127.0.0.1", 13002);
+    metadataManager.registerNode("C", "127.0.0.1", 13003);
+    std::vector<std::string> nodes = {"A","B","C"};
+    int res = metadataManager.addFile("zero.txt", nodes, 0644);
+    EXPECT_EQ(res, ERR_NO_REPLICA);
+    EXPECT_FALSE(metadataManager.fileExists("zero.txt"));
+}
+
+TEST_F(MetadataManagerTest, RollbackOnPartial) {
+    metadataManager.registerNode("A", "127.0.0.1", 14001);
+    metadataManager.registerNode("B", "127.0.0.1", 14002);
+    metadataManager.registerNode("C", "127.0.0.1", 14003);
+    DummyServer sa(14001,2); // create then delete
+    std::vector<std::string> nodes = {"A","B","C"};
+    int res = metadataManager.addFile("part.txt", nodes, 0644);
+    EXPECT_EQ(res, ERR_INSUFFICIENT_REPLICA);
+    EXPECT_FALSE(metadataManager.fileExists("part.txt"));
+    sa.stop();
+    ASSERT_EQ(sa.received.size(), 2u);
+    EXPECT_EQ(sa.received[0], MessageType::WriteFile);
+    EXPECT_EQ(sa.received[1], MessageType::DeleteFile);
 }

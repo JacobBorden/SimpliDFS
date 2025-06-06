@@ -99,7 +99,9 @@ message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEF
 # Remove GLOB-based variables for sources, list them explicitly
 
 # Define the SimpliDFS_MetaServerLib library
-add_library(SimpliDFS_MetaServerLib src/metaserver/metaserver.cpp)
+add_library(SimpliDFS_MetaServerLib
+    src/metaserver/metaserver.cpp
+    src/metaserver/node_health_tracker.cpp)
 target_include_directories(SimpliDFS_MetaServerLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(SimpliDFS_MetaServerLib
     PRIVATE # Should be PUBLIC if SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
