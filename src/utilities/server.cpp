@@ -6,6 +6,7 @@
 #include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
 #include <thread>   // For std::this_thread::get_id()
 #include <chrono>   // For timestamp components (used by getNetworkTimestamp)
+#include <unistd.h> // For geteuid
 
 // Assuming getNetworkTimestamp is defined in client.cpp or a common header accessible here.
 // If not, it needs to be redefined or included. For this patch, we'll assume it's available.
@@ -242,6 +243,12 @@ void Networking::Server::CreateSocket()
 void Networking::Server::BindSocket()
 {
     static int retries=0;
+    if (portNumber_ < 1024 && ::geteuid() != 0) {
+        Logger::getInstance().log(LogLevel::ERROR,
+            "Cannot bind to privileged port " + std::to_string(portNumber_) +
+            " as non-root user");
+        ThrowBindException(serverSocket, EACCES);
+    }
     // Bind the socket to a local address and port
     try{
                 const sockaddr* addr = nullptr;
