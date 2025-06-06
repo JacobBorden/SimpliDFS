@@ -32,6 +32,7 @@ const std::string FULL_TEST_FILE_PATH = MOUNT_POINT + "/" + TEST_FILE_NAME;
 const int NUM_THREADS = 5;
 const int NUM_LINES_PER_THREAD = 100;
 const int LINE_LENGTH = 80; // Length of content part, *before* newline
+const std::string HEADER_LINE = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n";
 
 // Helper function to generate a unique string for each line
 std::string generate_line_content(int thread_id, int line_num) {
@@ -68,7 +69,8 @@ void writer_thread_func(int thread_id) {
         std::string content_for_line = generate_line_content(thread_id, i);
         std::string line_to_write = content_for_line + '\n';
 
-        off_t thread_block_start_offset = thread_id * NUM_LINES_PER_THREAD * (LINE_LENGTH + 1);
+        off_t thread_block_start_offset = HEADER_LINE.size() +
+                                         thread_id * NUM_LINES_PER_THREAD * (LINE_LENGTH + 1);
         off_t line_offset_in_block = i * (LINE_LENGTH + 1);
         off_t offset = thread_block_start_offset + line_offset_in_block;
 
@@ -121,13 +123,11 @@ int main() {
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Failed to create/truncate test file: " << FULL_TEST_FILE_PATH << std::endl;
         return 1;
     }
-    std::string header_line = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n";
-
-    pre_outfile << header_line;
+    pre_outfile << HEADER_LINE;
 
     size_t expected_total_lines = NUM_THREADS * NUM_LINES_PER_THREAD;
-    size_t final_size = header_line.size() + expected_total_lines * (LINE_LENGTH + 1);
-    if (final_size > header_line.size()) {
+    size_t final_size = HEADER_LINE.size() + expected_total_lines * (LINE_LENGTH + 1);
+    if (final_size > HEADER_LINE.size()) {
         pre_outfile.seekp(final_size - 1);
         pre_outfile.write("\0", 1);
     }
@@ -157,9 +157,9 @@ int main() {
     std::string current_line_read;
 
     std::getline(infile, current_line_read);
-    if (current_line_read + '\n' != header_line) {
+    if (current_line_read + '\n' != HEADER_LINE) {
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION WARNING: Header line mismatch or not found!" << std::endl;
-        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Expected header (ending with newline): " << header_line;
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Expected header (ending with newline): " << HEADER_LINE;
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Read line (getline strips newline): " << current_line_read << std::endl;
     }
 
