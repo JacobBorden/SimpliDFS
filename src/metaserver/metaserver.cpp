@@ -76,6 +76,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     } else if (targetNodes.size() < DEFAULT_REPLICATION_FACTOR) {
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: Could only find " + std::to_string(targetNodes.size()) +
                                                " live nodes for file " + filename + ". Required: " + std::to_string(DEFAULT_REPLICATION_FACTOR));
+        return EAGAIN; // Insufficient nodes
     }
 
     fileMetadata[filename] = targetNodes;
