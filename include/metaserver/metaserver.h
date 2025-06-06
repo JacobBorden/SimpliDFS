@@ -369,6 +369,12 @@ public:
 
     NodeHealthCache& healthCache() { return healthCache_; }
 
+    /// ⭐ NEW CODE
+    /**
+     * @brief Pick up to @p count nodes that are considered alive.
+     */
+    std::vector<std::string> pickLiveNodes(size_t count);
+
     /**
      * @brief Checks if a node with the given identifier is registered.
      * @param nodeIdentifier The unique identifier of the node.

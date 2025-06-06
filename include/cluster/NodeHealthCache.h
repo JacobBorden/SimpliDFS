@@ -3,65 +3,60 @@
 #include <vector>
 #include <string>
 #include <chrono>
+#include <mutex>
 
 /**
  * @file NodeHealthCache.h
- * @brief Caches recent node health results for placement decisions.
+ * @brief Thread-safe liveness tracker used by the metadata layer.
  */
 
 using NodeID = std::string;
 using SteadyClock = std::chrono::steady_clock;
 
 /**
- * @brief Represents the current observed state of a node.
+ * @brief States reported by the health cache.
  */
-enum class NodeState { HEALTHY, SUSPECT, DEAD };
+enum class NodeState { ALIVE, SUSPECT, DEAD };
 
 /**
- * @brief Tracks recent communication successes and failures with nodes.
- *
- * The cache promotes nodes from SUSPECT to DEAD when failures persist
- * beyond a timeout and eventually forgets about dead nodes so they can
- * be retried later.
+ * @brief Tracks communication successes and failures for each node.
  */
 class NodeHealthCache {
 public:
     struct StateInfo { NodeState state; SteadyClock::time_point lastChange; };
 
-    explicit NodeHealthCache(std::chrono::seconds suspect = std::chrono::seconds(30),
-                             std::chrono::seconds dead = std::chrono::seconds(90));
-    /**
-     * @brief Get the current state of a node.
-     * @param id Node identifier.
-     * @return The node's state.
-     */
+    NodeHealthCache(std::size_t failureThreshold = 2,
+                    std::size_t successThreshold = 3,
+                    std::chrono::seconds cooldown = std::chrono::seconds(15));
+
+    /** Get the current state of @p id. */
     NodeState state(const NodeID &id) const;
 
-    /**
-     * @brief Record a successful communication with a node.
-     * @param id Node identifier.
-     */
+    /** Record a successful RPC to @p id. */
     void recordSuccess(const NodeID &id);
 
-    /**
-     * @brief Record a failed communication with a node.
-     * @param id Node identifier.
-     */
+    /** Record a failed RPC to @p id. */
     void recordFailure(const NodeID &id);
 
-    /**
-     * @brief Return up to @p max node IDs that appear healthy.
-     * @param max Maximum number of nodes to return.
-     */
-    std::vector<NodeID> healthyNodes(size_t max) const;
+    /** Return all IDs currently considered ALIVE. */
+    std::vector<NodeID> getHealthyNodes() const;
 
+    /** Snapshot of the internal map for diagnostics. */
     std::unordered_map<NodeID, StateInfo> snapshot() const;
 
 private:
-    struct Entry { NodeState state; SteadyClock::time_point lastChange; };
+    struct Entry {
+        NodeState state{NodeState::ALIVE};
+        std::size_t failures{0};
+        std::size_t successes{0};
+        SteadyClock::time_point lastChange{SteadyClock::now()};
+        SteadyClock::time_point lastFailure{SteadyClock::now()};
+    };
+
+    mutable std::mutex mutex_;
     mutable std::unordered_map<NodeID, Entry> map_;
-    std::chrono::seconds suspectTimeout;
-    std::chrono::seconds deadTimeout;
-    void updateState(const NodeID &id) const;
+    const std::size_t failureThreshold_;
+    const std::size_t successThreshold_;
+    const std::chrono::seconds cooldown_;
 };
 

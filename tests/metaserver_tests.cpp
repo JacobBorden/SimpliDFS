@@ -238,16 +238,15 @@ TEST_F(MetadataManagerTest, NodeHealthCacheMarksFailures) {
     int res = metadataManager.addFile("health.txt", nodes, 0644);
     EXPECT_EQ(res, ERR_INSUFFICIENT_REPLICA);
     EXPECT_EQ(metadataManager.getNodeHealthState("A"), NodeState::SUSPECT);
-    EXPECT_EQ(metadataManager.getNodeHealthState("B"), NodeState::HEALTHY);
+    EXPECT_EQ(metadataManager.getNodeHealthState("B"), NodeState::ALIVE);
 
     sb.stop();
     sc.stop();
 }
 
 TEST(NodeHealthCache, FailureEscalation) {
-    NodeHealthCache cache;
+    NodeHealthCache cache(2, 3, std::chrono::seconds(1));
     cache.recordFailure("X");
-    std::this_thread::sleep_for(std::chrono::seconds(30));
     cache.recordFailure("X");
     EXPECT_EQ(cache.state("X"), NodeState::DEAD);
 }
