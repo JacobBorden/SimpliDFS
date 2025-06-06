@@ -322,6 +322,12 @@ public:
         return healthCache_.state(nodeIdentifier);
     }
 
+    std::unordered_map<NodeID, NodeHealthCache::StateInfo> getHealthSnapshot() const {
+        return healthCache_.snapshot();
+    }
+
+    NodeHealthCache& healthCache() { return healthCache_; }
+
     /**
      * @brief Checks if a node with the given identifier is registered.
      * @param nodeIdentifier The unique identifier of the node.

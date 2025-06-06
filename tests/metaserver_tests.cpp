@@ -4,6 +4,7 @@
 #include "cluster/NodeHealthCache.h"
 #include "utilities/blockio.hpp"
 #include "utilities/server.h"
+#include <thread>
 #include "utilities/message.h"
 #include <thread>
 
@@ -241,4 +242,12 @@ TEST_F(MetadataManagerTest, NodeHealthCacheMarksFailures) {
 
     sb.stop();
     sc.stop();
+}
+
+TEST(NodeHealthCache, FailureEscalation) {
+    NodeHealthCache cache;
+    cache.recordFailure("X");
+    std::this_thread::sleep_for(std::chrono::seconds(30));
+    cache.recordFailure("X");
+    EXPECT_EQ(cache.state("X"), NodeState::DEAD);
 }
