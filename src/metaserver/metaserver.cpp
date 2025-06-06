@@ -37,13 +37,13 @@ std::unique_ptr<RaftNode> gRaftNode; // Raft instance for leader election
 
 // Modified addFile to include mode and return an error code
 int MetadataManager::addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::vector<std::string> targetNodes;
+    std::vector<std::string> targetAddrs;
+    std::unique_lock<std::mutex> lock(metadataMutex);
     if (fileMetadata.count(filename)) {
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: File already exists: " + filename);
         return EEXIST;
     }
-
-    std::vector<std::string> targetNodes;
     // Try to use preferred nodes if they are alive
     for (const auto& nodeID : preferredNodes) {
         if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
@@ -51,6 +51,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         if (it != registeredNodes.end() && it->second.isAlive) {
             if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                 targetNodes.push_back(nodeID);
+                targetAddrs.push_back(it->second.nodeAddress);
             }
         }
     }
@@ -63,6 +64,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
             if (entry.second.isAlive) {
                 if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                     targetNodes.push_back(nodeID);
+                    targetAddrs.push_back(entry.second.nodeAddress);
                 }
             }
         }
@@ -84,6 +86,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         DigestResult dr = bio.finalize_hashed();
         fileHashes[filename] = dr.cid;
     }
+    lock.unlock();
 
     std::ostringstream oss_add;
     oss_add << "[MetadataManager] File " << filename << " added with mode " << std::oct << mode << std::dec << ". Assigned to nodes: ";
@@ -93,15 +96,9 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
 
     // Instruct chosen nodes to create an empty file. The Node implementation
     // interprets a WriteFile message with empty content as a create request.
-    for (const auto& nodeID : targetNodes) {
-        auto it = registeredNodes.find(nodeID);
-        if (it == registeredNodes.end()) {
-            Logger::getInstance().log(LogLevel::ERROR,
-                "[MetadataManager] addFile: Node ID " + nodeID + " vanished before create message");
-            continue;
-        }
-
-        const std::string& addr = it->second.nodeAddress;
+    for (size_t i = 0; i < targetNodes.size(); ++i) {
+        const std::string& nodeID = targetNodes[i];
+        const std::string& addr = targetAddrs[i];
         std::string ip = addr.substr(0, addr.find(':'));
         int port = std::stoi(addr.substr(addr.find(':') + 1));
 
@@ -126,13 +123,23 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
 
 // Modified removeFile to update new maps and return bool
 bool MetadataManager::removeFile(const std::string& filename) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::vector<std::string> nodesToNotify;
+    std::vector<std::string> nodeAddrs;
+    std::unique_lock<std::mutex> lock(metadataMutex);
     if (!fileMetadata.count(filename)) {
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] removeFile: File not found: " + filename);
         return false; // Indicate file not found or already removed
     }
 
-    std::vector<std::string> nodesToNotify = fileMetadata[filename];
+    nodesToNotify = fileMetadata[filename];
+    for (const auto& nodeID : nodesToNotify) {
+        auto it = registeredNodes.find(nodeID);
+        if (it != registeredNodes.end()) {
+            nodeAddrs.push_back(it->second.nodeAddress);
+        } else {
+            nodeAddrs.push_back("");
+        }
+    }
 
     fileMetadata.erase(filename);
     fileModes.erase(filename);
@@ -140,19 +147,17 @@ bool MetadataManager::removeFile(const std::string& filename) {
     fileHashes.erase(filename);
 
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " removed from metadata.");
+    lock.unlock();
 
     // Notify each node to remove its replica of the file
     Message delMsg;
     delMsg._Type = MessageType::DeleteFile;
     delMsg._Filename = filename;
 
-    for (const auto& nodeID : nodesToNotify) {
-        auto it = registeredNodes.find(nodeID);
-        if (it == registeredNodes.end()) {
-            continue; // Node might have been removed
-        }
-
-        const std::string& addr = it->second.nodeAddress;
+    for (size_t i = 0; i < nodesToNotify.size(); ++i) {
+        const std::string& nodeID = nodesToNotify[i];
+        const std::string& addr = nodeAddrs[i];
+        if (addr.empty()) continue;
         std::string ip = addr.substr(0, addr.find(':'));
         int port = std::stoi(addr.substr(addr.find(':') + 1));
 
@@ -286,7 +291,8 @@ int MetadataManager::readFileData(const std::string& filename, int64_t offset, u
 }
 
 int MetadataManager::writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::vector<std::pair<std::string, std::string>> nodeAddrs;
+    std::unique_lock<std::mutex> lock(metadataMutex);
     if (!fileMetadata.count(filename)) {
         return ENOENT;
     }
@@ -313,15 +319,23 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
         fileHashes[filename] = dr.cid;
     }
 
-    // Send write command to the primary node (first in replica list)
-    const auto& nodes = fileMetadata[filename];
-    if (!nodes.empty()) {
-        const std::string& primaryID = nodes.front();
-        auto it = registeredNodes.find(primaryID);
+    uint64_t current_size = fileSizes[filename];
+    // Prepare node addresses for network operations then release lock
+    const auto nodes = fileMetadata[filename];
+    for (const auto& n : nodes) {
+        auto it = registeredNodes.find(n);
         if (it != registeredNodes.end()) {
-            const std::string& addr = it->second.nodeAddress;
-            std::string ip = addr.substr(0, addr.find(':'));
-            int port = std::stoi(addr.substr(addr.find(':') + 1));
+            nodeAddrs.emplace_back(n, it->second.nodeAddress);
+        }
+    }
+    lock.unlock();
+
+    // Send write command to the primary node (first in replica list)
+    if (!nodeAddrs.empty()) {
+        const std::string& primaryID = nodeAddrs.front().first;
+        const std::string& addr = nodeAddrs.front().second;
+        std::string ip = addr.substr(0, addr.find(':'));
+        int port = std::stoi(addr.substr(addr.find(':') + 1));
 
             Message writeMsg;
             writeMsg._Type = MessageType::WriteFile;
@@ -340,12 +354,9 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
             }
 
             // Replicate to other nodes
-            for (size_t i = 1; i < nodes.size(); ++i) {
-                const std::string& replicaID = nodes[i];
-                auto itrep = registeredNodes.find(replicaID);
-                if (itrep == registeredNodes.end()) continue;
-
-                std::string replicaAddr = itrep->second.nodeAddress;
+            for (size_t i = 1; i < nodeAddrs.size(); ++i) {
+                const std::string& replicaID = nodeAddrs[i].first;
+                const std::string& replicaAddr = nodeAddrs[i].second;
                 std::string replicaIp = replicaAddr.substr(0, replicaAddr.find(':'));
                 int replicaPort = std::stoi(replicaAddr.substr(replicaAddr.find(':') + 1));
 
@@ -358,7 +369,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                 Message receiveMsg;
                 receiveMsg._Type = MessageType::ReceiveFileCommand;
                 receiveMsg._Filename = filename;
-                receiveMsg._NodeAddress = it->second.nodeAddress;
+                receiveMsg._NodeAddress = addr;
                 receiveMsg._Content = replicaID;
 
                 try {
@@ -382,9 +393,8 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                 }
             }
         }
-    }
 
-    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData for " + filename + ": " + std::to_string(out_size_written) + " bytes 'written' at offset " + std::to_string(offset) + ". New potential size: " + std::to_string(fileSizes[filename]));
+    Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] writeFileData for " + filename + ": " + std::to_string(out_size_written) + " bytes 'written' at offset " + std::to_string(offset) + ". New potential size: " + std::to_string(current_size));
     return 0; // Success
 }
 
