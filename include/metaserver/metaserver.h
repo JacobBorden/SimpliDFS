@@ -9,6 +9,7 @@
 #include "utilities/filesystem.h" // Included for context, though not directly used in this header
 #include "utilities/message.h"    // For Message struct and MessageType enum
 #include "metaserver/node_health_tracker.h"
+#include "cluster/NodeHealthCache.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -72,6 +73,7 @@ private:
     std::atomic<bool> metadata_is_dirty_ {false};
 
     NodeHealthTracker healthTracker_;
+    NodeHealthCache healthCache_;
     
     /** @brief Default number of replicas to create for each file. */
     static const int DEFAULT_REPLICATION_FACTOR = 3;
@@ -101,6 +103,7 @@ public:
         newNodeInfo.isAlive = true;
 
         registeredNodes[nodeIdentifier] = newNodeInfo;
+        healthCache_.recordSuccess(nodeIdentifier);
         std::cout << "Node " << nodeIdentifier << " registered from " << nodeAddr << ":" << nodePrt << std::endl;
     }
 
@@ -111,6 +114,7 @@ public:
         if (it != registeredNodes.end()) {
             it->second.lastHeartbeat = time(nullptr);
             it->second.isAlive = true;
+            healthCache_.recordSuccess(nodeIdentifier);
             std::cout << "Heartbeat received from node " << nodeIdentifier << std::endl;
         } else {
             std::cout << "Heartbeat from unregistered node " << nodeIdentifier << std::endl;
@@ -133,7 +137,9 @@ public:
         std::lock_guard<std::mutex> lock(metadataMutex);
         time_t currentTime = time(nullptr);
         for (auto& entry : registeredNodes) {
-            if (entry.second.isAlive && (currentTime - entry.second.lastHeartbeat > NODE_TIMEOUT_SECONDS)) {
+            NodeState cacheState = healthCache_.state(entry.first);
+            bool cacheDead = cacheState == NodeState::DEAD;
+            if (entry.second.isAlive && ((currentTime - entry.second.lastHeartbeat > NODE_TIMEOUT_SECONDS) || cacheDead)) {
                 entry.second.isAlive = false;
                 std::string deadNodeID = entry.first;
                 std::cout << "Node " << deadNodeID << " timed out. Marked as offline." << std::endl;
@@ -305,6 +311,15 @@ public:
 
     void clearDirty() {
         metadata_is_dirty_ = false;
+    }
+
+    /**
+     * @brief Get the cached health state of a node.
+     * @param nodeIdentifier The node's identifier.
+     * @return The NodeState tracked in the health cache.
+     */
+    NodeState getNodeHealthState(const std::string& nodeIdentifier) const {
+        return healthCache_.state(nodeIdentifier);
     }
 
     /**

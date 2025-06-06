@@ -48,7 +48,9 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     for (const auto& nodeID : preferredNodes) {
         if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
         auto it = registeredNodes.find(nodeID);
-        if (it != registeredNodes.end() && it->second.isAlive && !healthTracker_.isNodeDead(nodeID)) {
+        if (it != registeredNodes.end() && it->second.isAlive &&
+            !healthTracker_.isNodeDead(nodeID) &&
+            healthCache_.state(nodeID) == NodeState::HEALTHY) {
             if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                 targetNodes.push_back(nodeID);
                 targetAddrs.push_back(it->second.nodeAddress);
@@ -60,7 +62,8 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         for (const auto& entry : registeredNodes) {
             if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
             const std::string& nodeID = entry.first;
-            if (entry.second.isAlive && !healthTracker_.isNodeDead(nodeID)) {
+            if (entry.second.isAlive && !healthTracker_.isNodeDead(nodeID) &&
+                healthCache_.state(nodeID) == NodeState::HEALTHY) {
                 if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                     targetNodes.push_back(nodeID);
                     targetAddrs.push_back(entry.second.nodeAddress);
@@ -90,11 +93,13 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
             (void)client.Receive();
             client.Disconnect();
             healthTracker_.recordSuccess(nodeID);
+            healthCache_.recordSuccess(nodeID);
             successes.push_back(nodeID);
             successAddrs.push_back(addr);
         } catch (const std::exception& e) {
             Logger::getInstance().log(LogLevel::ERROR,
                 "[MetadataManager] Failed to send create command to node " + nodeID + ": " + e.what());
+            healthCache_.recordFailure(nodeID);
         }
     }
 
@@ -117,9 +122,11 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
                 (void)client.Receive();
                 client.Disconnect();
                 healthTracker_.recordSuccess(nodeID);
+                healthCache_.recordSuccess(nodeID);
             } catch (const std::exception& e) {
                 Logger::getInstance().log(LogLevel::ERROR,
                     "[MetadataManager] Failed rollback delete to node " + nodeID + ": " + e.what());
+                healthCache_.recordFailure(nodeID);
             }
         }
         return ERR_INSUFFICIENT_REPLICA;
@@ -190,9 +197,11 @@ bool MetadataManager::removeFile(const std::string& filename) {
             (void)client.Receive();
             client.Disconnect();
             healthTracker_.recordSuccess(nodeID);
+            healthCache_.recordSuccess(nodeID);
         } catch (const std::exception& e) {
             Logger::getInstance().log(LogLevel::ERROR,
                 "[MetadataManager] Failed to send delete command to node " + nodeID + ": " + e.what());
+            healthCache_.recordFailure(nodeID);
         }
     }
     return true; // Success
@@ -373,9 +382,11 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                 (void)client.Receive();
                 client.Disconnect();
                 healthTracker_.recordSuccess(primaryID);
+                healthCache_.recordSuccess(primaryID);
             } catch (const std::exception& e) {
                 Logger::getInstance().log(LogLevel::ERROR,
                     "[MetadataManager] Failed to send write to primary node " + primaryID + ": " + e.what());
+                healthCache_.recordFailure(primaryID);
             }
 
             // Replicate to other nodes
@@ -403,9 +414,11 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                     (void)clientPrimary.Receive();
                     clientPrimary.Disconnect();
                     healthTracker_.recordSuccess(primaryID);
+                    healthCache_.recordSuccess(primaryID);
                 } catch (const std::exception& e) {
                     Logger::getInstance().log(LogLevel::ERROR,
                         "[MetadataManager] Failed to send replicate command to " + primaryID + ": " + e.what());
+                    healthCache_.recordFailure(primaryID);
                 }
 
                 try {
@@ -414,9 +427,11 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                     (void)clientReplica.Receive();
                     clientReplica.Disconnect();
                     healthTracker_.recordSuccess(replicaID);
+                    healthCache_.recordSuccess(replicaID);
                 } catch (const std::exception& e) {
                     Logger::getInstance().log(LogLevel::ERROR,
                         "[MetadataManager] Failed to send receive command to " + replicaID + ": " + e.what());
+                    healthCache_.recordFailure(replicaID);
                 }
             }
         }
