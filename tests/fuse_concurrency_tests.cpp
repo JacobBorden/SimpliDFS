@@ -116,7 +116,7 @@ int main() {
     }
 
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Creating/truncating test file " << FULL_TEST_FILE_PATH << std::endl;
-    std::ofstream pre_outfile(FULL_TEST_FILE_PATH, std::ios::out | std::ios::trunc | std::ios::binary);
+    std::fstream pre_outfile(FULL_TEST_FILE_PATH, std::ios::out | std::ios::in | std::ios::trunc | std::ios::binary);
     if (!pre_outfile.is_open()) {
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Failed to create/truncate test file: " << FULL_TEST_FILE_PATH << std::endl;
         return 1;
@@ -124,8 +124,15 @@ int main() {
     std::string header_line = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n";
 
     pre_outfile << header_line;
+
+    size_t expected_total_lines = NUM_THREADS * NUM_LINES_PER_THREAD;
+    size_t final_size = header_line.size() + expected_total_lines * (LINE_LENGTH + 1);
+    if (final_size > header_line.size()) {
+        pre_outfile.seekp(final_size - 1);
+        pre_outfile.write("\0", 1);
+    }
     pre_outfile.close();
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test file " << TEST_FILE_NAME << " created/truncated at " << MOUNT_POINT << std::endl;
+    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test file " << TEST_FILE_NAME << " created/truncated and preallocated at " << MOUNT_POINT << std::endl;
 
     std::vector<std::thread> threads_vector;
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Starting " << NUM_THREADS << " writer threads, each writing " << NUM_LINES_PER_THREAD << " lines." << std::endl;
@@ -163,7 +170,6 @@ int main() {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: File read for verification. Total lines (excl header): " << lines_read_from_file.size() << std::endl;
 
 
-    size_t expected_total_lines = NUM_THREADS * NUM_LINES_PER_THREAD;
     if (lines_read_from_file.size() != expected_total_lines) {
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION FAILED: Line count mismatch." << std::endl;
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Expected " << expected_total_lines << " lines (excluding header), but read " << lines_read_from_file.size() << " lines." << std::endl;
