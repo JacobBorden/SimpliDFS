@@ -12,11 +12,12 @@ protected:
 // Test adding a new file
 TEST_F(MetadataManagerTest, AddFile) {
     std::string filename = "testfile.txt";
-    std::vector<std::string> nodes = {"Node1", "Node2"};
+    std::vector<std::string> nodes = {"Node1", "Node2", "Node3"};
     
     // Register nodes to make them available and alive
     metadataManager.registerNode("Node1", "localhost", 1001);
     metadataManager.registerNode("Node2", "localhost", 1002);
+    metadataManager.registerNode("Node3", "localhost", 1003);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
@@ -32,11 +33,12 @@ TEST_F(MetadataManagerTest, AddFile) {
 // Test retrieving nodes for an existing file
 TEST_F(MetadataManagerTest, GetFileNodes) {
     std::string filename = "testfile2.txt";
-    std::vector<std::string> nodes = {"Node3", "Node4"};
+    std::vector<std::string> nodes = {"Node3", "Node4", "Node5"};
 
     // Register nodes
     metadataManager.registerNode("Node3", "localhost", 1003);
     metadataManager.registerNode("Node4", "localhost", 1004);
+    metadataManager.registerNode("Node5", "localhost", 1005);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
@@ -58,10 +60,11 @@ TEST_F(MetadataManagerTest, GetFileNodesNonExistent) {
 // Test removing a file from metadata
 TEST_F(MetadataManagerTest, RemoveFile) {
     std::string filename = "testfile3.txt";
-    std::vector<std::string> nodes = {"Node5", "Node6"};
+    std::vector<std::string> nodes = {"Node5", "Node6", "Node7"};
     // Register nodes to make them available for addFile
     metadataManager.registerNode("Node5", "localhost", 1005);
     metadataManager.registerNode("Node6", "localhost", 1006);
+    metadataManager.registerNode("Node7", "localhost", 1007);
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // Ensure file was added successfully
 
@@ -82,10 +85,11 @@ TEST_F(MetadataManagerTest, RemoveNonExistentFile) {
 // Test printing metadata (no assertions, just ensuring no exceptions)
 TEST_F(MetadataManagerTest, PrintMetadata) {
     std::string filename = "testfile4.txt";
-    std::vector<std::string> nodes = {"Node7", "Node8"};
+    std::vector<std::string> nodes = {"Node7", "Node8", "Node9"};
     // Register nodes before adding file that uses them
     metadataManager.registerNode("Node7", "localhost", 1007);
     metadataManager.registerNode("Node8", "localhost", 1008);
+    metadataManager.registerNode("Node9", "localhost", 1009);
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // 0 indicates success
@@ -98,11 +102,13 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
     const uint32_t mode = 0100644; // regular file with 0644 permissions
     const std::string node1 = "NodePersist1";
     const std::string node2 = "NodePersist2";
+    const std::string node3 = "NodePersist3";
 
     metadataManager.registerNode(node1, "127.0.0.1", 1111);
     metadataManager.registerNode(node2, "127.0.0.1", 2222);
+    metadataManager.registerNode(node3, "127.0.0.1", 3333);
 
-    std::vector<std::string> nodes = {node1, node2};
+    std::vector<std::string> nodes = {node1, node2, node3};
     ASSERT_EQ(metadataManager.addFile(filename, nodes, mode), 0);
 
     uint64_t written = 0;
@@ -133,4 +139,13 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
 
     std::remove(fm_path.c_str());
     std::remove(nr_path.c_str());
+}
+
+TEST_F(MetadataManagerTest, InsufficientNodesAddFileFails) {
+    metadataManager.registerNode("Node1", "localhost", 1001);
+    metadataManager.registerNode("Node2", "localhost", 1002);
+    std::vector<std::string> nodes = {"Node1", "Node2"};
+    int res = metadataManager.addFile("insuff.txt", nodes, 0644);
+    EXPECT_EQ(res, EAGAIN);
+    EXPECT_FALSE(metadataManager.fileExists("insuff.txt"));
 }

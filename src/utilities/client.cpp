@@ -55,21 +55,18 @@ Networking::Client::Client()
 Networking::Client::Client(PCSTR _pHost, int _pPortNumber)
 {
     std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(host, port): Constructor Entry. Host: " << _pHost << " Port: " << _pPortNumber << std::endl;
-	try{
-		// Initialize the client socket
-		Networking::Client::InitClientSocket();
-		// Create a TCP socket
-		Networking::Client::CreateClientTCPSocket(_pHost, _pPortNumber);
-		// Connect to the server
-		Networking::Client::ConnectClientSocket();
-        Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber)); // Existing log
-	}
-	// Catch any exceptions that are thrown
-	catch(const Networking::NetworkException& e) {
-		// Print the error code
-        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port: " + std::string(e.what())); // Existing log
-		// std::cout<<"Exception thrown. Error Code "<<errorCode;
-	}
+    try {
+        // Initialize the client socket
+        Networking::Client::InitClientSocket();
+        // Create a TCP socket
+        Networking::Client::CreateClientTCPSocket(_pHost, _pPortNumber);
+        // Connect to the server
+        Networking::Client::ConnectClientSocket();
+        Logger::getInstance().log(LogLevel::INFO, "Client initialized and connected to " + std::string(_pHost) + ":" + std::to_string(_pPortNumber));
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, "Exception thrown during Client construction with host/port: " + std::string(e.what()));
+        throw;
+    }
     std::cout << "[VERBOSE LOG Client " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] Client(host, port): Constructor Exit." << std::endl;
 }
 
@@ -221,12 +218,17 @@ bool Networking::Client::ConnectClientSocket()
     if (errorCode)
     {
         errorCode = GETERROR();
-        SOCKET tempSocket = connectionSocket; // Store for exception before closing
         CLOSESOCKET(connectionSocket);
-    #ifdef _WIN32
+#ifdef _WIN32
         WSACleanup();
-    #endif
-        throw Networking::NetworkException(tempSocket, errorCode, "Client connect failed");
+#endif
+        clientIsConnected = false;
+#ifdef ECONNREFUSED
+        std::string errName = (errorCode == ECONNREFUSED) ? "ECONNREFUSED" : std::to_string(errorCode);
+#else
+        std::string errName = std::to_string(errorCode);
+#endif
+        throw std::runtime_error("Client connect failed: " + errName + " (" + std::string(strerror(errorCode)) + ")");
     }
     clientIsConnected = true;
 
@@ -302,10 +304,9 @@ static bool send_all(SOCKET sock, const char* buffer, size_t length, bool& clien
 // Send data to the server (modified for length-prefixing)
 int Networking::Client::Send(PCSTR _pSendBuffer)
 {
-    if (!clientIsConnected) {
-        Logger::getInstance().log(LogLevel::WARN, "Client::Send: Attempting to send when not connected.");
-        // Allowing the attempt to proceed and fail via OS, or throw early:
-        // throw Networking::NetworkException(connectionSocket, ENOTCONN, "Client send failed: Not connected.");
+    if (!clientIsConnected || INVALIDSOCKET(connectionSocket)) {
+        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: Attempting to send when not connected.");
+        return -1;
     }
 
     size_t payloadLength = strlen(_pSendBuffer);
@@ -341,6 +342,10 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
 // Send data to a specified address and port
 int Networking::Client::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 {
+        if (!clientIsConnected || INVALIDSOCKET(connectionSocket)) {
+                Logger::getInstance().log(LogLevel::ERROR, "Client::SendTo: Attempting to send when not connected.");
+                return -1;
+        }
 	// Create a sockaddr_in structure to hold the address and port of the recipient
 	sockaddr_in recipient;
 

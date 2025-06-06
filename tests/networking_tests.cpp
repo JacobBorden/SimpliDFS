@@ -15,6 +15,7 @@
 #include "metaserver/metaserver.h" // For MetadataManager
 #include "node/node.h"             // For Node
 #include "utilities/message.h"     // For Message, MessageType
+#include <errno.h>
 
 // Helper for timestamp logging in tests
 static std::string getTestTimestamp() {
@@ -479,11 +480,11 @@ TEST_F(NetworkingTest, ServerShutdownWithActiveClients) {
 
             bool sendFailedAsExpected = false;
             try {
-                client.Send("post-shutdown");
+                int ret = client.Send("post-shutdown");
+                sendFailedAsExpected = (ret < 0);
             } catch (const Networking::NetworkException& e) {
                 sendFailedAsExpected = true;
                 std::cout << logPrefix << ": Client Send failed as expected after shutdown: " << std::string(e.what()) << std::endl;
-                // Logger::getInstance().log(LogLevel::INFO, logPrefix + ": Client Send failed as expected after shutdown: " + std::string(e.what())); // Old log
             }
             ASSERT_TRUE(sendFailedAsExpected) << logPrefix << ": Client Send did not fail as expected after shutdown.";
             ASSERT_FALSE(client.IsConnected()) << logPrefix << ": IsConnected should remain false.";
@@ -1631,8 +1632,13 @@ TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {
 TEST_F(NetworkingTest, ClientCannotConnectToNonListeningServer) { // Changed to TEST_F
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientCannotConnectToNonListeningServer: Starting." << std::endl;
     // Attempt to connect to a port where no server is listening
-    Networking::Client client("127.0.0.1", 12340); // Some unlikely port
-    ASSERT_FALSE(client.IsConnected()); 
+    try {
+        Networking::Client client("127.0.0.1", 12340); // Some unlikely port
+        FAIL() << "Expected runtime_error";
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        EXPECT_NE(msg.find("ECONNREFUSED"), std::string::npos);
+    }
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ClientCannotConnectToNonListeningServer: Finished." << std::endl;
 }
 
@@ -1992,9 +1998,11 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
     // 1. Pre-populate file metadata
     // Register a dummy node so that addFile can succeed.
     metadataManager.registerNode("testnode0", "127.0.0.1", 1234);
+    metadataManager.registerNode("testnode1", "127.0.0.1", 1235);
+    metadataManager.registerNode("testnode2", "127.0.0.1", 1236);
 
     // Now add the file.
-    int addFileResult = metadataManager.addFile(testFilePath, {}, testFileMode);
+    int addFileResult = metadataManager.addFile(testFilePath, {"testnode0", "testnode1", "testnode2"}, testFileMode);
     ASSERT_EQ(addFileResult, 0) << "addFile failed during test setup. Error code: " << addFileResult;
     // fileSizes[testFilePath] should be 0 by default from addFile.
 
@@ -2387,4 +2395,15 @@ TEST_F(NetworkingTest, IPv6ServerAcceptsConnection) {
 
     if (serverThread.joinable()) serverThread.join();
     server.Shutdown();
+}
+
+TEST(ClientTest, ConnectFailureReturnsErrno) {
+    uint16_t port = 65530; // assume unused
+    try {
+        Networking::Client client("127.0.0.1", port);
+        FAIL() << "Expected runtime_error";
+    } catch (const std::runtime_error& e) {
+        std::string msg = e.what();
+        EXPECT_NE(msg.find("ECONNREFUSED"), std::string::npos);
+    }
 }
