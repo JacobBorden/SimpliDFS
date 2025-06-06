@@ -22,6 +22,7 @@
 #include <sstream>   // For std::stringstream
 #include <stdexcept> // For std::invalid_argument in std::stol
 #include <atomic>    // For std::atomic<bool>
+#include <memory>
 
 // Persistence constants
 /** @brief Separator character used in metadata persistence files. */
@@ -73,6 +74,25 @@ private:
     std::unordered_map<std::string, uint64_t> fileSizes;
     std::unordered_map<std::string, std::string> fileHashes;
     std::atomic<bool> metadata_is_dirty_ {false};
+
+    /** @brief Mutex protecting per-file lock map. */
+    mutable std::mutex fileLockMapMutex;
+    /** @brief Map of file names to write mutexes used to serialize concurrent writes. */
+    std::unordered_map<std::string, std::shared_ptr<std::mutex>> fileWriteLocks;
+
+    /**
+     * @brief Retrieve (or create) the mutex protecting a file's metadata.
+     * @param filename File name whose mutex is requested.
+     * @return Shared pointer to a mutex guarding that file.
+     */
+    std::shared_ptr<std::mutex> getFileWriteLock(const std::string& filename) {
+        std::lock_guard<std::mutex> guard(fileLockMapMutex);
+        auto it = fileWriteLocks.find(filename);
+        if (it == fileWriteLocks.end()) {
+            it = fileWriteLocks.emplace(filename, std::make_shared<std::mutex>()).first;
+        }
+        return it->second;
+    }
 
     /** @brief Mutex protecting the active client set. */
     mutable std::mutex clientMutex;

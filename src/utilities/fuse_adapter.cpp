@@ -98,6 +98,14 @@ static std::shared_ptr<std::mutex> get_file_lock(const std::string& path) {
     return it->second;
 }
 
+static bool ensure_metadata_connection_locked(SimpliDfsFuseData* data) {
+    if (!data->metadata_client->IsConnected()) {
+        Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] metadata client disconnected, attempting reconnect.");
+        return data->metadata_client->connectWithRetry(data->metaserver_host.c_str(), data->metaserver_port);
+    }
+    return true;
+}
+
 
 // main function for the FUSE adapter
 int main(int argc, char *argv[]) {
@@ -293,6 +301,15 @@ int simpli_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     auto file_lock = get_file_lock(path_str);
     std::lock_guard<std::mutex> file_guard(*file_lock);
     if (path_str == "/") {
@@ -393,6 +410,9 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     filler(buf, ".", NULL, 0, (enum fuse_fill_dir_flags)0);
     filler(buf, "..", NULL, 0, (enum fuse_fill_dir_flags)0);
 
@@ -446,6 +466,9 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     if (path_str == "/") {
         if ((fi->flags & O_ACCMODE) != O_RDONLY) {
             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Write access denied for root directory /");
@@ -575,6 +598,9 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
         return -EIO;
     }
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     if (size == 0) return 0;
 
     Message req_msg;
@@ -623,6 +649,9 @@ int simpli_access(const char *path, int mask) {
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     if (path_str == "/") {
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Root access check always returns success for now.");
         return 0;
@@ -671,6 +700,9 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     if (path_str == "/") {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Cannot create file at root path /.");
         return -EISDIR;
@@ -820,6 +852,9 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
         return -EIO;
     }
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     auto file_lock = get_file_lock(path_str);
     std::lock_guard<std::mutex> file_guard(*file_lock);
     if (size == 0) return 0;
@@ -926,6 +961,9 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
     }
 
     std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
     if (from_path_str == "/" || to_path_str == "/") {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_rename: Cannot rename to or from root directory.");
         return -EBUSY;

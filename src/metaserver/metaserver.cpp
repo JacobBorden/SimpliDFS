@@ -346,6 +346,10 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
     if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
+
+    auto file_lock = getFileWriteLock(filename);
+    std::lock_guard<std::mutex> file_guard(*file_lock);
+
     std::vector<std::pair<std::string, std::string>> nodeAddrs;
     std::unique_lock<std::mutex> lock(metadataMutex);
     Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] writeFileData: Actual write to storage node not implemented for " + filename + ". Updating size only.");
@@ -359,6 +363,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
     if (!fileSizes.count(filename) || write_end_offset > fileSizes.at(filename)) {
         fileSizes[filename] = write_end_offset;
         Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " + filename + " size updated to " + std::to_string(fileSizes[filename]));
+        markDirty();
     }
 
     // Update hash based on this write (simplified: hash only written data)

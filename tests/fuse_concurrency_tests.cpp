@@ -11,6 +11,8 @@
 #include <chrono>       // For timestamps
 #include <iomanip>      // For std::put_time
 #include <sstream>      // For std::ostringstream
+#include <mutex>
+#include <condition_variable>
 
 // Helper for timestamp logging in this specific test file
 static std::string getFuseTestTimestamp() {
@@ -34,6 +36,11 @@ const int NUM_LINES_PER_THREAD = 100;
 const int LINE_LENGTH = 80; // Length of content part, *before* newline
 const std::string HEADER_LINE = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n";
 
+// Barrier for synchronizing writer threads
+std::mutex start_mutex;
+std::condition_variable start_cv;
+int start_count = 0;
+
 // Helper function to generate a unique string for each line
 std::string generate_line_content(int thread_id, int line_num) {
     std::string line_prefix = "Thread" + std::to_string(thread_id) + "_Line" + std::to_string(line_num) + ": ";
@@ -54,6 +61,19 @@ std::string generate_line_content(int thread_id, int line_num) {
 // Function for each thread to perform writes
 void writer_thread_func(int thread_id) {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Thread " << thread_id << ": Starting." << std::endl;
+
+    {
+        std::unique_lock<std::mutex> lk(start_mutex);
+        start_count++;
+        if (start_count == NUM_THREADS) {
+            std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Thread " << thread_id << ": Releasing barrier." << std::endl;
+            start_cv.notify_all();
+        } else {
+            std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Thread " << thread_id << ": Waiting at barrier." << std::endl;
+            start_cv.wait(lk, []{ return start_count == NUM_THREADS; });
+        }
+    }
+
     std::fstream outfile;
 
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Thread " << thread_id << ": Attempting to open file " << FULL_TEST_FILE_PATH << std::endl;
