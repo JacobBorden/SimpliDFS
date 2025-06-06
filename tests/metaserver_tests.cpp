@@ -44,11 +44,11 @@ TEST_F(MetadataManagerTest, AddFile) {
     std::vector<std::string> nodes = {"Node1", "Node2", "Node3"};
     
     // Register nodes to make them available and alive
-    metadataManager.registerNode("Node1", "127.0.0.1", 1001);
-    metadataManager.registerNode("Node2", "127.0.0.1", 1002);
-    metadataManager.registerNode("Node3", "127.0.0.1", 1003);
+    metadataManager.registerNode("Node1", "127.0.0.1", 11001);
+    metadataManager.registerNode("Node2", "127.0.0.1", 11002);
+    metadataManager.registerNode("Node3", "127.0.0.1", 11003);
 
-    DummyServer s1(1001,1), s2(1002,1), s3(1003,1);
+    DummyServer s1(11001,1), s2(11002,1), s3(11003,1);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644);
@@ -68,11 +68,11 @@ TEST_F(MetadataManagerTest, GetFileNodes) {
     std::string filename = "testfile2.txt";
     std::vector<std::string> nodes = {"Node3", "Node4", "Node5"};
 
-    metadataManager.registerNode("Node3", "127.0.0.1", 1003);
-    metadataManager.registerNode("Node4", "127.0.0.1", 1004);
-    metadataManager.registerNode("Node5", "127.0.0.1", 1005);
+    metadataManager.registerNode("Node3", "127.0.0.1", 11003);
+    metadataManager.registerNode("Node4", "127.0.0.1", 11004);
+    metadataManager.registerNode("Node5", "127.0.0.1", 11005);
 
-    DummyServer s1(1003,1), s2(1004,1), s3(1005,1);
+    DummyServer s1(11003,1), s2(11004,1), s3(11005,1);
 
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
@@ -98,11 +98,11 @@ TEST_F(MetadataManagerTest, RemoveFile) {
     std::string filename = "testfile3.txt";
     std::vector<std::string> nodes = {"Node5", "Node6", "Node7"};
     // Register nodes to make them available for addFile
-    metadataManager.registerNode("Node5", "127.0.0.1", 1005);
-    metadataManager.registerNode("Node6", "127.0.0.1", 1006);
-    metadataManager.registerNode("Node7", "127.0.0.1", 1007);
+    metadataManager.registerNode("Node5", "127.0.0.1", 11005);
+    metadataManager.registerNode("Node6", "127.0.0.1", 11006);
+    metadataManager.registerNode("Node7", "127.0.0.1", 11007);
 
-    DummyServer s1(1005,2), s2(1006,2), s3(1007,2);
+    DummyServer s1(11005,2), s2(11006,2), s3(11007,2);
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // Ensure file was added successfully
 
@@ -127,11 +127,11 @@ TEST_F(MetadataManagerTest, PrintMetadata) {
     std::string filename = "testfile4.txt";
     std::vector<std::string> nodes = {"Node7", "Node8", "Node9"};
     // Register nodes before adding file that uses them
-    metadataManager.registerNode("Node7", "127.0.0.1", 1007);
-    metadataManager.registerNode("Node8", "127.0.0.1", 1008);
-    metadataManager.registerNode("Node9", "127.0.0.1", 1009);
+    metadataManager.registerNode("Node7", "127.0.0.1", 11007);
+    metadataManager.registerNode("Node8", "127.0.0.1", 11008);
+    metadataManager.registerNode("Node9", "127.0.0.1", 11009);
 
-    DummyServer s1(1007,1), s2(1008,1), s3(1009,1);
+    DummyServer s1(11007,1), s2(11008,1), s3(11009,1);
     // int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, uint32_t mode)
     int add_result = metadataManager.addFile(filename, nodes, 0644); // Using a common octal mode
     ASSERT_EQ(add_result, 0); // 0 indicates success
@@ -192,8 +192,8 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
 }
 
 TEST_F(MetadataManagerTest, InsufficientNodesAddFileFails) {
-    metadataManager.registerNode("Node1", "127.0.0.1", 1001);
-    metadataManager.registerNode("Node2", "127.0.0.1", 1002);
+    metadataManager.registerNode("Node1", "127.0.0.1", 11001);
+    metadataManager.registerNode("Node2", "127.0.0.1", 11002);
     std::vector<std::string> nodes = {"Node1", "Node2"};
     int res = metadataManager.addFile("insuff.txt", nodes, 0644);
     EXPECT_EQ(res, ERR_NO_REPLICA);
