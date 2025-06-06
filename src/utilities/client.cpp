@@ -598,46 +598,32 @@ void Networking::Client::ReceiveFile(const std::string& _pFilePath)
 // Disconnect from the server and close the client socket
 bool Networking::Client::Disconnect()
 {
-	// Disconnect from the server
-	int errorCode = shutdown(connectionSocket, SHUT_RDWR);
+        int result = shutdown(connectionSocket, SHUT_RDWR);
+        if(result == SOCKET_ERROR)
+        {
+                int shutdownErr = GETERROR();
+                #ifdef _WIN32
+                if(shutdownErr != WSAENOTCONN)
+                #else
+                if(shutdownErr != ENOTCONN)
+                #endif
+                {
+                        Logger::getInstance().log(LogLevel::WARN, "Client shutdown failed: " + std::to_string(shutdownErr));
+                }
+        }
 
-	// If there was an error, throw an exception
-	if(errorCode)
-	{
-		// Get the error code
-		int errorCode = GETERROR();
-
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code
-		throw Networking::NetworkException(connectionSocket, errorCode, "Client disconnect failed (shutdown)");
-	}
-
-	// Close the client socket
-	SOCKET tempSocket = connectionSocket; // Store for exception before invalidating
-	errorCode = CLOSESOCKET(connectionSocket);
-
-	// If there was an error, throw an exception
-	if(errorCode)
-	{
-		// Get the error code
-		int originalErrorCode = errorCode; // Store original error code from CLOSESOCKET
-		errorCode = GETERROR(); // Get more detailed error if available
-
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code, prefer more detailed one if available, else original
-		throw Networking::NetworkException(tempSocket, errorCode ? errorCode : originalErrorCode, "Client disconnect failed (closesocket)");
-	}
-	clientIsConnected = false;
-	// Return true if the client was disconnected and the socket was closed successfully
-	return true;
+        SOCKET tmp = connectionSocket;
+        result = CLOSESOCKET(connectionSocket);
+        if(result == SOCKET_ERROR)
+        {
+                int closeErr = GETERROR();
+                Logger::getInstance().log(LogLevel::WARN, "Client close failed: " + std::to_string(closeErr));
+        }
+#ifdef _WIN32
+        WSACleanup();
+#endif
+        clientIsConnected = false;
+        return true;
 }
 
 //Returns whether the client is currently connected to a host.
