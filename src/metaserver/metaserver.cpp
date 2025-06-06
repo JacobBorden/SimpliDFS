@@ -44,11 +44,11 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: File already exists: " + filename);
         return EEXIST;
     }
-    // Try to use preferred nodes if they are alive
+
     for (const auto& nodeID : preferredNodes) {
         if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
         auto it = registeredNodes.find(nodeID);
-        if (it != registeredNodes.end() && it->second.isAlive) {
+        if (it != registeredNodes.end() && it->second.isAlive && !healthTracker_.isNodeDead(nodeID)) {
             if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                 targetNodes.push_back(nodeID);
                 targetAddrs.push_back(it->second.nodeAddress);
@@ -56,12 +56,11 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         }
     }
 
-    // If not enough nodes from preferred, fill with other alive nodes
     if (targetNodes.size() < DEFAULT_REPLICATION_FACTOR) {
         for (const auto& entry : registeredNodes) {
             if (targetNodes.size() >= DEFAULT_REPLICATION_FACTOR) break;
             const std::string& nodeID = entry.first;
-            if (entry.second.isAlive) {
+            if (entry.second.isAlive && !healthTracker_.isNodeDead(nodeID)) {
                 if (std::find(targetNodes.begin(), targetNodes.end(), nodeID) == targetNodes.end()) {
                     targetNodes.push_back(nodeID);
                     targetAddrs.push_back(entry.second.nodeAddress);
@@ -70,33 +69,10 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         }
     }
 
-    if (targetNodes.empty()) {
-        Logger::getInstance().log(LogLevel::ERROR, "[MetadataManager] addFile: No live nodes available for file " + filename);
-        return ENOSPC; // No space/nodes available
-    } else if (targetNodes.size() < DEFAULT_REPLICATION_FACTOR) {
-        Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] addFile: Could only find " + std::to_string(targetNodes.size()) +
-                                               " live nodes for file " + filename + ". Required: " + std::to_string(DEFAULT_REPLICATION_FACTOR));
-        return EAGAIN; // Insufficient nodes
-    }
-
-    fileMetadata[filename] = targetNodes;
-    fileModes[filename] = mode;
-    fileSizes[filename] = 0; // Initial size is 0
-    {
-        BlockIO bio;
-        DigestResult dr = bio.finalize_hashed();
-        fileHashes[filename] = dr.cid;
-    }
     lock.unlock();
 
-    std::ostringstream oss_add;
-    oss_add << "[MetadataManager] File " << filename << " added with mode " << std::oct << mode << std::dec << ". Assigned to nodes: ";
-    for(const auto& n : targetNodes) oss_add << n << " ";
-    Logger::getInstance().log(LogLevel::INFO, oss_add.str());
-
-
-    // Instruct chosen nodes to create an empty file. The Node implementation
-    // interprets a WriteFile message with empty content as a create request.
+    std::vector<std::string> successes;
+    std::vector<std::string> successAddrs;
     for (size_t i = 0; i < targetNodes.size(); ++i) {
         const std::string& nodeID = targetNodes[i];
         const std::string& addr = targetAddrs[i];
@@ -106,20 +82,66 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
         Message createMsg;
         createMsg._Type = MessageType::WriteFile;
         createMsg._Filename = filename;
-        createMsg._Content = ""; // create empty file
+        createMsg._Content = "";
 
         try {
             Networking::Client client(ip.c_str(), port);
             client.Send(Message::Serialize(createMsg).c_str());
-            (void)client.Receive(); // ignore response
+            (void)client.Receive();
             client.Disconnect();
+            healthTracker_.recordSuccess(nodeID);
+            successes.push_back(nodeID);
+            successAddrs.push_back(addr);
         } catch (const std::exception& e) {
             Logger::getInstance().log(LogLevel::ERROR,
                 "[MetadataManager] Failed to send create command to node " + nodeID + ": " + e.what());
         }
     }
 
-    return 0; // Success
+    if (successes.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR, "addFile failed: zero replicas created");
+        return ERR_NO_REPLICA;
+    }
+
+    if (successes.size() < DEFAULT_REPLICATION_FACTOR) {
+        Logger::getInstance().log(LogLevel::WARN, "addFile partial success for " + filename);
+        Message delMsg; delMsg._Type = MessageType::DeleteFile; delMsg._Filename = filename;
+        for (size_t i = 0; i < successes.size(); ++i) {
+            const std::string& nodeID = successes[i];
+            const std::string& addr = successAddrs[i];
+            std::string ip = addr.substr(0, addr.find(':'));
+            int port = std::stoi(addr.substr(addr.find(':') + 1));
+            try {
+                Networking::Client client(ip.c_str(), port);
+                client.Send(Message::Serialize(delMsg).c_str());
+                (void)client.Receive();
+                client.Disconnect();
+                healthTracker_.recordSuccess(nodeID);
+            } catch (const std::exception& e) {
+                Logger::getInstance().log(LogLevel::ERROR,
+                    "[MetadataManager] Failed rollback delete to node " + nodeID + ": " + e.what());
+            }
+        }
+        return ERR_INSUFFICIENT_REPLICA;
+    }
+
+    lock.lock();
+    fileMetadata[filename] = successes;
+    fileModes[filename] = mode;
+    fileSizes[filename] = 0;
+    {
+        BlockIO bio;
+        DigestResult dr = bio.finalize_hashed();
+        fileHashes[filename] = dr.cid;
+    }
+    lock.unlock();
+
+    std::ostringstream oss_add;
+    oss_add << "[MetadataManager] File " << filename << " added with mode " << std::oct << mode << std::dec << ". Assigned to nodes: ";
+    for(const auto& n : successes) oss_add << n << ' ';
+    Logger::getInstance().log(LogLevel::INFO, oss_add.str());
+
+    return 0;
 }
 
 // Modified removeFile to update new maps and return bool
@@ -167,6 +189,7 @@ bool MetadataManager::removeFile(const std::string& filename) {
             client.Send(Message::Serialize(delMsg).c_str());
             (void)client.Receive();
             client.Disconnect();
+            healthTracker_.recordSuccess(nodeID);
         } catch (const std::exception& e) {
             Logger::getInstance().log(LogLevel::ERROR,
                 "[MetadataManager] Failed to send delete command to node " + nodeID + ": " + e.what());
@@ -349,6 +372,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                 client.Send(Message::Serialize(writeMsg).c_str());
                 (void)client.Receive();
                 client.Disconnect();
+                healthTracker_.recordSuccess(primaryID);
             } catch (const std::exception& e) {
                 Logger::getInstance().log(LogLevel::ERROR,
                     "[MetadataManager] Failed to send write to primary node " + primaryID + ": " + e.what());
@@ -378,6 +402,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                     clientPrimary.Send(Message::Serialize(replicateMsg).c_str());
                     (void)clientPrimary.Receive();
                     clientPrimary.Disconnect();
+                    healthTracker_.recordSuccess(primaryID);
                 } catch (const std::exception& e) {
                     Logger::getInstance().log(LogLevel::ERROR,
                         "[MetadataManager] Failed to send replicate command to " + primaryID + ": " + e.what());
@@ -388,6 +413,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
                     clientReplica.Send(Message::Serialize(receiveMsg).c_str());
                     (void)clientReplica.Receive();
                     clientReplica.Disconnect();
+                    healthTracker_.recordSuccess(replicaID);
                 } catch (const std::exception& e) {
                     Logger::getInstance().log(LogLevel::ERROR,
                         "[MetadataManager] Failed to send receive command to " + replicaID + ": " + e.what());

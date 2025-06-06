@@ -2000,6 +2000,12 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
     metadataManager.registerNode("testnode0", "127.0.0.1", 1234);
     metadataManager.registerNode("testnode1", "127.0.0.1", 1235);
     metadataManager.registerNode("testnode2", "127.0.0.1", 1236);
+    Networking::Server ns0(1234); ns0.startListening();
+    Networking::Server ns1(1235); ns1.startListening();
+    Networking::Server ns2(1236); ns2.startListening();
+    std::thread t0([&](){auto c=ns0.Accept();ns0.Receive(c);ns0.Send("",c);ns0.DisconnectClient(c);});
+    std::thread t1([&](){auto c=ns1.Accept();ns1.Receive(c);ns1.Send("",c);ns1.DisconnectClient(c);});
+    std::thread t2([&](){auto c=ns2.Accept();ns2.Receive(c);ns2.Send("",c);ns2.DisconnectClient(c);});
 
     // Now add the file.
     int addFileResult = metadataManager.addFile(testFilePath, {"testnode0", "testnode1", "testnode2"}, testFileMode);
@@ -2114,6 +2120,8 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
     if (serverThread.joinable()) {
         serverThread.join();
     }
+    ns0.Shutdown(); ns1.Shutdown(); ns2.Shutdown();
+    t0.join(); t1.join(); t2.join();
     // Logger::getInstance().log(LogLevel::INFO, "Test FuseGetattrSimulation completed."); // Old log
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test FuseGetattrSimulation: Finished." << std::endl;
 }

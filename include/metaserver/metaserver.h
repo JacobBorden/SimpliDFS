@@ -8,6 +8,7 @@
  */
 #include "utilities/filesystem.h" // Included for context, though not directly used in this header
 #include "utilities/message.h"    // For Message struct and MessageType enum
+#include "metaserver/node_health_tracker.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -24,6 +25,10 @@
 const char METADATA_SEPARATOR = '|';
 /** @brief Separator character for lists of nodes in metadata persistence files. */
 const char NODE_LIST_SEPARATOR = ',';
+
+/// Error codes specific to MetadataManager operations
+const int ERR_NO_REPLICA = 2001;
+const int ERR_INSUFFICIENT_REPLICA = 2002;
 
 /**
  * @brief Holds information about a registered storage node.
@@ -65,6 +70,8 @@ private:
     std::unordered_map<std::string, uint64_t> fileSizes;
     std::unordered_map<std::string, std::string> fileHashes;
     std::atomic<bool> metadata_is_dirty_ {false};
+
+    NodeHealthTracker healthTracker_;
     
     /** @brief Default number of replicas to create for each file. */
     static const int DEFAULT_REPLICATION_FACTOR = 3;
