@@ -138,7 +138,7 @@ int main() {
     }
 
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Creating/truncating test file " << FULL_TEST_FILE_PATH << std::endl;
-    std::fstream pre_outfile(FULL_TEST_FILE_PATH, std::ios::out | std::ios::in | std::ios::trunc | std::ios::binary);
+    std::ofstream pre_outfile(FULL_TEST_FILE_PATH, std::ios::out | std::ios::trunc | std::ios::binary);
     if (!pre_outfile.is_open()) {
         std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Failed to create/truncate test file: " << FULL_TEST_FILE_PATH << std::endl;
         return 1;
@@ -146,13 +146,8 @@ int main() {
     pre_outfile << HEADER_LINE;
 
     size_t expected_total_lines = NUM_THREADS * NUM_LINES_PER_THREAD;
-    size_t final_size = HEADER_LINE.size() + expected_total_lines * (LINE_LENGTH + 1);
-    if (final_size > HEADER_LINE.size()) {
-        pre_outfile.seekp(final_size - 1);
-        pre_outfile.write("\0", 1);
-    }
     pre_outfile.close();
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test file " << TEST_FILE_NAME << " created/truncated and preallocated at " << MOUNT_POINT << std::endl;
+    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test file " << TEST_FILE_NAME << " created at " << MOUNT_POINT << std::endl;
 
     std::vector<std::thread> threads_vector;
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Starting " << NUM_THREADS << " writer threads, each writing " << NUM_LINES_PER_THREAD << " lines." << std::endl;
