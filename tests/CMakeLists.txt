@@ -20,6 +20,7 @@ add_executable(SimpliDFSTests
     repair_worker_tests.cpp
     replica_verifier_tests.cpp
     audit_log_tests.cpp
+    concurrency_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
