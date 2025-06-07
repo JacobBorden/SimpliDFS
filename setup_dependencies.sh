@@ -5,7 +5,9 @@ set -e
 sudo apt-get update -y
 sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
     build-essential cmake meson ninja-build libudev-dev libyaml-cpp-dev \
-    libboost-all-dev curl git
+    libboost-all-dev curl git \
+    libprotobuf-dev protobuf-compiler libgrpc-dev protobuf-compiler-grpc \
+    libgrpc++-dev
 
 # Install libfuse3 from source if pkg-config cannot find it
 if ! pkg-config --exists fuse3; then

@@ -20,7 +20,10 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y libsodium-dev pkg-config \
                                    build-essential meson ninja-build \
-                                   libudev-dev curl
+                                   libudev-dev curl \
+                                   libprotobuf-dev protobuf-compiler \
+                                   libgrpc-dev protobuf-compiler-grpc \
+                                   libgrpc++-dev
 
       # ---- build libfuse 3.16.2 ------------------------------------------
       - name: Build & install libfuse 3.16.2

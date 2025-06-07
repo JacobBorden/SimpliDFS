@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.10] - 2025-06-12
+
+### Added
+- gRPC and Protobuf development packages in GitHub workflow and
+  `setup_dependencies.sh` to ensure builds succeed.
+
 ## [0.3.9] - 2025-06-11
 
 ### Added
