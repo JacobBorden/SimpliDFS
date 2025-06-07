@@ -16,7 +16,9 @@ jobs:
     - name: Install Build Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y libsodium-dev libzstd-dev libfuse3-dev pkg-config clang llvm
+        sudo apt-get install -y libsodium-dev libzstd-dev libfuse3-dev libboost-all-dev pkg-config clang llvm \
+                               libprotobuf-dev protobuf-compiler libgrpc-dev \
+                               protobuf-compiler-grpc libgrpc++-dev libyaml-cpp-dev
 
     - name: Configure CMake for Fuzzing
       run: |
