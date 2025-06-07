@@ -31,6 +31,9 @@ inline std::string bytes_to_string(const std::vector<std::byte> &bytes) {
   return str;
 }
 
+FileSystem::FileSystem(int compression_level, BlockIO::CipherAlgorithm cipher_algo)
+    : compression_level_(compression_level), cipher_algo_(cipher_algo) {}
+
 bool FileSystem::createFile(const std::string &_pFilename) {
   std::unique_lock<std::mutex> lock(_Mutex);
   if (_Files.count(_pFilename)) {
@@ -56,7 +59,7 @@ bool FileSystem::writeFile(const std::string &_pFilename,
   }
 
   try {
-    BlockIO localBlockIO; // Create a local BlockIO instance for this operation
+    BlockIO localBlockIO(compression_level_, cipher_algo_);
 
     // 1. Convert content to std::vector<std::byte>
     std::vector<std::byte> rawData = string_to_bytes(_pContent);
@@ -69,7 +72,7 @@ bool FileSystem::writeFile(const std::string &_pFilename,
     // processing operations like encrypt/compress on its internal buffer. The
     // current BlockIO API takes data as parameter for encrypt/compress, so it's
     // fine.
-    BlockIO hasher;
+    BlockIO hasher(compression_level_, cipher_algo_);
     hasher.ingest(rawData.data(), rawData.size());
     DigestResult hashResult = hasher.finalize_hashed();
     std::string cid = hashResult.cid;
@@ -180,7 +183,7 @@ std::string FileSystem::readFile(const std::string &_pFilename) {
     std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
     key.fill('A'); // Placeholder
 
-    BlockIO localBlockIO; // Create a local BlockIO instance
+    BlockIO localBlockIO(compression_level_, cipher_algo_);
 
     // 3. Decompress the data
     // The 'original_size' for decompress_data here is the size of the data
@@ -193,7 +196,7 @@ std::string FileSystem::readFile(const std::string &_pFilename) {
         localBlockIO.decrypt_data(decompressedEncryptedData, key, nonce);
 
     // 5. Verify the hash (CID)
-    BlockIO hashVerifierBlockIO;
+    BlockIO hashVerifierBlockIO(compression_level_, cipher_algo_);
     hashVerifierBlockIO.ingest(decryptedRawData.data(),
                                decryptedRawData.size());
     DigestResult verificationResult = hashVerifierBlockIO.finalize_hashed();
@@ -353,10 +356,10 @@ bool FileSystem::verifyFileIntegrity(const std::string &filename) const {
   std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
   std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
   key.fill('A');
-  BlockIO bio;
+  BlockIO bio(compression_level_, cipher_algo_);
   std::vector<std::byte> decrypted = bio.decrypt_data(
       bio.decompress_data(compressedData, encrypted_size), key, nonce);
-  BlockIO verify;
+  BlockIO verify(compression_level_, cipher_algo_);
   if (!decrypted.empty())
     verify.ingest(decrypted.data(), decrypted.size());
   DigestResult dr = verify.finalize_hashed();
@@ -517,7 +520,7 @@ bool FileSystem::snapshotExportCar(const std::string &name,
     std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
     std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
     key.fill('A');
-    BlockIO local;
+    BlockIO local(compression_level_, cipher_algo_);
     std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
     std::vector<std::byte> raw = local.decrypt_data(decompressed, key, nonce);
     store.addChunk(raw); // cid should match but ignore

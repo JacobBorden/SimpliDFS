@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.6] - 2025-06-11
+
+### Added
+- Configurable compression level and cipher algorithm loaded at runtime.
+
+
 ## [0.3.5] - 2025-06-10
 
 ### Added

@@ -6,6 +6,27 @@
 #include <stdexcept>
 #include <thread> // For std::this_thread::sleep_for
 #include <chrono> // For std::chrono::seconds
+#include <yaml-cpp/yaml.h>
+
+struct RuntimeOptions {
+    int compressionLevel = 1;
+    std::string cipherAlgorithm = "AES-256-GCM";
+};
+
+static RuntimeOptions loadRuntimeOptions() {
+    RuntimeOptions opts;
+    const char* cfg = std::getenv("SIMPLIDFS_CONFIG");
+    if (!cfg) cfg = "simplidfs_config.yaml";
+    try {
+        YAML::Node node = YAML::LoadFile(cfg);
+        if (node["compression_level"]) opts.compressionLevel = node["compression_level"].as<int>();
+        if (node["cipher_algorithm"]) opts.cipherAlgorithm = node["cipher_algorithm"].as<std::string>();
+    } catch (...) {
+    }
+    if (const char* env = std::getenv("SIMPLIDFS_COMPRESSION_LEVEL")) opts.compressionLevel = std::atoi(env);
+    if (const char* env = std::getenv("SIMPLIDFS_CIPHER_ALGO")) opts.cipherAlgorithm = env;
+    return opts;
+}
 
 int main(int argc, char* argv[]) {
     if (argc < 5) {
@@ -39,6 +60,13 @@ int main(int argc, char* argv[]) {
 
     Logger::getInstance().log(LogLevel::INFO, "Node " + nodeName + " starting on port " + std::to_string(port));
 
+    RuntimeOptions opts = loadRuntimeOptions();
+    BlockIO::CipherAlgorithm algo = BlockIO::CipherAlgorithm::AES_256_GCM;
+    if (opts.cipherAlgorithm != "AES-256-GCM") {
+        Logger::getInstance().log(LogLevel::WARN,
+            "Unsupported cipher algorithm " + opts.cipherAlgorithm + ", defaulting to AES-256-GCM");
+    }
+
     std::string metaserverAddress = argv[3];
     int metaserverPort = 0;
     try {
@@ -66,8 +94,10 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        Node node(nodeName, port);
-        Logger::getInstance().log(LogLevel::INFO, "Node object '" + nodeName + "' created.");
+        Node node(nodeName, port, opts.compressionLevel, algo);
+        Logger::getInstance().log(LogLevel::INFO,
+            "Node object '" + nodeName + "' created. Compression level " +
+            std::to_string(opts.compressionLevel) + ", cipher " + opts.cipherAlgorithm);
 
         if (!certFile.empty() && !keyFile.empty()) {
             if (!node.enableServerTLS(certFile, keyFile)) {
