@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.22] - 2025-06-07
+
+### Changed
+- Enforced test dependency so `FuseConcurrencyTest` runs after `FuseTestEnvSetup`.
+
 ## [0.3.21] - 2025-06-07
 
 ### Added

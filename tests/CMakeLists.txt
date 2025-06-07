@@ -71,6 +71,7 @@ add_test(
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
+set_tests_properties(FuseConcurrencyTest PROPERTIES DEPENDS FuseTestEnvSetup)
 # Define a test for running the setup script
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
