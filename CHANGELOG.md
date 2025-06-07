@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.4] - 2025-06-07
+
+### Added
+- TLS support for `Networking::Client` and `Networking::Server`.
+- Script `scripts/generate_node_cert.sh` for generating test certificates.
+
+### Changed
+- CMake build links against OpenSSL.
+
+### Fixed
+- N/A
+
 ## [0.2.3] - 2025-06-07
 
 ### Added

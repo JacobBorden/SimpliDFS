@@ -151,3 +151,5 @@ export SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
 If this variable is missing or malformed, each process generates a new random
 key, preventing other nodes from decrypting its data. See
 [SECURITY.md](SECURITY.md) for details.
+
+TLS certificates for development can be created with `scripts/generate_node_cert.sh`.
