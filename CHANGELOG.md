@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.15] - 2025-06-17
+
+### Added
+- Concurrent metadata test covering file create/delete, node registration,
+  heartbeats and dead-node checks.
+
 ## [0.3.14] - 2025-06-16
 
 ### Added

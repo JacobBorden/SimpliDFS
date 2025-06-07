@@ -13,6 +13,15 @@ ctest --output-on-failure -VV
 
 For debugging specific GTest cases with GDB, refer to the "Debugging with GDB" section below.
 
+### Concurrency Tests
+
+The `concurrency_tests` target exercises thread safety in the `MetadataManager`.
+It launches multiple `std::thread` workers that create and delete files,
+register nodes, send heartbeats and run dead-node checks concurrently.
+The test is compiled into `SimpliDFSTests` and runs with the rest of the
+unit tests via CTest.
+
+
 
 ## Fuzz Testing
 
