@@ -156,7 +156,11 @@ public:
    * @param name The unique name (identifier) for this node.
    * @param port The port number on which this node's server should listen.
    */
-  Node(const std::string &name, int port) : nodeName(name), server(port) {
+  Node(const std::string &name, int port, int compression_level = 1,
+       BlockIO::CipherAlgorithm cipher_algo =
+           BlockIO::CipherAlgorithm::AES_256_GCM)
+      : nodeName(name), server(port),
+        fileSystem(compression_level, cipher_algo) {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
   }
 
