@@ -11,6 +11,7 @@ add_executable(SimpliDFSTests
     blockio_test.cpp      # Added blockio tests
     cid_tests.cpp         # Added CID conversion tests
     key_manager_tests.cpp
+    rbac_tests.cpp
     chunk_store_tests.cpp
     integration_tests.cpp # Added new integration tests file
     raft_tests.cpp
