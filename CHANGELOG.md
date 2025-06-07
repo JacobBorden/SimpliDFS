@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.18] - 2025-06-20
+
+### Changed
+- Updated CMake policies to silence warnings on newer CMake versions.
+- Added explicit gRPC package lookup to ensure `gRPC::grpc++` target is available.
+
+
+
 ## [0.3.17] - 2025-06-19
 
 ### Added
