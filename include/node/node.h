@@ -9,8 +9,8 @@
  * local FileSystem.
  * - Registering with the MetadataManager.
  * - Periodically sending heartbeats to the MetadataManager.
- * - Interacting with the NetworkingLibrary (currently stubbed/conceptual) for
- * communication.
+ * - Interacting with the networking library for
+ *   communication.
  */
 
 #include "utilities/client.h"

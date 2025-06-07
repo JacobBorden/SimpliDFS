@@ -6,6 +6,9 @@
 - Counter `simplidfs_replication_failures` for tracking failed replica checks.
 - Grafana panel for replication failures.
 
+### Changed
+- Updated README and progress documentation to reflect working replication and re-replication.
+
 
 ## [0.3.20] - 2025-06-07
 

@@ -33,10 +33,10 @@ SimpliDFS is a distributed file system project designed to manage files across m
 - Each storage node runs a background verifier thread that checks file hashes and heals corrupted replicas by fetching a clean copy from peers.
 
 ## Current Progress
-Significant progress has been made on core distributed file system logic:
+- Significant progress has been made on core distributed file system logic:
 - Robust metadata management with persistence.
 - Node registration and liveness tracking (heartbeats).
-- Fault tolerance framework including file replication strategy and detection of node failures for future re-replication.
+- Fault tolerance framework including file replication strategy, detection of node failures, and automatic re-replication.
 - File deletion support.
 - Initial code refactoring (messaging system) and comprehensive Doxygen documentation for key components.
 - Network communication between nodes and the metaserver is handled by the integrated networking library.
@@ -44,7 +44,7 @@ Significant progress has been made on core distributed file system logic:
 ## TODO List
 - **Networking Integration**: Completed. The networking library is now integrated directly into the project source (`src/client.h`, `src/server.h`) and is used by metaserver and node components.
 - **Node Management**: Core logic implemented (registration/heartbeat complete). Further enhancements for dynamic node property updates could be considered.
-- **Fault Tolerance**: Core logic implemented (replication strategy, failure detection complete; re-replication data transfer stubbed). Full end-to-end testing with a live networking layer is pending.
+  - **Fault Tolerance**: Replication and re-replication are implemented via the networking library. Full end-to-end testing with a live networking layer is pending.
 - **Metadata Persistence**: Complete.
 - **Extended Operations**:
     - File deletion: Complete.

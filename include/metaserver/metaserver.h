@@ -182,7 +182,7 @@ public:
      * any files that had replicas on the failed node.
      * @note This method should be called periodically by the metaserver's main loop or a dedicated timer thread.
      *       It also handles logging for node timeouts and replica redistribution actions.
-     *       Actual network communication to instruct nodes for replication is stubbed with log messages.
+     *       Network communication to instruct nodes for replication is handled via the networking library.
      */
     void checkForDeadNodes() {
         std::lock_guard<std::mutex> lock(metadataMutex);
@@ -305,8 +305,8 @@ public:
      * If not enough preferred nodes are available or none are provided, it selects other live nodes
      * to meet the `DEFAULT_REPLICATION_FACTOR`.
      * 
-     * After selecting target nodes, it updates `fileMetadata` and logs (stubbed) messages
-     * to be sent to the target nodes to create the file.
+     * After selecting target nodes, it updates `fileMetadata` and sends messages
+     * via the networking library to instruct the target nodes to create the file.
      * 
      * @param filename The name of the file to add.
      * @param preferredNodes A list of node identifiers suggested to store this file. Can be empty.
@@ -378,10 +378,10 @@ public:
 
     // Remove a file from metadata
     /**
-     * @brief Removes a file from the metadata and logs (stubbed) messages to instruct relevant nodes to delete their replicas.
+     * @brief Removes a file from the metadata and sends messages to instruct relevant nodes to delete their replicas.
      * @param filename The name of the file to remove.
      * @note If the file is found and removed from metadata, messages of type `DeleteFile` are
-     *       logged for each node that was storing a replica.
+     *       sent to each node that was storing a replica.
      */
     // The `bool removeFile(const std::string& filename);` declaration is already correctly placed above.
     // The old implementation block is removed here.
