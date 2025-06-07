@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+### Added
+- Re-replication now performs actual data transfer when nodes fail.
+- RepairWorker triggers replication callbacks for partial files.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added
