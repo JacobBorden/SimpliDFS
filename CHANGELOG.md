@@ -5,6 +5,14 @@
 ### Changed
 - Enforced test dependency so `FuseConcurrencyTest` runs after `FuseTestEnvSetup`.
 
+## [0.3.23] - 2025-06-07
+
+### Added
+- Unit tests for `NodeHealthTracker`.
+
+### Changed
+- Expanded comments in `node_health_tracker.cpp` for clarity.
+
 ## [0.3.21] - 2025-06-07
 
 ### Added
