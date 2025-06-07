@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.6] - 2025-06-07
+
+### Added
+- SHA-linked audit log for create, write and delete operations.
+- AuditVerifier background job to validate the log chain daily.
+
 ## [0.2.5] - 2025-06-07
 
 ### Added
