@@ -8,6 +8,7 @@
 #include "metaserver/metaserver.h" // For MetadataManager (declaration)
 #include "utilities/raft.h"
 #include "utilities/prometheus_server.h"
+#include "utilities/fips.h"
 
 #include <cstdlib> // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -96,11 +97,24 @@ int main(int argc, char* argv[])
     signal(SIGPIPE, SIG_IGN);
 
     int port = 50505; // Default port
+    std::string certFile;
+    std::string keyFile;
+    std::string caFile;
     if (argc > 1) {
         port = std::atoi(argv[1]);
-        if (port == 0) { // Basic error check for atoi
+        if (port == 0) {
             std::cerr << "FATAL: Invalid port number provided: " << argv[1] << std::endl;
             return 1;
+        }
+        for (int i = 2; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--cert" && i + 1 < argc) {
+                certFile = argv[++i];
+            } else if (arg == "--key" && i + 1 < argc) {
+                keyFile = argv[++i];
+            } else if (arg == "--ca" && i + 1 < argc) {
+                caFile = argv[++i];
+            }
         }
     }
 
@@ -111,10 +125,17 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+
     RuntimeOptions opts = loadRuntimeOptions();
     Logger::getInstance().log(LogLevel::INFO,
         "Runtime options: compression level " + std::to_string(opts.compressionLevel) +
         ", cipher " + opts.cipherAlgorithm);
+
+    if (!fips_self_test()) {
+        std::cerr << "FATAL: FIPS self test failed" << std::endl;
+        return 1;
+    }
+
 
     Logger::getInstance().log(LogLevel::INFO, "Metaserver starting up...");
     // Assuming loadMetadata is a public method of MetadataManager
@@ -150,6 +171,13 @@ int main(int argc, char* argv[])
     std::thread persist_thread(persistence_thread_function);
 
     Networking::Server local_server(port); // Create server instance with parsed port
+
+    if (!certFile.empty() && !keyFile.empty()) {
+        if (!local_server.enableTLS(certFile, keyFile)) {
+            std::cerr << "FATAL: Failed to enable TLS" << std::endl;
+            return 1;
+        }
+    }
 
     // Attempt to start the server
     if (!local_server.startListening()) {
