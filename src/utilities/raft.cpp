@@ -221,4 +221,9 @@ void RaftNode::appendCommand(const std::string& command) {
     log.push_back({currentTerm, command});
 }
 
+std::vector<RaftLogEntry> RaftNode::getLog() const {
+    std::lock_guard<std::mutex> lk(mtx);
+    return log;
+}
+
 
