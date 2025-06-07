@@ -518,6 +518,37 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
     return 0; // Success
 }
 
+bool MetadataManager::applySnapshotDelta(const std::string& nodeIdentifier, const std::string& delta) {
+    std::istringstream ss(delta);
+    std::string line;
+    bool changed = false;
+
+    while (std::getline(ss, line)) {
+        if (line.rfind("Added: ", 0) == 0) {
+            std::string file = line.substr(7);
+            if (!file.empty() && !fileExists(file)) {
+                if (addFile(file, {nodeIdentifier}, 0644) == 0) {
+                    changed = true;
+                }
+            }
+        } else if (line.rfind("Deleted: ", 0) == 0) {
+            std::string file = line.substr(9);
+            if (!file.empty() && removeFile(file)) {
+                changed = true;
+            }
+        } else if (line.rfind("Modified: ", 0) == 0) {
+            std::string file = line.substr(10);
+            if (!file.empty() && fileExists(file)) {
+                Logger::getInstance().log(LogLevel::INFO,
+                    "[MetadataManager] Marking modified file " + file +
+                    " from node " + nodeIdentifier);
+                changed = true;
+            }
+        }
+    }
+    return changed;
+}
+
 // saveMetadata and loadMetadata now persist fileModes and fileSizes alongside
 // fileMetadata and registeredNodes. Their definitions reside in the header file.
 
@@ -830,6 +861,18 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 Logger::getInstance().log(LogLevel::DEBUG, "Received Heartbeat from node " + request._Filename);
                 metadataManager.processHeartbeat(request._Filename);
                 // No response sent for heartbeat
+                break;
+            }
+            case MessageType::SnapshotDelta:
+            {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case SnapshotDelta from node '" << request._Filename << "'" << std::endl;
+                bool changed = metadataManager.applySnapshotDelta(request._Filename, request._Content);
+                Message res;
+                res._Type = MessageType::SnapshotDelta;
+                res._ErrorCode = 0;
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case SnapshotDelta" << std::endl;
+                server_instance.Send(Message::Serialize(res).c_str(), _pClient);
+                if (changed) shouldSave = true;
                 break;
             }
             case MessageType::DeleteFile: { // Legacy DeleteFile, treat like unlink

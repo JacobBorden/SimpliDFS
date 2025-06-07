@@ -340,6 +340,20 @@ public:
         }
     }
 
+    /**
+     * @brief Apply snapshot deltas reported by a node after reconnecting.
+     *
+     * Each line in @p delta should be of the form "Added: <file>",
+     * "Modified: <file>", or "Deleted: <file>". This method updates
+     * metadata to reflect these changes.
+     *
+     * @param nodeIdentifier The node that generated the delta list.
+     * @param delta Newline-separated delta information.
+     * @return True if metadata was modified.
+     */
+    bool applySnapshotDelta(const std::string& nodeIdentifier,
+                            const std::string& delta);
+
     // Remove a file from metadata
     /**
      * @brief Removes a file from the metadata and logs (stubbed) messages to instruct relevant nodes to delete their replicas.
