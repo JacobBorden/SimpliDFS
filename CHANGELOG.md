@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.9] - 2025-06-11
+
+### Added
+- IPFS gateway with JWT-protected block retrieval.
+
+
 ## [0.3.8] - 2025-06-11
 
 ### Added
@@ -61,6 +67,7 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 
 
