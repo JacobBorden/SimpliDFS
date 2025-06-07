@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.8] - 2025-06-09
+
+### Added
+- Initial FedRAMP RMF control mapping in `docs/fedramp_mapping.md`.
+
 ## [0.2.7] - 2025-06-08
 
 ### Added
