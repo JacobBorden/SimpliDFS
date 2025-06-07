@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- Minimal S3 gateway translating PUT and GET requests to SimpliDFS file operations.
+- Integration test for uploads and downloads via the gateway.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added

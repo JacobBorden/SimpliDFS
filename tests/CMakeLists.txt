@@ -13,6 +13,7 @@ add_executable(SimpliDFSTests
     key_manager_tests.cpp
     chunk_store_tests.cpp
     integration_tests.cpp # Added new integration tests file
+    s3_gateway_tests.cpp
     raft_tests.cpp
     raft_chaos_tests.cpp
     repair_worker_tests.cpp
@@ -37,6 +38,7 @@ target_link_libraries(SimpliDFSTests
     SimpliDFS_Utils # Link against common utilities library (now includes BlockIO)
     SimpliDFS_MetaServerLib # Link against the new metaserver library
     SimpliDFS_NodeLib       # Link against the new node library
+    S3GatewayLib
 )
 
 # Include directories for the headers
