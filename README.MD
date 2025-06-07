@@ -142,8 +142,11 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ## Chaos Testing
 The `tests/chaos_kill_node.sh` script simulates node failures by randomly killing
-one storage node every five minutes for two hours. Use this after launching the
-metaserver and nodes to evaluate replication healing.
+an edge node every five minutes for two hours. The script now deploys the node
+with the bundled Ansible role, runs latency benchmarks and queries the
+Prometheus metrics endpoint to calculate a simple availability SLA.
+Use this after launching the metaserver to evaluate replication healing and
+performance.
 
 ## Security
 SimpliDFS relies on a cluster-wide encryption key. Set the
@@ -160,3 +163,4 @@ key, preventing other nodes from decrypting its data. See
 [SECURITY.md](SECURITY.md) for details.
 
 TLS certificates for development can be created with `scripts/generate_node_cert.sh`.
+See [docs/key_rotation.md](docs/key_rotation.md) for instructions on rotating the cluster key.

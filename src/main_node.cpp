@@ -1,5 +1,6 @@
 #include "node/node.h"
 #include "utilities/logger.h"
+#include "utilities/fips.h"
 #include <string>
 #include <iostream>
 #include <stdexcept>
@@ -28,6 +29,11 @@ int main(int argc, char* argv[]) {
         Logger::init("node_" + nodeName + ".log", LogLevel::INFO);
     } catch (const std::exception& e) {
         std::cerr << "FATAL: Logger initialization failed for node " << nodeName << ": " << e.what() << std::endl;
+        return 1;
+    }
+
+    if (!fips_self_test()) {
+        std::cerr << "FATAL: FIPS self test failed" << std::endl;
         return 1;
     }
 
