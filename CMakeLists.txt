@@ -41,25 +41,20 @@ pkg_check_modules(SODIUM REQUIRED libsodium)
 # Find Boost for the REST server
 find_package(Boost REQUIRED COMPONENTS system)
 
-# Find or fetch zstd
-find_package(ZSTD)
-if(NOT ZSTD_FOUND)
-  message(STATUS "ZSTD not found. Fetching from source...")
-  FetchContent_Declare(
-    zstd
-    GIT_REPOSITORY https://github.com/facebook/zstd.git
-    GIT_TAG v1.5.5 # Stable tag
-    SOURCE_SUBDIR build/cmake # Use the CMakeLists.txt in build/cmake as the top-level one
-  )
-  # Set options for zstd build. Using CACHE BOOL without FORCE initially.
-  set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs")
-  set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests")
-  set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Build zstd static library")
-  set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library")
-  FetchContent_MakeAvailable(zstd)
-else()
-  message(STATUS "Found ZSTD: ${ZSTD_LIBRARIES}")
-endif()
+# Fetch zstd
+message(STATUS "Fetching zstd from source to ensure consistent version v1.5.5...")
+FetchContent_Declare(
+  zstd
+  GIT_REPOSITORY https://github.com/facebook/zstd.git
+  GIT_TAG v1.5.5 # Stable tag
+  SOURCE_SUBDIR build/cmake # Use the CMakeLists.txt in build/cmake as the top-level one
+)
+# Set options for zstd build.
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs" FORCE)
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests" FORCE)
+set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Build zstd static library" FORCE) # Or ON if static is preferred
+set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library" FORCE) # Or OFF if static is preferred
+FetchContent_MakeAvailable(zstd)
 
 # Fetch cpp-base32 (cppcodec)
 FetchContent_Declare(
@@ -78,14 +73,65 @@ set(BUILD_TESTING ON CACHE BOOL "Enable testing for main project" FORCE) # Re-en
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG main  # Specify the correct branch/tag
+    GIT_TAG v1.14.0  # Specify the correct branch/tag
     SOURCE_DIR ${CMAKE_BINARY_DIR}/dependencies/googletest
 )
 # Make GoogleTest available
 FetchContent_MakeAvailable(googletest)
 
 find_package(Protobuf REQUIRED)
-find_package(gRPC CONFIG REQUIRED)
+
+# Fetch gRPC and let it use its bundled dependencies
+FetchContent_Declare(
+  grpc
+  GIT_REPOSITORY https://github.com/grpc/grpc.git
+  GIT_TAG v1.54.2 # Stable gRPC version
+)
+
+# Get properties of grpc to know its source directory
+FetchContent_GetProperties(grpc)
+if(NOT grpc_POPULATED) # Ensure grpc is populated before trying to patch its files
+  FetchContent_Populate(grpc)
+endif()
+
+# --- Abseil GTest Download Fix ---
+# This path is relative to the build directory after grpc source is populated.
+set(ABSEIL_GTEST_CMAKE_PATH "${grpc_SOURCE_DIR}/third_party/abseil-cpp/CMake/Googletest/DownloadGTest.cmake")
+if(EXISTS ${ABSEIL_GTEST_CMAKE_PATH})
+  file(WRITE ${ABSEIL_GTEST_CMAKE_PATH}
+    "# This file is intentionally overwritten to prevent Abseil from downloading GoogleTest.
+    # The main project should provide GoogleTest.
+    message(STATUS \"Abseil GTest download disabled by project override.\")
+    ")
+  message(STATUS "Applied Abseil GTest download fix for gRPC.")
+else()
+  message(WARNING "Could not find ${ABSEIL_GTEST_CMAKE_PATH} to apply Abseil GTest download fix.")
+endif()
+# --- End Abseil GTest Download Fix ---
+
+# Set options for gRPC build
+# Ensure gRPC uses its own bundled protobuf
+set(gRPC_PROTOBUF_PROVIDER "module" CACHE STRING "Let gRPC find protobuf via CMAKE_MODULE_PATH (should use its own)" FORCE) # This is one way
+set(gRPC_ZLIB_PROVIDER "package" CACHE STRING "Let gRPC find zlib via find_package" FORCE) # Assuming zlib is available or fetched elsewhere
+# Alternatively, and often more robust for protobuf:
+set(gRPC_BUNDLED_PROTOBUF ON CACHE BOOL "Force gRPC to use its bundled protobuf" FORCE)
+
+set(gRPC_BUILD_TESTS OFF CACHE BOOL "Disable gRPC tests" FORCE)
+set(gRPC_INSTALL OFF CACHE BOOL "Disable installing gRPC" FORCE)
+# Other options that might be useful depending on project needs:
+# set(gRPC_BUILD_CODEGEN OFF CACHE BOOL "Disable gRPC codegen build" FORCE) # Usually ON
+# set(gRPC_BUILD_CSHARP_EXT OFF CACHE BOOL "Disable C# build" FORCE)
+
+# Make gRPC available
+FetchContent_MakeAvailable(grpc)
+
+# Fetch yaml-cpp
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG 0.8.0 # Corrected tag
+)
+FetchContent_MakeAvailable(yaml-cpp)
 
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
@@ -160,7 +206,7 @@ target_include_directories(simplidfs_grpc PUBLIC
 target_link_libraries(simplidfs_grpc
     PUBLIC
     gRPC::grpc++
-    protobuf::libprotobuf
+    # protobuf::libprotobuf # This should now come transitively from gRPC::grpc++
     SimpliDFS_Utils
     Threads::Threads)
 
