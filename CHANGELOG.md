@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.5] - 2025-06-07
+
+### Added
+- Prometheus metrics for cluster state, replica health and FUSE latency.
+- Default Grafana dashboard in `monitoring/grafana`.
+
 
 ## [0.2.4] - 2025-06-07
 

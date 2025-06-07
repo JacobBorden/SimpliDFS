@@ -1,0 +1,11 @@
+{
+  "annotations": {"list": []},
+  "panels": [
+    {"type": "graph", "title": "Node Health", "targets": [{"expr": "simplidfs_node_health"}]},
+    {"type": "graph", "title": "Raft Role", "targets": [{"expr": "simplidfs_raft_role"}]},
+    {"type": "graph", "title": "FUSE Latency", "targets": [{"expr": "rate(simplidfs_fuse_latency_seconds_sum[1m])/rate(simplidfs_fuse_latency_seconds_count[1m])"}]}
+  ],
+  "schemaVersion": 16,
+  "title": "SimpliDFS",
+  "version": 1
+}

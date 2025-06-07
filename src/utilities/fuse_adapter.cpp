@@ -2,6 +2,7 @@
 #include "utilities/logger.h"
 #include "utilities/client.h" // For Networking::Client
 #include "utilities/message.h" // For Message, MessageType
+#include "utilities/metrics.h"
 // Standard C++ headers
 #include <iostream> // For std::cerr, std::endl (better than fprintf to stderr for C++)
 #include <string>
@@ -66,6 +67,16 @@ static bool parse_ip_port(const std::string& addr_str, std::string& out_ip, int&
     Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] parse_ip_port: Could not parse IP and port from address '" + addr_str + "'");
     return false;
 }
+
+struct FuseLatency {
+    std::string op;
+    std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
+    FuseLatency(const std::string& o) : op(o) {}
+    ~FuseLatency() {
+        auto dur = std::chrono::duration<double>(std::chrono::steady_clock::now()-start).count();
+        MetricsRegistry::instance().observe("simplidfs_fuse_latency_seconds", dur, {{"op", op}});
+    }
+};
 
 // Forward declarations for FUSE operations
 static SimpliDfsFuseData* get_fuse_data(); // Should be defined in this file or fuse_adapter.h
@@ -456,6 +467,7 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
 }
 
 int simpli_open(const char *path, struct fuse_file_info *fi) {
+    FuseLatency metric("open");
     std::string path_str(path);
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Entry for path: " + path_str + " with flags: " + std::to_string(fi->flags));
 
@@ -589,6 +601,7 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
 int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     (void)fi;
+    FuseLatency metric("read");
     std::string path_str(path);
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_read: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
@@ -666,8 +679,8 @@ int simpli_access(const char *path, int mask) {
         std::string serialized_req = Message::Serialize(req_msg);
         if (!data->metadata_client->Send(serialized_req.c_str())) {
             Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_access: Failed to send Access request for " + path_str);
-            return -EIO;
-        }
+        return -EIO;
+}
 
         std::vector<char> received_vector = data->metadata_client->Receive();
         if (received_vector.empty()) {
@@ -687,6 +700,7 @@ int simpli_access(const char *path, int mask) {
 }
 
 int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+    FuseLatency metric("create");
     std::string path_str(path);
     std::ostringstream oss_create_log;
     oss_create_log << getCurrentTimestamp() << " [FUSE_ADAPTER] simpli_create: Entry for path: " << path_str
@@ -843,6 +857,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
     (void)fi;
+    FuseLatency metric("write");
     std::string path_str(path);
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 

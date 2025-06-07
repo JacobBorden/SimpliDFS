@@ -16,6 +16,8 @@ add_library(SimpliDFS_Utils
     chunk_store.cpp
     merkle_tree.cpp
     raft.cpp
+    metrics.cpp
+    prometheus_server.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC

@@ -1,4 +1,5 @@
 #include "utilities/raft.h"
+#include "utilities/metrics.h"
 #include <random>
 #include <sstream>
 
@@ -146,6 +147,7 @@ void RaftNode::startElection() {
 void RaftNode::becomeLeader() {
     role = RaftRole::Leader;
     currentLeader = nodeId;
+    MetricsRegistry::instance().setGauge("simplidfs_raft_role", 1, {{"role","leader"}});
     Logger::getInstance().log(LogLevel::INFO,
         "[RaftNode] Node " + nodeId + " became leader for term " + std::to_string(currentTerm));
     if (heartbeatThread.joinable()) heartbeatThread.join();
@@ -156,6 +158,7 @@ void RaftNode::becomeFollower(int term) {
     role = RaftRole::Follower;
     currentLeader.clear();
     currentTerm = term;
+    MetricsRegistry::instance().setGauge("simplidfs_raft_role", 1, {{"role","follower"}});
     votedFor.clear();
     if (heartbeatThread.joinable()) heartbeatThread.join();
 }
@@ -173,6 +176,7 @@ void RaftNode::electionLoop() {
             auto now = std::chrono::steady_clock::now();
             if (std::chrono::duration_cast<std::chrono::milliseconds>(now - lastHeartbeat).count() > timeout) {
                 role = RaftRole::Candidate;
+                MetricsRegistry::instance().setGauge("simplidfs_raft_role", 1, {{"role","candidate"}});
                 start = true;
                 timeout = dist(rng);
                 lastHeartbeat = std::chrono::steady_clock::now();

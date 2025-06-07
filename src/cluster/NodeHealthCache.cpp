@@ -1,4 +1,5 @@
 #include "cluster/NodeHealthCache.h"
+#include "utilities/metrics.h"
 #include <algorithm>
 #include <mutex>
 
@@ -9,10 +10,23 @@ NodeHealthCache::NodeHealthCache(std::size_t failureTh,
       successThreshold_(successTh),
       cooldown_(cooldown) {}
 
+static int toVal(NodeState s) {
+    switch(s) {
+        case NodeState::ALIVE: return 1;
+        case NodeState::SUSPECT: return 2;
+        case NodeState::DEAD: return 3;
+    }
+    return 0;
+}
+
 NodeState NodeHealthCache::state(const NodeID &id) const {
     std::lock_guard<std::mutex> lg(mutex_);
     auto it = map_.find(id);
-    if (it == map_.end()) return NodeState::ALIVE;
+    if (it == map_.end()) {
+        MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(NodeState::ALIVE), {{"node", id}});
+        return NodeState::ALIVE;
+    }
+    MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(it->second.state), {{"node", id}});
     return it->second.state;
 }
 
@@ -34,6 +48,7 @@ void NodeHealthCache::recordSuccess(const NodeID &id) {
         e.lastChange = now;
         if (e.successes > successThreshold_) e.successes = successThreshold_;
     }
+    MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(e.state), {{"node", id}});
 }
 
 void NodeHealthCache::recordFailure(const NodeID &id) {
@@ -56,6 +71,7 @@ void NodeHealthCache::recordFailure(const NodeID &id) {
         e.state = NodeState::SUSPECT;
         e.lastChange = now;
     }
+    MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(e.state), {{"node", id}});
 }
 
 std::vector<NodeID> NodeHealthCache::getHealthyNodes() const {
