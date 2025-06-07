@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.9] - 2025-06-10
+
+### Added
+- Dependency installation script now installs `libyaml-cpp-dev`.
+
 ## [0.2.8] - 2025-06-09
 
 ### Added

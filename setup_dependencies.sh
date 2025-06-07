@@ -4,7 +4,7 @@ set -e
 # Install core packages
 sudo apt-get update -y
 sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
-    build-essential cmake meson ninja-build libudev-dev curl git
+    build-essential cmake meson ninja-build libudev-dev libyaml-cpp-dev curl git
 
 # Install libfuse3 from source if pkg-config cannot find it
 if ! pkg-config --exists fuse3; then
