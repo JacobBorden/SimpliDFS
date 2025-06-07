@@ -175,10 +175,17 @@ target_link_libraries(simpli_fuse_adapter
     ${FUSE_LIBRARIES}
 )
 
+
+# S3 Gateway executable
+add_library(S3GatewayLib src/s3_gateway.cpp)
+target_include_directories(S3GatewayLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(S3GatewayLib PUBLIC SimpliDFS_Utils Threads::Threads)
+
 # REST API server
 add_executable(rest_server src/rest_server.cpp)
 target_include_directories(rest_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(rest_server PRIVATE SimpliDFS_Utils Boost::system Threads::Threads)
+
 
 # Utilities are now built as a library SimpliDFS_Utils via its own CMakeLists.txt
 add_subdirectory(src/utilities)

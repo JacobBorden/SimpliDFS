@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.8] - 2025-06-11
+
+### Added
+- Minimal S3 gateway translating PUT and GET requests to SimpliDFS file operations.
+- Integration test for uploads and downloads via the gateway.
+
+
 ## [0.3.7] - 2025-06-11
 ### Added
 - Re-replication now performs actual data transfer when nodes fail.
@@ -54,6 +61,7 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 
 
