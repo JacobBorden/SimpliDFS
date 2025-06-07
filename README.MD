@@ -170,3 +170,12 @@ key, preventing other nodes from decrypting its data. See
 
 TLS certificates for development can be created with `scripts/generate_node_cert.sh`.
 See [docs/key_rotation.md](docs/key_rotation.md) for instructions on rotating the cluster key.
+
+## Documentation
+Additional design documents can be found in the [docs](docs/) directory. The [docs/overview.md](docs/overview.md) file provides a high-level architecture summary, and API reference pages can be generated with Doxygen:
+
+```sh
+doxygen docs/Doxyfile
+```
+
+The generated HTML documentation will be placed in `docs/doxygen/html`.

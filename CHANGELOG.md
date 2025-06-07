@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.20] - 2025-06-22
+
+### Added
+- Project overview and documentation index in `docs/overview.md` and `docs/README.md`.
+- `Doxyfile` for generating API reference documentation.
+- Documentation section in `README.MD` pointing to design docs.
+
 ## [0.3.19] - 2025-06-21
 
 ### Fixed
