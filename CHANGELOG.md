@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2025-06-06
 
 ### Added
 - Unit tests for the core networking library functionalities (`Networking::Client`, `Networking::Server`).
