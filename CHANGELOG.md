@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.1] - 2025-06-11
+
+### Added
+- FIPS self test at startup.
+
 ## [0.3.0] - 2025-06-11
 
 ### Added
@@ -11,6 +16,7 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 
 ## [0.2.9] - 2025-06-10
