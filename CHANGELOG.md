@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1] - 2025-06-07
+
+### Added
+- Metadata operations now append commands to the Raft log for replication.
+
+### Changed
+- The metaserver injects its RaftNode instance into `MetadataManager` at startup.
+
+### Fixed
+- N/A
+
 ## [0.2.0] - 2025-06-06
 
 ### Added

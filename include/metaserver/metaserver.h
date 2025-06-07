@@ -10,6 +10,7 @@
 #include "utilities/message.h"    // For Message struct and MessageType enum
 #include "metaserver/node_health_tracker.h"
 #include "cluster/NodeHealthCache.h"
+#include "utilities/raft.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -115,6 +116,7 @@ private:
 
     NodeHealthTracker healthTracker_;
     NodeHealthCache healthCache_;
+    RaftNode* raftNode_{nullptr};
     
     /** @brief Default number of replicas to create for each file. */
     static const int DEFAULT_REPLICATION_FACTOR = 3;
@@ -127,6 +129,12 @@ public:
     MetadataManager() {
         // loadMetadata is called from metaserver.cpp after instantiation
     }
+
+    /**
+     * @brief Inject a RaftNode for log replication.
+     * @param node Pointer to an existing RaftNode instance.
+     */
+    void setRaftNode(RaftNode* node) { raftNode_ = node; }
 
     /**
      * @brief Registers a new storage node or updates information for an existing one.
@@ -146,6 +154,8 @@ public:
         registeredNodes[nodeIdentifier] = newNodeInfo;
         healthCache_.recordSuccess(nodeIdentifier);
         std::cout << "Node " << nodeIdentifier << " registered from " << nodeAddr << ":" << nodePrt << std::endl;
+        if (raftNode_)
+            raftNode_->appendCommand("REG|" + nodeIdentifier);
     }
 
     // Process a heartbeat message from a node

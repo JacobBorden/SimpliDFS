@@ -167,6 +167,12 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
     for(const auto& n : successes) oss_add << n << ' ';
     Logger::getInstance().log(LogLevel::INFO, oss_add.str());
 
+    if (raftNode_) {
+        std::ostringstream cmd;
+        cmd << "ADD|" << filename << "|" << mode;
+        raftNode_->appendCommand(cmd.str());
+    }
+
     return 0;
 }
 
@@ -222,6 +228,9 @@ bool MetadataManager::removeFile(const std::string& filename) {
                 "[MetadataManager] Failed to send delete command to node " + nodeID + ": " + e.what());
             healthCache_.recordFailure(nodeID);
         }
+    }
+    if (raftNode_) {
+        raftNode_->appendCommand("DEL|" + filename);
     }
     return true; // Success
 }
@@ -503,6 +512,9 @@ int MetadataManager::renameFileEntry(const std::string& old_filename, const std:
         }
     }
     Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] Renamed " + old_filename + " to " + new_filename);
+    if (raftNode_) {
+        raftNode_->appendCommand("REN|" + old_filename + "|" + new_filename);
+    }
     return 0; // Success
 }
 

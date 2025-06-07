@@ -117,6 +117,7 @@ int main(int argc, char* argv[])
         }
     });
     gRaftNode->start();
+    metadataManager.setRaftNode(gRaftNode.get());
 
     Logger::getInstance().log(LogLevel::INFO, "Main: Starting persistence thread.");
     std::thread persist_thread(persistence_thread_function);
