@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- Metaserver and node load TLS certificates via command-line flags and enable TLS.
+- README examples show TLS-enabled startup commands.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added

@@ -97,18 +97,25 @@ cmake --build build
 The resulting fuzzer executables are located in `build/tests/`. Refer to
 `TESTING_GUIDE.md` for usage details.
 
+### Running the Metaserver
+Start the metaserver on port `50505` with TLS enabled:
+
+```sh
+./metaserver 50505 --cert certs/metaserver.crt --key certs/metaserver.key --ca certs/ca.crt
+```
+
 ### Running a Node
 After building, you can start a storage node with:
 
 ```sh
-./node <NodeName> <Port> <MetaserverAddress> <MetaserverPort>
+./node <NodeName> <Port> <MetaserverAddress> <MetaserverPort> [--cert CERT] [--key KEY] [--ca CA]
 ```
 
 For example, to run a node named `NodeA` on port `60010` that connects to a
-metaserver running on `127.0.0.1` port `50505`:
+metaserver running on `127.0.0.1` port `50505` with TLS enabled:
 
 ```sh
-./node NodeA 60010 127.0.0.1 50505
+./node NodeA 60010 127.0.0.1 50505 --cert certs/NodeA.crt --key certs/NodeA.key --ca certs/ca.crt
 ```
 
 ### Snapshot CLI Example
