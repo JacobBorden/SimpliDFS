@@ -16,10 +16,25 @@ struct DigestResult {
     std::vector<std::byte> raw;
 };
 
+/**
+ * @brief Buffered block processing with optional compression and encryption.
+ */
 class BlockIO {
 public:
-    BlockIO(); // Constructor
-    ~BlockIO(); // Destructor
+    /**
+     * @brief Supported encryption algorithms.
+     */
+    enum class CipherAlgorithm { AES_256_GCM };
+
+    /**
+     * @brief Construct a new BlockIO processor.
+     * @param compression_level Zstd compression level to use.
+     * @param cipher_algo Encryption algorithm for encrypt/decrypt operations.
+     */
+    BlockIO(int compression_level = 1,
+            CipherAlgorithm cipher_algo = CipherAlgorithm::AES_256_GCM);
+
+    ~BlockIO(); ///< Destructor
 
     // Appends data to the internal buffer.
     void ingest(const std::byte* data, size_t size);
@@ -48,6 +63,8 @@ private:
     std::vector<std::byte> buffer_;
     crypto_hash_sha256_state hash_state_; // Libsodium SHA-256 state
     bool finalized_ = false; // Tracks if finalize_hashed() has been called
+    int compression_level_ = 1; ///< Zstd compression level
+    CipherAlgorithm cipher_algo_ = CipherAlgorithm::AES_256_GCM; ///< Selected encryption algorithm
 };
 
 #endif // BLOCKIO_HPP

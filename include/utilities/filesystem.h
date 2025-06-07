@@ -9,8 +9,7 @@
 #include <unordered_set>
 #include <vector> // Required for std::vector
 #include "utilities/audit_log.hpp"
-// #include "utilities/blockio.hpp" // Forward declare or include only in .cpp
-// if possible
+#include "utilities/blockio.hpp" // For CipherAlgorithm
 
 /**
  * @brief Manages an in-memory file system for storing file content.
@@ -21,6 +20,14 @@
  */
 class FileSystem {
 public:
+  /**
+   * @brief Construct a FileSystem with processing options.
+   * @param compression_level Zstd compression level.
+   * @param cipher_algo Encryption algorithm for stored data.
+   */
+  explicit FileSystem(int compression_level = 1,
+                      BlockIO::CipherAlgorithm cipher_algo =
+                          BlockIO::CipherAlgorithm::AES_256_GCM);
   /**
    * @brief Creates a new, empty file in the file system.
    * If the file already exists, the operation fails.
@@ -171,6 +178,9 @@ private:
    * data. All public methods acquire this mutex before accessing _Files.
    */
   mutable std::mutex _Mutex;
+
+  int compression_level_{1};
+  BlockIO::CipherAlgorithm cipher_algo_{BlockIO::CipherAlgorithm::AES_256_GCM};
 };
 
 #endif

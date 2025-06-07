@@ -5,7 +5,8 @@
 #include <stdexcept> // For std::runtime_error
 
 // Constructor
-BlockIO::BlockIO() {
+BlockIO::BlockIO(int compression_level, CipherAlgorithm cipher_algo)
+    : compression_level_(compression_level), cipher_algo_(cipher_algo) {
     if (sodium_init() < 0) {
         // sodium_init() returns -1 on error, 0 on success, 1 if already initialized
         // We can choose to throw an exception or handle it differently.
@@ -84,7 +85,7 @@ std::vector<std::byte> BlockIO::compress_data(const std::vector<std::byte>& plai
     size_t const cSize = ZSTD_compress(
         compressed_data.data(), cBuffSize,
         plaintext_data.data(), plaintext_data.size(),
-        1 // Default compression level
+        compression_level_
     );
 
     if (ZSTD_isError(cSize)) {
@@ -147,6 +148,9 @@ std::vector<std::byte> BlockIO::decompress_data(const std::vector<std::byte>& co
 std::vector<std::byte> BlockIO::encrypt_data(const std::vector<std::byte>& plaintext_data,
                                              const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
                                              std::vector<unsigned char>& nonce_output) {
+    if (cipher_algo_ != CipherAlgorithm::AES_256_GCM) {
+        throw std::runtime_error("Unsupported cipher algorithm");
+    }
     if (!crypto_aead_aes256gcm_is_available()) {
         throw std::runtime_error("AES-256-GCM is not available on this CPU.");
     }
@@ -175,6 +179,9 @@ std::vector<std::byte> BlockIO::encrypt_data(const std::vector<std::byte>& plain
 std::vector<std::byte> BlockIO::decrypt_data(const std::vector<std::byte>& ciphertext_data,
                                              const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& key,
                                              const std::vector<unsigned char>& nonce) {
+    if (cipher_algo_ != CipherAlgorithm::AES_256_GCM) {
+        throw std::runtime_error("Unsupported cipher algorithm");
+    }
     if (!crypto_aead_aes256gcm_is_available()) {
         throw std::runtime_error("AES-256-GCM is not available on this CPU.");
     }
