@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- FIPS self test at startup.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added

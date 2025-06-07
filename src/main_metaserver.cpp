@@ -8,6 +8,7 @@
 #include "metaserver/metaserver.h" // For MetadataManager (declaration)
 #include "utilities/raft.h"
 #include "utilities/prometheus_server.h"
+#include "utilities/fips.h"
 
 #include <cstdlib> // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -88,6 +89,11 @@ int main(int argc, char* argv[])
         Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::DEBUG); // Attempt to use console output constant
     } catch (const std::exception& e) {
         std::cerr << "FATAL: Logger initialization failed for metaserver: " << e.what() << std::endl;
+        return 1;
+    }
+
+    if (!fips_self_test()) {
+        std::cerr << "FATAL: FIPS self test failed" << std::endl;
         return 1;
     }
 
