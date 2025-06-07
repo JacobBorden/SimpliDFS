@@ -18,6 +18,7 @@
 #include "utilities/message.h"
 #include "utilities/networkexception.h"
 #include "utilities/server.h"
+#include "utilities/rbac.h"
 #include <chrono> // Required for std::chrono
 #include <iostream>
 #include <sstream>
@@ -39,6 +40,7 @@ private:
   Networking::Server server; ///< Server instance from NetworkingLibrary to
                              ///< listen for incoming connections.
   FileSystem fileSystem;     ///< Local file system manager for this node.
+  SimpliDFS::RBACPolicy rbacPolicy;     ///< Access control policy loaded from YAML.
   bool hotCacheMode{false};
   std::string hotCacheSnapshotName;
   std::vector<std::string> hotCacheDeltas;
@@ -154,7 +156,9 @@ public:
    * @param name The unique name (identifier) for this node.
    * @param port The port number on which this node's server should listen.
    */
-  Node(const std::string &name, int port) : nodeName(name), server(port) {}
+  Node(const std::string &name, int port) : nodeName(name), server(port) {
+    rbacPolicy.loadFromFile("rbac_policy.yaml");
+  }
 
   /**
    * @brief Starts the node's operations.
@@ -260,8 +264,17 @@ public:
       std::string request_str(request_vector.begin(), request_vector.end());
       Message message = Message::Deserialize(request_str);
 
+      auto allowed = [&](const std::string &op) {
+        if (!rbacPolicy.isAllowed(message._Uid, op)) {
+          server.Send("Access denied", client);
+          return false;
+        }
+        return true;
+      };
+
       switch (message._Type) {
       case MessageType::WriteFile: {
+        if (!allowed("write")) break;
         bool success = false;
         if (message._Content
                 .empty()) { // Treat empty content write as create file
@@ -320,6 +333,7 @@ public:
         break;
       }
       case MessageType::ReadFile: {
+        if (!allowed("read")) break;
         std::string content = fileSystem.readFile(message._Filename);
         if (!content.empty()) {
           server.Send(content.c_str(), client);
@@ -399,6 +413,7 @@ public:
         break;
       }
       case MessageType::DeleteFile: {
+        if (!allowed("delete")) break;
         std::cout << "[NODE " << nodeName << "] Received DeleteFile for "
                   << message._Filename << std::endl;
         bool success = fileSystem.deleteFile(message._Filename);

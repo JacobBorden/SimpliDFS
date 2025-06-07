@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.7] - 2025-06-08
+
+### Added
+- YAML-defined RBAC policy with middleware checks for node operations.
+
 ## [0.2.6] - 2025-06-07
 
 ### Added
