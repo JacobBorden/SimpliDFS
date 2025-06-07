@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.10)
 project(SimpliDFS)
 
+# Silence warnings from modern CMake policies when building with newer
+# CMake versions.  These policies affect how Boost and FetchContent behave
+# but keeping the OLD behavior maintains compatibility with the existing
+# build setup.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
+
 option(BUILD_FUZZING "Enable fuzz testing builds" OFF)
 option(BUILD_POSIX_TEST_SUITE "Download and build POSIX conformance tests" OFF)
 
@@ -124,6 +135,7 @@ set(gRPC_INSTALL OFF CACHE BOOL "Disable installing gRPC" FORCE)
 
 # Make gRPC available
 FetchContent_MakeAvailable(grpc)
+find_package(gRPC CONFIG REQUIRED)
 
 # Fetch yaml-cpp
 FetchContent_Declare(
