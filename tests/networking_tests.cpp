@@ -37,7 +37,7 @@ protected:
     void SetUp() override {
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::SetUp Starting." << std::endl;
         try {
-            Logger::init("networking_tests.log", LogLevel::DEBUG);
+            Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::DEBUG); // Log to stdout
         } catch (const std::exception& e) {
             std::cerr << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::SetUp Logger init failed: " << e.what() << std::endl;
             // Handle or log if SetUp itself fails critically
@@ -51,10 +51,10 @@ protected:
         // Removed dummy logger initialization and cleanup to prevent potential issues
         // with global logger state.
         
-        std::remove("networking_tests.log");
-        for (int i = 1; i <= 5; ++i) {
-            std::remove(("networking_tests.log." + std::to_string(i)).c_str());
-        }
+        // std::remove("networking_tests.log");
+        // for (int i = 1; i <= 5; ++i) {
+        //     std::remove(("networking_tests.log." + std::to_string(i)).c_str());
+        // }
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] NetworkingTest::TearDown Finished." << std::endl;
     }
 };
@@ -2361,9 +2361,30 @@ TEST_F(NetworkingTest, ServerReceiveAfterClientAbruptDisconnect) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test ServerReceiveAfterClientAbruptDisconnect: Finished." << std::endl;
 }
 
+#include <sys/socket.h> // For socket() and AF_INET6
+#include <cerrno>       // For errno
+
 TEST_F(NetworkingTest, IPv6ServerAcceptsConnection) {
+    // Preliminary check for IPv6 support
+    int testSock = socket(AF_INET6, SOCK_STREAM, 0);
+    if (testSock == -1 && errno == EAFNOSUPPORT) {
+        GTEST_SKIP() << "IPv6 not supported on this system (EAFNOSUPPORT from preliminary socket check).";
+        return; // Ensure the rest of the test doesn't run
+    }
+    if (testSock != -1) {
+        close(testSock); // Close the test socket if successfully created
+    }
+    // If testSock failed for other reasons, the main test logic below will likely fail and report it.
+
     const int testPort = 12401;
     Networking::Server server(testPort, Networking::ServerType::IPv6);
+
+    // It's possible startListening itself fails due to EAFNOSUPPORT deeper (e.g. on bind if socket was okay)
+    // We could try to catch that, but the Server class currently std::exits on EAFNOSUPPORT in CreateSocket.
+    // The preliminary check above is the most direct way to catch socket creation failure.
+    // If startListening still causes a FATAL log and exit, this skip won't prevent that part.
+    // However, the FATAL log from CreateSocket in Server.cpp for EAFNOSUPPORT will now be preceded by a SKIP if caught by the preliminary check.
+
     ASSERT_TRUE(server.startListening());
 
     std::thread serverThread([&]() {
