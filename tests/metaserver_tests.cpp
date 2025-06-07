@@ -256,7 +256,10 @@ TEST_F(MetadataManagerTest, ApplySnapshotDeltaAddsFile) {
     metadataManager.registerNode("B", "127.0.0.1", 16002);
     metadataManager.registerNode("C", "127.0.0.1", 16003);
 
-    DummyServer sa(16001,3), sb(16002,2), sc(16003,2);
+    // applySnapshotDelta internally calls addFile, which replicates the new
+    // file across all healthy nodes. Each server should therefore receive a
+    // single WriteFile request.
+    DummyServer sa(16001,1), sb(16002,1), sc(16003,1);
 
     std::string delta = "Added: delta.txt\n";
     bool changed = metadataManager.applySnapshotDelta("A", delta);
