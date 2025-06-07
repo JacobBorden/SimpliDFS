@@ -3,6 +3,7 @@
 #include "metaserver/metaserver.h"
 #include "cluster/NodeHealthCache.h"
 #include "utilities/blockio.hpp"
+#include "utilities/metrics.h"
 #include "utilities/server.h"
 #include <thread>
 #include "utilities/message.h"
@@ -249,6 +250,15 @@ TEST(NodeHealthCache, FailureEscalation) {
     cache.recordFailure("X");
     cache.recordFailure("X");
     EXPECT_EQ(cache.state("X"), NodeState::DEAD);
+}
+
+TEST(NodeHealthCache, RecordsFailureMetric) {
+    MetricsRegistry::instance().reset();
+    NodeHealthCache cache(1, 1, std::chrono::seconds(0));
+    cache.recordFailure("N1");
+    std::string metrics = MetricsRegistry::instance().toPrometheus();
+    EXPECT_NE(metrics.find("simplidfs_replication_failures{node=\"N1\"} 1"),
+              std::string::npos);
 }
 
 TEST_F(MetadataManagerTest, ApplySnapshotDeltaAddsFile) {

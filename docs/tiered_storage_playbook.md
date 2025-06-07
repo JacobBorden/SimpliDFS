@@ -42,9 +42,10 @@ Existing metrics can be scraped from the metaserver's Prometheus endpoint:
 - `simplidfs_replica_healthy` — indicates if replicas for a file are in sync.
 - `simplidfs_tier_bytes{tier="orbit"}` — bytes stored per tier.
 - `simplidfs_replication_pending` — count of replicas needing re-replication.
+- `simplidfs_replication_failures` — total replica verification failures.
 
 ### 4.2 Grafana Dashboard
-Import `monitoring/grafana/simplidfs_dashboard.json` into Grafana. The dashboard visualizes node health, Raft roles, FUSE latency, tier storage usage and replication status.
+Import `monitoring/grafana/simplidfs_dashboard.json` into Grafana. The dashboard visualizes node health, Raft roles, FUSE latency, tier storage usage and replication status, including replication failures.
 
 ## 5. Ops Sign-Off
 

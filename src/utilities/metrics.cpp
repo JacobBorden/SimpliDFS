@@ -69,3 +69,10 @@ std::string MetricsRegistry::toPrometheus() const {
     }
     return oss.str();
 }
+
+void MetricsRegistry::reset() {
+    std::lock_guard<std::mutex> lg(mtx_);
+    gauges_.clear();
+    counters_.clear();
+    histograms_.clear();
+}

@@ -6,6 +6,7 @@
     {"type": "graph", "title": "FUSE Latency", "targets": [{"expr": "rate(simplidfs_fuse_latency_seconds_sum[1m])/rate(simplidfs_fuse_latency_seconds_count[1m])"}]}
     ,{"type": "graph", "title": "Tier Storage", "targets": [{"expr": "simplidfs_tier_bytes"}]}
     ,{"type": "graph", "title": "Replication Pending", "targets": [{"expr": "simplidfs_replication_pending"}]}
+    ,{"type": "graph", "title": "Replication Failures", "targets": [{"expr": "simplidfs_replication_failures"}]}
   ],
   "schemaVersion": 16,
   "title": "SimpliDFS",
