@@ -3,6 +3,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <sodium.h>
+#include <chrono>
 
 namespace simplidfs {
 
@@ -11,13 +12,20 @@ KeyManager& KeyManager::getInstance() {
     return instance;
 }
 
-KeyManager::KeyManager() : key_(nullptr), initialized_(false) {}
+KeyManager::KeyManager() : key_(nullptr), old_key_(nullptr),
+                           old_key_expiration_(std::chrono::steady_clock::time_point::min()),
+                           initialized_(false) {}
 
 KeyManager::~KeyManager() {
     if (key_) {
         sodium_memzero(key_, crypto_aead_aes256gcm_KEYBYTES);
         sodium_free(key_);
         key_ = nullptr;
+    }
+    if (old_key_) {
+        sodium_memzero(old_key_, crypto_aead_aes256gcm_KEYBYTES);
+        sodium_free(old_key_);
+        old_key_ = nullptr;
     }
 }
 
@@ -86,6 +94,44 @@ void KeyManager::getVolumeKey(const std::string& /*volumeId*/,
                               std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& out) const {
     // Future implementation will provide per-volume keys
     getClusterKey(out);
+}
+
+void KeyManager::purgeExpiredOldKey() const {
+    if (old_key_ && std::chrono::steady_clock::now() >= old_key_expiration_) {
+        sodium_memzero(old_key_, crypto_aead_aes256gcm_KEYBYTES);
+        sodium_free(old_key_);
+        old_key_ = nullptr;
+    }
+}
+
+void KeyManager::rotateClusterKey(unsigned int windowSeconds) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!initialized_) {
+        throw std::runtime_error("KeyManager not initialized");
+    }
+    purgeExpiredOldKey();
+    if (old_key_) {
+        sodium_memzero(old_key_, crypto_aead_aes256gcm_KEYBYTES);
+        sodium_free(old_key_);
+        old_key_ = nullptr;
+    }
+    old_key_ = key_;
+    key_ = static_cast<unsigned char*>(sodium_malloc(crypto_aead_aes256gcm_KEYBYTES));
+    if (!key_) {
+        throw std::runtime_error("Unable to allocate secure memory for new encryption key");
+    }
+    randombytes_buf(key_, crypto_aead_aes256gcm_KEYBYTES);
+    old_key_expiration_ = std::chrono::steady_clock::now() + std::chrono::seconds(windowSeconds);
+}
+
+bool KeyManager::getPreviousClusterKey(std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>& out) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    purgeExpiredOldKey();
+    if (!old_key_) {
+        return false;
+    }
+    std::memcpy(out.data(), old_key_, crypto_aead_aes256gcm_KEYBYTES);
+    return true;
 }
 
 } // namespace simplidfs
