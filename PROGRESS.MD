@@ -26,7 +26,7 @@
 
 ### 5. Fault Tolerance (Core Logic)
 - Implemented a file replication strategy within `MetadataManager::addFile` to ensure files are replicated across a configurable number of live nodes.
-- Developed logic in `MetadataManager::checkForDeadNodes` to identify files affected by node failures and to select new nodes for re-replication (actual data transfer is stubbed).
+- Developed logic in `MetadataManager::checkForDeadNodes` to identify files affected by node failures and re-replicate them using the networking library.
 
 ### 6. Documentation
 - Added comprehensive Doxygen-style documentation to core classes and methods in `metaserver.h`, `node.h`, `filesystem.h`, and `message.h`.
@@ -44,8 +44,8 @@
 - **Heartbeat Mechanism**: Complete.
 
 ### 3. Fault Tolerance
-- **Replication**: Implement replication of file chunks (Currently, whole file replication logic is in place during creation; re-replication data transfer is stubbed).
-- **Failure Handling**: Define behavior and implement data transfer when a node goes offline (Currently, node failure detection and selection of new nodes for replicas is implemented; data transfer is stubbed).
+ - **Replication**: Implement replication of file chunks and full re-replication using the networking library.
+ - **Failure Handling**: Node failure detection, selection of new replica targets, and data transfer are fully implemented.
 - **Background Verification**: Nodes now periodically verify local file hashes and automatically heal corrupted copies by fetching clean data from peers.
 - **Replication Factor**: System defaults to a replication factor of 3 for all blocks.
 
@@ -67,6 +67,6 @@
 - **File Encryption**: Implement file encryption for data at rest.
 
 ## Next Steps
-- Implement the actual data transfer mechanisms for file replication and re-replication.
-- Develop comprehensive unit tests for all implemented features.
-- Begin work on file encryption.
+  - Complete end-to-end testing of replication and re-replication mechanisms.
+  - Develop comprehensive unit tests for all implemented features.
+  - Begin work on file encryption.

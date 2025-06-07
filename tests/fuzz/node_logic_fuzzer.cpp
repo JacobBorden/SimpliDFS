@@ -72,7 +72,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
         // We are focusing on direct filesystem interactions.
         case MessageType::ReplicateFileCommand:
         case MessageType::ReceiveFileCommand:
-            // These primarily involve logging or stubbed network calls in the original Node::handleClient.
+            // These primarily involve logging or simplified network calls in the original Node::handleClient.
             // We can simulate the filesystem part if there was one, e.g., reading a file for replication.
             if (!message._Filename.empty()) {
                  fs.readFile(message._Filename); // Simulate reading the file to be replicated
