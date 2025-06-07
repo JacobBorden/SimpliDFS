@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.12] - 2025-06-14
+
+### Fixed
+- GitHub workflows now install `libyaml-cpp-dev` so CMake can find yaml-cpp.
+
 ## [0.3.11] - 2025-06-13
 
 ### Fixed
