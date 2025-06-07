@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.11] - 2025-06-13
+
+### Fixed
+- CI workflow now installs Boost to avoid missing dependency errors.
+
+
 ## [0.3.10] - 2025-06-12
 
 ### Added
