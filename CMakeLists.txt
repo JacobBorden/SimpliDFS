@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 project(SimpliDFS)
 
 option(BUILD_FUZZING "Enable fuzz testing builds" OFF)
+option(BUILD_POSIX_TEST_SUITE "Download and build POSIX conformance tests" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # Corrected True to ON
