@@ -11,3 +11,8 @@ This document begins the mapping of SimpliDFS security controls to the NIST SP 8
 | **SI-7**    | Fuzz testing and chaos tests for resilience | Implemented |
 
 This mapping is preliminary and does not constitute a full System Security Plan (SSP).
+
+To prepare artifacts for an Authorization to Operate submission, run
+`scripts/generate_ato_bundle.sh`. The script collects audit logs, FIPS
+self-test results and the `rbac_policy.yaml` file, packaging them into
+`bundle/ato_<date>.tar.gz`.

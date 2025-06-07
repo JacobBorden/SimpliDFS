@@ -1,8 +1,50 @@
 # Changelog
-## [0.2.10] - 2025-06-10
+
+## [0.3.5] - 2025-06-10
 
 ### Added
 - POSIX compliance tests runnable via `-DBUILD_POSIX_TEST_SUITE=ON`.
+
+## [0.3.4] - 2025-06-11
+
+### Added
+- Metaserver and node load TLS certificates via command-line flags and enable TLS.
+- README examples show TLS-enabled startup commands.
+
+
+## [0.3.3] - 2025-06-11
+
+### Added
+- Lightweight REST server with JWT authentication in `src/rest_server.cpp`.
+- Documentation for the HTTP API in `docs/rest_api.md`.
+
+
+## [0.3.2] - 2025-06-11
+
+### Added
+- Chaos test now provisions an edge node with Ansible, repeatedly kills it,
+  runs latency benchmarks and prints availability metrics.
+
+
+## [0.3.1] - 2025-06-11
+
+### Added
+- FIPS self test at startup.
+
+## [0.3.0] - 2025-06-11
+
+### Added
+- Cluster key rotation APIs with configurable window.
+- `scripts/rotate_key.sh` helper for rotating keys.
+- Documentation in `docs/key_rotation.md`.
+
+## [0.2.10] - 2025-06-11
+
+### Added
+- Tiered storage deployment playbook with monitoring steps.
+
+
+
 
 ## [0.2.9] - 2025-06-10
 

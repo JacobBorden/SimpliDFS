@@ -38,6 +38,9 @@ include(FetchContent)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(SODIUM REQUIRED libsodium)
 
+# Find Boost for the REST server
+find_package(Boost REQUIRED COMPONENTS system)
+
 # Find or fetch zstd
 find_package(ZSTD)
 if(NOT ZSTD_FOUND)
@@ -171,6 +174,11 @@ target_link_libraries(simpli_fuse_adapter
     Threads::Threads
     ${FUSE_LIBRARIES}
 )
+
+# REST API server
+add_executable(rest_server src/rest_server.cpp)
+target_include_directories(rest_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(rest_server PRIVATE SimpliDFS_Utils Boost::system Threads::Threads)
 
 # Utilities are now built as a library SimpliDFS_Utils via its own CMakeLists.txt
 add_subdirectory(src/utilities)

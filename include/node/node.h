@@ -161,6 +161,18 @@ public:
   }
 
   /**
+   * @brief Enables TLS on the node's internal server.
+   * Must be called before start().
+   * @param certFile Path to the PEM encoded certificate file.
+   * @param keyFile Path to the PEM encoded private key.
+   * @return True on success, false otherwise.
+   */
+  bool enableServerTLS(const std::string &certFile,
+                       const std::string &keyFile) {
+    return server.enableTLS(certFile, keyFile);
+  }
+
+  /**
    * @brief Starts the node's operations.
    * This includes starting the server to listen for requests and initiating
    * the periodic heartbeat sender.
