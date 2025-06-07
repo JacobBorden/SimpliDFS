@@ -39,11 +39,11 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DBUILD_POSIX_TEST_SUITE=ON
 
       - name: Build
         run: cmake --build build --config $BUILD_TYPE
 
       - name: Test
         working-directory: build
-        run: ctest -C $BUILD_TYPE --output-on-failure -VV --timeout 1200
+        run: ctest -C $BUILD_TYPE --output-on-failure -VV -E FuseTestEnv --timeout 1200

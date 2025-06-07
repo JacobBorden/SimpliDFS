@@ -130,3 +130,7 @@ if(BUILD_FUZZING)
         message(STATUS "Configured fuzzer: ${FUZZER_NAME}")
     endforeach()
 endif()
+
+if(BUILD_POSIX_TEST_SUITE)
+    add_subdirectory(posix)
+endif()

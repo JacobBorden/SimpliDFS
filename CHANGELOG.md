@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.10] - 2025-06-10
+
+### Added
+- POSIX compliance tests runnable via `-DBUILD_POSIX_TEST_SUITE=ON`.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added
