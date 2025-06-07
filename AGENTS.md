@@ -6,6 +6,9 @@ These guidelines apply to the entire repository.
 ## Coding Style
 - Follow existing formatting for C++ and shell scripts.
 - Document public functions using Doxygen style comments.
+- write tests for every function
+- use descriptive variable names
+- use comments to explain each step
 
 ## Commit Messages
 - Use clear, concise messages in the present tense.
