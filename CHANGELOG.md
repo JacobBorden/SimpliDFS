@@ -1,8 +1,17 @@
 # Changelog
+
+## [0.3.0] - 2025-06-11
+
+### Added
+- Cluster key rotation APIs with configurable window.
+- `scripts/rotate_key.sh` helper for rotating keys.
+- Documentation in `docs/key_rotation.md`.
+
 ## [0.2.10] - 2025-06-11
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 ## [0.2.9] - 2025-06-10
 

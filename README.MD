@@ -153,3 +153,4 @@ key, preventing other nodes from decrypting its data. See
 [SECURITY.md](SECURITY.md) for details.
 
 TLS certificates for development can be created with `scripts/generate_node_cert.sh`.
+See [docs/key_rotation.md](docs/key_rotation.md) for instructions on rotating the cluster key.
