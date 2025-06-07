@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- Chaos test now provisions an edge node with Ansible, repeatedly kills it,
+  runs latency benchmarks and prints availability metrics.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added
