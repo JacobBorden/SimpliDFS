@@ -17,7 +17,8 @@ struct DigestResult {
 };
 
 /**
- * @brief Buffered block processing with optional compression and encryption.
+ * @brief Buffered block processing with a configurable pipeline supporting
+ * hashing, compression and encryption.
  */
 class BlockIO {
 public:
@@ -34,6 +35,13 @@ public:
     BlockIO(int compression_level = 1,
             CipherAlgorithm cipher_algo = CipherAlgorithm::AES_256_GCM);
 
+    /** Enable or disable hashing stage. */
+    void enable_hashing(bool enable);
+    /** Enable or disable compression stage. */
+    void enable_compression(bool enable);
+    /** Enable or disable encryption stage. */
+    void enable_encryption(bool enable);
+
     ~BlockIO(); ///< Destructor
 
     // Appends data to the internal buffer.
@@ -44,6 +52,30 @@ public:
 
     // Finalizes the hash and returns the digest and raw data.
     DigestResult finalize_hashed();
+
+    /** Result returned by finalize_pipeline(). */
+    struct PipelineResult {
+        std::vector<std::byte> data;            ///< Processed output data
+        std::vector<unsigned char> nonce;       ///< Nonce used for encryption
+        std::array<uint8_t, crypto_hash_sha256_BYTES> digest; ///< Hash digest
+        std::string cid;                        ///< CID derived from digest
+    };
+
+    /**
+     * @brief Finalize buffered data through the configured pipeline.
+     *
+     * The order of operations is hashing, then encryption, then compression.
+     * Hashing or encryption steps are skipped if disabled.
+     *
+     * @param key Encryption key if encryption is enabled.
+     * @return PipelineResult containing processed data and optional metadata.
+     * @throw std::logic_error If finalize_pipeline() is called more than once.
+     * @throw std::runtime_error If encryption enabled but key is missing or
+     *         encryption fails.
+     */
+    PipelineResult finalize_pipeline(
+        const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>* key =
+            nullptr);
 
     // Compression methods
     std::vector<std::byte> compress_data(const std::vector<std::byte>& plaintext_data);
@@ -65,6 +97,9 @@ private:
     bool finalized_ = false; // Tracks if finalize_hashed() has been called
     int compression_level_ = 1; ///< Zstd compression level
     CipherAlgorithm cipher_algo_ = CipherAlgorithm::AES_256_GCM; ///< Selected encryption algorithm
+    bool hashing_enabled_ = false;
+    bool compression_enabled_ = false;
+    bool encryption_enabled_ = false;
 };
 
 #endif // BLOCKIO_HPP

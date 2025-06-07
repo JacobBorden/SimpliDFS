@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.16] - 2025-06-18
+
+### Added
+- Configurable hashing/compression/encryption pipeline in `BlockIO`.
+- Runtime configuration via `simplidfs_config.yaml` for compression level and cipher algorithm.
+
+
 ## [0.3.15] - 2025-06-17
 
 ### Added
