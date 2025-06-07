@@ -105,3 +105,16 @@ public:
     *   The method might return the calculated hash.
 
 This modular design would allow for flexible and efficient data processing pipelines tailored to specific needs. The current `finalize_raw()` serves as the baseline "pass-through" behavior.
+
+## Runtime Configuration
+
+At runtime the system allows tuning of two processing knobs:
+
+* **Compression level** – integer value passed to Zstd when compressing data.
+* **Cipher algorithm** – string identifying the encryption algorithm. Currently
+  only `AES-256-GCM` is supported.
+
+Both values can be provided via a `simplidfs_config.yaml` file or through the
+environment variables `SIMPLIDFS_COMPRESSION_LEVEL` and `SIMPLIDFS_CIPHER_ALGO`.
+The node and metaserver binaries load these settings on startup and log the
+resulting configuration.

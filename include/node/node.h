@@ -156,8 +156,24 @@ public:
    * @param name The unique name (identifier) for this node.
    * @param port The port number on which this node's server should listen.
    */
-  Node(const std::string &name, int port) : nodeName(name), server(port) {
+  Node(const std::string &name, int port, int compression_level = 1,
+       BlockIO::CipherAlgorithm cipher_algo =
+           BlockIO::CipherAlgorithm::AES_256_GCM)
+      : nodeName(name), server(port),
+        fileSystem(compression_level, cipher_algo) {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
+  }
+
+  /**
+   * @brief Enables TLS on the node's internal server.
+   * Must be called before start().
+   * @param certFile Path to the PEM encoded certificate file.
+   * @param keyFile Path to the PEM encoded private key.
+   * @return True on success, false otherwise.
+   */
+  bool enableServerTLS(const std::string &certFile,
+                       const std::string &keyFile) {
+    return server.enableTLS(certFile, keyFile);
   }
 
   /**

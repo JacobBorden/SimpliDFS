@@ -22,3 +22,8 @@ memory, so other nodes cannot decrypt data encrypted with it.
 
 Set the environment variable consistently on every node before launching the
 metaserver or storage nodes to ensure they can access shared encrypted data.
+
+## FIPS Self Test
+SimpliDFS runs a small cryptographic self test at startup. The SHA-256 hash of
+"The quick brown fox jumps over the lazy dog" is computed using libsodium and
+compared with a known value. The server aborts if the digest does not match.
