@@ -14,6 +14,13 @@ struct InodeEntry {
 
 class RepairWorker {
 public:
+    /**
+     * @brief Construct a RepairWorker.
+     * @param table Table of inode entries describing replicas.
+     * @param cache Health cache providing node liveness information.
+     * @param replicationFactor Desired number of replicas for each inode.
+     * @param tick Interval between repair passes when running in the background.
+     */
     RepairWorker(std::unordered_map<std::string, InodeEntry>& table,
                  NodeHealthCache& cache,
                  size_t replicationFactor = 3,
@@ -22,8 +29,11 @@ public:
 
     ~RepairWorker();
 
+    /** Start the background repair thread. */
     void start();
+    /** Stop the background repair thread. */
     void stop();
+    /** Perform a single repair iteration. */
     void runOnce();
 
 private:

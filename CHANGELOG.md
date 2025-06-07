@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.2] - 2025-06-07
+
+### Added
+- RepairWorker now enforces a replication factor of three and heals missing replicas.
+- ReplicaVerifier checks hashes across nodes to detect inconsistent replicas.
+
+### Changed
+- N/A
+
+### Fixed
+- N/A
+
 ## [0.2.1] - 2025-06-07
 
 ### Added

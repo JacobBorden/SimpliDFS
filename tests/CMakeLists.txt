@@ -16,6 +16,7 @@ add_executable(SimpliDFSTests
     raft_tests.cpp
     raft_chaos_tests.cpp
     repair_worker_tests.cpp
+    replica_verifier_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp

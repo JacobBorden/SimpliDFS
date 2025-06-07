@@ -15,3 +15,18 @@ TEST(RepairWorker, HealsPartial) {
     EXPECT_FALSE(table["file"].partial);
     EXPECT_EQ(table["file"].replicas.size(), 3u);
 }
+
+TEST(RepairWorker, AddsMissingReplicas) {
+    NodeHealthCache cache(2,3,std::chrono::seconds(1));
+    cache.recordSuccess("nodeA");
+    cache.recordSuccess("nodeB");
+    cache.recordSuccess("nodeC");
+    std::unordered_map<std::string, InodeEntry> table;
+    table["file"].replicas = {"nodeA","nodeB"};
+
+    RepairWorker worker(table, cache, 3);
+    worker.runOnce();
+
+    EXPECT_EQ(table["file"].replicas.size(), 3u);
+    EXPECT_FALSE(table["file"].partial);
+}

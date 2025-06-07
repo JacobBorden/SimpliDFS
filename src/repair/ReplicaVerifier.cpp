@@ -1,0 +1,41 @@
+#include "repair/ReplicaVerifier.h"
+#include <algorithm>
+
+bool ReplicaVerifier::verifyFile(const std::string& filename) {
+    auto it = table_.find(filename);
+    if (it == table_.end()) return true;
+    auto& entry = it->second;
+
+    // Filter to healthy replicas only
+    std::vector<NodeID> healthy;
+    for (const auto& id : entry.replicas) {
+        if (cache_.state(id) == NodeState::ALIVE) healthy.push_back(id);
+    }
+
+    if (healthy.empty()) {
+        entry.partial = true;
+        return false;
+    }
+
+    std::string refHash;
+    bool first = true;
+    bool mismatch = false;
+    for (const auto& id : healthy) {
+        std::string h = fetcher_(id, filename);
+        if (first) {
+            refHash = h;
+            first = false;
+        } else if (h != refHash) {
+            mismatch = true;
+        }
+    }
+    if (mismatch) entry.partial = true;
+    return !mismatch;
+}
+
+void ReplicaVerifier::verifyAll() {
+    for (const auto& kv : table_) {
+        verifyFile(kv.first);
+    }
+}
+
