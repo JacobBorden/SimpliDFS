@@ -4,6 +4,7 @@
 #include "utilities/cid_utils.hpp" // For digest_to_cid, though BlockIO handles it internally
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/merkle_tree.hpp"
+#include "utilities/audit_log.hpp"
 
 #include <algorithm> // For std::copy, std::transform
 #include <cstddef>   // For std::byte
@@ -40,6 +41,7 @@ bool FileSystem::createFile(const std::string &_pFilename) {
   }
   _Files[_pFilename] = {}; // Store empty vector<byte>
   Logger::getInstance().log(LogLevel::INFO, "File created: " + _pFilename);
+  AuditLog::getInstance().recordCreate(_pFilename);
   return true;
 }
 
@@ -105,6 +107,7 @@ bool FileSystem::writeFile(const std::string &_pFilename,
     Logger::getInstance().log(LogLevel::INFO,
                               "File written with encryption/compression: " +
                                   _pFilename + ", CID: " + cid);
+    AuditLog::getInstance().recordWrite(_pFilename);
     return true;
 
   } catch (const std::exception &e) {
@@ -224,6 +227,7 @@ bool FileSystem::deleteFile(const std::string &_pFilename) {
     _Files.erase(_pFilename);
     _FileXattrs.erase(_pFilename); // Also remove associated xattrs
     Logger::getInstance().log(LogLevel::INFO, "File deleted: " + _pFilename);
+    AuditLog::getInstance().recordDelete(_pFilename);
     return true; // Successfully deleted
   }
   Logger::getInstance().log(

@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector> // Required for std::vector
+#include "utilities/audit_log.hpp"
 // #include "utilities/blockio.hpp" // Forward declare or include only in .cpp
 // if possible
 

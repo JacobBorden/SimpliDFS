@@ -18,6 +18,8 @@ add_library(SimpliDFS_Utils
     raft.cpp
     metrics.cpp
     prometheus_server.cpp
+    audit_log.cpp
+    audit_verifier.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC
