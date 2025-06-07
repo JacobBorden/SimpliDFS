@@ -33,6 +33,13 @@ public:
     bool isLeader() const;
     std::string getLeader() const;
 
+    /**
+     * @brief Retrieve the current log entries for testing.
+     *
+     * @return A copy of the log vector.
+     */
+    std::vector<RaftLogEntry> getLog() const;
+
     void handleMessage(const Message& msg, const std::string& from);
     void appendCommand(const std::string& command);
 
