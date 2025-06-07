@@ -26,6 +26,9 @@ BlockIO::BlockIO(int compression_level, CipherAlgorithm cipher_algo)
     finalized_ = false; // Initialize finalized_ flag
 }
 
+void BlockIO::enable_hashing(bool enable) { hashing_enabled_ = enable; }
+void BlockIO::enable_compression(bool enable) { compression_enabled_ = enable; }
+void BlockIO::enable_encryption(bool enable) { encryption_enabled_ = enable; }
 // Destructor
 BlockIO::~BlockIO() {
     // No explicit cleanup needed for hash_state_
@@ -210,4 +213,36 @@ std::vector<std::byte> BlockIO::decrypt_data(const std::vector<std::byte>& ciphe
     }
     decrypted_data.resize(static_cast<size_t>(decrypted_len));
     return decrypted_data;
+}
+
+BlockIO::PipelineResult BlockIO::finalize_pipeline(
+    const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES>* key) {
+    if (finalized_) {
+        throw std::logic_error("finalize_pipeline() already called.");
+    }
+
+    PipelineResult result{};
+    std::vector<std::byte> data = buffer_;
+
+    if (hashing_enabled_) {
+        crypto_hash_sha256_final(&hash_state_, result.digest.data());
+        result.cid = sgns::utils::digest_to_cid(result.digest);
+    }
+
+    if (encryption_enabled_) {
+        if (!key) {
+            throw std::runtime_error("Encryption key required");
+        }
+        std::vector<unsigned char> nonce;
+        data = encrypt_data(data, *key, nonce);
+        result.nonce = nonce;
+    }
+
+    if (compression_enabled_) {
+        data = compress_data(data);
+    }
+
+    result.data = data;
+    finalized_ = true;
+    return result;
 }

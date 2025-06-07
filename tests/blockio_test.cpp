@@ -386,3 +386,21 @@ TEST(BlockIOTest, EncryptDecryptWithClusterKey) {
     std::vector<std::byte> dec = bio.decrypt_data(enc, key, nonce);
     EXPECT_EQ(dec, data);
 }
+
+TEST(BlockIOTest, PipelineCompressionEncryption) {
+    BlockIO bio;
+    bio.enable_compression(true);
+    bio.enable_encryption(true);
+
+    std::vector<std::byte> data = string_to_byte_vector("pipeline secret");
+    bio.ingest(data.data(), data.size());
+
+    BlockIO::PipelineResult result = bio.finalize_pipeline(&FIXED_TEST_KEY);
+    ASSERT_FALSE(result.data.empty());
+    ASSERT_EQ(result.nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+
+    BlockIO verify;
+    std::vector<std::byte> decompressed = verify.decompress_data(result.data, 0);
+    std::vector<std::byte> decrypted = verify.decrypt_data(decompressed, FIXED_TEST_KEY, result.nonce);
+    EXPECT_EQ(decrypted, data);
+}
