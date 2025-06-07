@@ -90,7 +90,9 @@ FetchContent_Declare(
 # Make GoogleTest available
 FetchContent_MakeAvailable(googletest)
 
-find_package(Protobuf REQUIRED)
+# gRPC will provide its own protobuf targets when using the bundled
+# version. Avoid calling find_package(Protobuf) to prevent duplicate
+# target definitions that lead to configuration errors.
 
 # Fetch gRPC and let it use its bundled dependencies
 FetchContent_Declare(

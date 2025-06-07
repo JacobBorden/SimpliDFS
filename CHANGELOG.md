@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.19] - 2025-06-21
+
+### Fixed
+- Avoid duplicate protobuf target errors by relying on gRPC's bundled protobuf.
+
+
 ## [0.3.18] - 2025-06-20
 
 ### Changed
