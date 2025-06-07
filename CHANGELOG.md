@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.3] - 2025-06-07
+
+### Added
+- Delta-only synchronization for nodes transitioning from offline to online.
+
+### Changed
+- N/A
+
+### Fixed
+- N/A
+
 ## [0.2.2] - 2025-06-07
 
 ### Added

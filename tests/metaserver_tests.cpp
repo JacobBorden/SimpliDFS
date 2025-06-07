@@ -250,3 +250,18 @@ TEST(NodeHealthCache, FailureEscalation) {
     cache.recordFailure("X");
     EXPECT_EQ(cache.state("X"), NodeState::DEAD);
 }
+
+TEST_F(MetadataManagerTest, ApplySnapshotDeltaAddsFile) {
+    metadataManager.registerNode("A", "127.0.0.1", 16001);
+    metadataManager.registerNode("B", "127.0.0.1", 16002);
+    metadataManager.registerNode("C", "127.0.0.1", 16003);
+
+    DummyServer sa(16001,3), sb(16002,2), sc(16003,2);
+
+    std::string delta = "Added: delta.txt\n";
+    bool changed = metadataManager.applySnapshotDelta("A", delta);
+    EXPECT_TRUE(changed);
+    EXPECT_TRUE(metadataManager.fileExists("delta.txt"));
+
+    sa.stop(); sb.stop(); sc.stop();
+}
