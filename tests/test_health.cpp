@@ -36,7 +36,8 @@ TEST_CASE("RepairWorker heals partial replicas") {
     std::unordered_map<std::string, InodeEntry> table;
     table["file"].replicas = {"nodeA"};
     table["file"].partial = true;
-    RepairWorker worker(table, cache, 3, std::chrono::seconds(1));
+    auto replicator = [&](const std::string&, const NodeID&, const NodeID&){ };
+    RepairWorker worker(table, cache, 3, std::chrono::seconds(1), replicator);
     worker.start();
     auto start = SteadyClock::now();
     while (SteadyClock::now() - start < std::chrono::seconds(30)) {

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <functional>
 
 struct InodeEntry {
     std::vector<NodeID> replicas;
@@ -24,8 +25,9 @@ public:
     RepairWorker(std::unordered_map<std::string, InodeEntry>& table,
                  NodeHealthCache& cache,
                  size_t replicationFactor = 3,
-                 std::chrono::seconds tick = std::chrono::seconds(5))
-        : table_(table), cache_(cache), replicationFactor_(replicationFactor), tick_(tick) {}
+                 std::chrono::seconds tick = std::chrono::seconds(5),
+                 std::function<void(const std::string&, const NodeID&, const NodeID&)> replicator = {})
+        : table_(table), cache_(cache), replicationFactor_(replicationFactor), tick_(tick), replicator_(std::move(replicator)) {}
 
     ~RepairWorker();
 
@@ -45,4 +47,5 @@ private:
     std::chrono::seconds tick_;
     std::atomic<bool> running_{false};
     std::thread worker_;
+    std::function<void(const std::string&, const NodeID&, const NodeID&)> replicator_;
 };

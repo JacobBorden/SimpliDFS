@@ -251,22 +251,44 @@ public:
                     currentReplicas.push_back(newNodeID);
                     std::cout << "Replaced " << failedNodeID << " with " << newNodeID << " for file " << filename << "." << std::endl;
 
-                    // Log commands (simulating sending messages)
                     Message replicateMsg;
                     replicateMsg._Type = MessageType::ReplicateFileCommand;
                     replicateMsg._Filename = filename;
                     replicateMsg._NodeAddress = registeredNodes[newNodeID].nodeAddress; // Target for replica
-                    replicateMsg._Content = sourceNodeID; // Informing who is the source
-                    std::string serRepMsg = Message::Serialize(replicateMsg);
-                    std::cout << "[METASERVER_STUB] To " << sourceNodeID << " (source): " << serRepMsg << std::endl;
+                    replicateMsg._Content = sourceNodeID;
+
+                    std::string srcAddr = registeredNodes[sourceNodeID].nodeAddress;
+                    std::string srcIp = srcAddr.substr(0, srcAddr.find(':'));
+                    int srcPort = std::stoi(srcAddr.substr(srcAddr.find(':') + 1));
+                    try {
+                        Networking::Client c(srcIp.c_str(), srcPort);
+                        c.Send(Message::Serialize(replicateMsg).c_str());
+                        (void)c.Receive();
+                        c.Disconnect();
+                        healthCache_.recordSuccess(sourceNodeID);
+                    } catch (const std::exception& e) {
+                        healthCache_.recordFailure(sourceNodeID);
+                        std::cerr << "[MetadataManager] Replicate send failed to " << sourceNodeID << ": " << e.what() << std::endl;
+                    }
 
                     Message receiveMsg;
                     receiveMsg._Type = MessageType::ReceiveFileCommand;
                     receiveMsg._Filename = filename;
-                    receiveMsg._NodeAddress = registeredNodes[sourceNodeID].nodeAddress; // Source of replica
-                    receiveMsg._Content = newNodeID; // Informing who is the target
-                    std::string serRecMsg = Message::Serialize(receiveMsg);
-                    std::cout << "[METASERVER_STUB] To " << newNodeID << " (target): " << serRecMsg << std::endl;
+                    receiveMsg._NodeAddress = srcAddr; // Source of replica
+                    receiveMsg._Content = newNodeID;
+
+                    std::string newIp = registeredNodes[newNodeID].nodeAddress.substr(0, registeredNodes[newNodeID].nodeAddress.find(':'));
+                    int newPort = std::stoi(registeredNodes[newNodeID].nodeAddress.substr(registeredNodes[newNodeID].nodeAddress.find(':') + 1));
+                    try {
+                        Networking::Client c(newIp.c_str(), newPort);
+                        c.Send(Message::Serialize(receiveMsg).c_str());
+                        (void)c.Receive();
+                        c.Disconnect();
+                        healthCache_.recordSuccess(newNodeID);
+                    } catch (const std::exception& e) {
+                        healthCache_.recordFailure(newNodeID);
+                        std::cerr << "[MetadataManager] Receive send failed to " << newNodeID << ": " << e.what() << std::endl;
+                    }
                 }
                 // After processing all redistributions for a dead node.
                 // Call saveMetadata here if defined, path constants should be accessible.
