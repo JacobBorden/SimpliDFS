@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.13] - 2025-06-15
+
+### Added
+- setup_dependencies_opensuse.sh for installing dependencies on openSUSE via zypper.
+
 ## [0.3.12] - 2025-06-14
 
 ### Fixed

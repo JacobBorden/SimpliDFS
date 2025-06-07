@@ -69,9 +69,14 @@ Significant progress has been made on core distributed file system logic:
    cd SimpliDFS
    ```
 2. Run the setup script to install dependencies:
-   ```sh
-   ./setup_dependencies.sh
-   ```
+   - On Debian/Ubuntu systems:
+     ```sh
+     ./setup_dependencies.sh
+     ```
+   - On openSUSE systems:
+     ```sh
+     ./setup_dependencies_opensuse.sh
+     ```
 3. Create a build directory and run CMake:
    ```sh
    mkdir build && cd build
