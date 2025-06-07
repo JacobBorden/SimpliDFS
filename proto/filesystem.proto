@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package simplidfs;
+
+service FileService {
+  rpc CreateFile(CreateFileRequest) returns (SimpleResponse);
+  rpc WriteFile(WriteFileRequest) returns (SimpleResponse);
+  rpc ReadFile(ReadFileRequest) returns (ReadFileResponse);
+  rpc DeleteFile(DeleteFileRequest) returns (SimpleResponse);
+}
+
+message CreateFileRequest {
+  string name = 1;
+}
+
+message WriteFileRequest {
+  string name = 1;
+  string content = 2;
+}
+
+message ReadFileRequest {
+  string name = 1;
+}
+
+message DeleteFileRequest {
+  string name = 1;
+}
+
+message SimpleResponse {
+  bool ok = 1;
+}
+
+message ReadFileResponse {
+  bool ok = 1;
+  string content = 2;
+}
