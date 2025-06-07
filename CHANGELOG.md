@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.7] - 2025-06-11
+### Added
+- Re-replication now performs actual data transfer when nodes fail.
+- RepairWorker triggers replication callbacks for partial files.
+
+
 ## [0.3.6] - 2025-06-11
 
 ### Added
@@ -48,6 +54,7 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 
 
