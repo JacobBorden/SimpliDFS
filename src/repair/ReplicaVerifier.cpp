@@ -36,8 +36,11 @@ bool ReplicaVerifier::verifyFile(const std::string& filename) {
 }
 
 void ReplicaVerifier::verifyAll() {
+    size_t pending = 0;
     for (const auto& kv : table_) {
-        verifyFile(kv.first);
+        if (!verifyFile(kv.first)) ++pending;
     }
+    MetricsRegistry::instance().setGauge("simplidfs_replication_pending", static_cast<double>(pending),
+                                         {{"component", "files"}});
 }
 

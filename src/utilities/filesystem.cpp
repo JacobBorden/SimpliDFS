@@ -6,6 +6,7 @@
 #include "utilities/merkle_tree.hpp"
 #include "utilities/audit_log.hpp"
 #include "utilities/key_manager.hpp"
+#include "utilities/metrics.h"
 
 #include <algorithm> // For std::copy, std::transform
 #include <cstddef>   // For std::byte
@@ -32,8 +33,12 @@ inline std::string bytes_to_string(const std::vector<std::byte> &bytes) {
   return str;
 }
 
-FileSystem::FileSystem(int compression_level, BlockIO::CipherAlgorithm cipher_algo)
-    : compression_level_(compression_level), cipher_algo_(cipher_algo) {}
+FileSystem::FileSystem(int compression_level, BlockIO::CipherAlgorithm cipher_algo,
+                       std::string tier)
+    : compression_level_(compression_level), cipher_algo_(cipher_algo),
+      tier_(std::move(tier)) {
+  updateStorageMetric();
+}
 
 bool FileSystem::createFile(const std::string &_pFilename) {
   std::unique_lock<std::mutex> lock(_Mutex);
@@ -46,6 +51,7 @@ bool FileSystem::createFile(const std::string &_pFilename) {
   _Files[_pFilename] = {}; // Store empty vector<byte>
   Logger::getInstance().log(LogLevel::INFO, "File created: " + _pFilename);
   AuditLog::getInstance().recordCreate(_pFilename);
+  updateStorageMetric();
   return true;
 }
 
@@ -112,6 +118,7 @@ bool FileSystem::writeFile(const std::string &_pFilename,
                               "File written with encryption/compression: " +
                                   _pFilename + ", CID: " + cid);
     AuditLog::getInstance().recordWrite(_pFilename);
+    updateStorageMetric();
     return true;
 
   } catch (const std::exception &e) {
@@ -232,6 +239,7 @@ bool FileSystem::deleteFile(const std::string &_pFilename) {
     _FileXattrs.erase(_pFilename); // Also remove associated xattrs
     Logger::getInstance().log(LogLevel::INFO, "File deleted: " + _pFilename);
     AuditLog::getInstance().recordDelete(_pFilename);
+    updateStorageMetric();
     return true; // Successfully deleted
   }
   Logger::getInstance().log(
@@ -489,7 +497,7 @@ write_car_file(const std::map<std::string, std::vector<std::byte>> &chunks,
 }
 
 bool FileSystem::snapshotExportCar(const std::string &name,
-                                   const std::string &carPath) const {
+                         const std::string &carPath) const {
   std::lock_guard<std::mutex> lock(_Mutex);
   auto snapIt = _Snapshots.find(name);
   if (snapIt == _Snapshots.end())
@@ -536,4 +544,19 @@ bool FileSystem::snapshotExportCar(const std::string &name,
   }
 
   return write_car_file(orderedChunks, rootCid, carPath);
+}
+
+void FileSystem::setTier(const std::string &tier) {
+  std::lock_guard<std::mutex> lg(_Mutex);
+  tier_ = tier;
+  updateStorageMetric();
+}
+
+void FileSystem::updateStorageMetric() {
+  size_t total = 0;
+  for (const auto &kv : _Files) {
+    total += kv.second.size();
+  }
+  MetricsRegistry::instance().setGauge("simplidfs_tier_bytes", static_cast<double>(total),
+                                       {{"tier", tier_}});
 }
