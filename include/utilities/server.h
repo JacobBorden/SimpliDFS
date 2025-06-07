@@ -43,6 +43,8 @@ typedef const char* PCSTR;
 #include <thread>
 #include <chrono>
 #include <mutex> // Added for std::mutex
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 #include "utilities/networkexception.h"
 #include "utilities/errorcodes.h"
 #include "utilities/logger.h"
@@ -57,9 +59,10 @@ enum ServerType
 
 // Struct to hold information about a connected client
 struct ClientConnection {
-	SOCKET clientSocket;
-	sockaddr_in clientInfo;
-	sockaddr_in6 clientInfo6;
+        SOCKET clientSocket;
+        sockaddr_in clientInfo;
+        sockaddr_in6 clientInfo6;
+        SSL* ssl = nullptr; ///< TLS session for this client
 	bool operator==(const ClientConnection& other) const
 	{
 		// Compare the clientSocket member variables of the two objects
@@ -104,6 +107,11 @@ void SetFamily(int _pFamily);
 
 // Sets the socket protocol (used during CreateServerSocketInternal)
 void SetProtocol(int _pProtocol);
+
+    /** Enable TLS using the provided certificate and key files.
+     *  Must be called before startListening().
+     */
+    bool enableTLS(const std::string& certFile, const std::string& keyFile);
 
 // Sends data to a specific client
 int Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient);
@@ -163,6 +171,9 @@ sockaddr_in6 serverInfo6; // Used when serverType_ == ServerType::IPv6
 bool serverIsConnected = false;
 std::vector<Networking::ClientConnection> clients;
 mutable std::mutex clients_mutex_; // Added mutable mutex for getClients() const
+
+    bool useTLS = false;       ///< Whether TLS is enabled
+    SSL_CTX* sslCtx = nullptr; ///< TLS context for accepting connections
 // Logger logger; // Removed - logging is done via Logger::getInstance() or std::cout
 };
 }

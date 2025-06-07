@@ -7,6 +7,8 @@
 #include <thread>   // For std::this_thread::get_id()
 #include <chrono>   // For timestamp components (used by getNetworkTimestamp)
 #include <unistd.h> // For geteuid
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 // Assuming getNetworkTimestamp is defined in client.cpp or a common header accessible here.
 // If not, it needs to be redefined or included. For this patch, we'll assume it's available.
@@ -44,6 +46,10 @@ Networking::Server::~Server()
     //     Shutdown(); // Consider if this is safe or if it should be logged if not explicitly shut down.
     // }
     // std::cout << "[VERBOSE LOG Server " << this << " " << getNetworkTimestamp() << " TID: " << std::this_thread::get_id() << "] ~Server(): Destructor Exit." << std::endl;
+    if (sslCtx) {
+        SSL_CTX_free(sslCtx);
+        sslCtx = nullptr;
+    }
 }
 
 
@@ -356,25 +362,36 @@ Networking::ClientConnection Networking::Server::Accept()
 
 	try{
 
-		if(serverInfo.sin_family == AF_INET)
-		{
-			int clientAddrSize = sizeof(client.clientInfo);
-			client.clientSocket = accept(serverSocket, (sockaddr*)&client.clientInfo, (socklen_t *)&clientAddrSize);
-		}
-		else if (serverInfo.sin_family == AF_INET6)
-		{
-			int clientAddrSize = sizeof(client.clientInfo6);
-			client.clientSocket = accept(serverSocket, (sockaddr*)&client.clientInfo6, (socklen_t *)&clientAddrSize);
-		}
+        if(serverInfo.sin_family == AF_INET)
+        {
+                int clientAddrSize = sizeof(client.clientInfo);
+                client.clientSocket = accept(serverSocket, (sockaddr*)&client.clientInfo, (socklen_t *)&clientAddrSize);
+        }
+        else if (serverInfo.sin_family == AF_INET6)
+        {
+                int clientAddrSize = sizeof(client.clientInfo6);
+                client.clientSocket = accept(serverSocket, (sockaddr*)&client.clientInfo6, (socklen_t *)&clientAddrSize);
+        }
+        if (useTLS) {
+            client.ssl = SSL_new(sslCtx);
+            SSL_set_fd(client.ssl, client.clientSocket);
+            if (SSL_accept(client.ssl) <= 0) {
+                ERR_print_errors_fp(stderr);
+                CLOSESOCKET(client.clientSocket);
+                SSL_free(client.ssl);
+                client.ssl = nullptr;
+                throw Networking::NetworkException(client.clientSocket, -1, "TLS handshake failed");
+            }
+        }
 // If there was an error, throw an exception
 		if ( INVALIDSOCKET(client.clientSocket))
 		{
 			// Get the error code
 			int errorCode = GETERROR();
 			Networking::ThrowAcceptException(serverSocket, errorCode);
-		}
-		retries = 0;
-	}
+                }
+                retries = 0;
+        }
 
 	catch(NetworkException &ex)
 	{
@@ -444,10 +461,14 @@ void Networking::Server::SetFamily(int _pFamily)
 // A reference or pointer to a ClientConnection might be more appropriate if its state needed modification by send_all.
 // For now, this helper primarily encapsulates the send loop and basic error handling.
 // It does not modify ClientConnection state directly but throws on error, which the caller (Server::Send) handles.
-static bool send_all_server(SOCKET sock, const char* buffer, size_t length, Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
+static bool send_all_server(SOCKET sock, const char* buffer, size_t length,
+                            bool useTLS, SSL* ssl,
+                            Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
     size_t totalBytesSent = 0;
     while (totalBytesSent < length) {
-        int bytesSent = send(sock, buffer + totalBytesSent, length - totalBytesSent, 0);
+        int bytesSent = useTLS ?
+            SSL_write(ssl, buffer + totalBytesSent, length - totalBytesSent) :
+            send(sock, buffer + totalBytesSent, length - totalBytesSent, 0);
         if (bytesSent == SOCKET_ERROR) {
             int errorCode = GETERROR();
             Logger::getInstance().log(LogLevel::ERROR, "send_all_server: send() failed for socket " + std::to_string(sock) + " with error: " + std::to_string(errorCode));
@@ -479,13 +500,17 @@ int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _p
 
     try {
         // Send the header (payload length)
-        send_all_server(_pClient.clientSocket, reinterpret_cast<const char*>(&netPayloadLength), sizeof(netPayloadLength), this, _pClient);
+        send_all_server(_pClient.clientSocket,
+                        reinterpret_cast<const char*>(&netPayloadLength),
+                        sizeof(netPayloadLength), useTLS, _pClient.ssl,
+                        this, _pClient);
 
         Logger::getInstance().log(LogLevel::DEBUG, "[Server::Send to " + GetClientIPAddress(_pClient) + "] Header sent. Sending payload...");
 
         // Send the actual payload
         if (payloadLength > 0) {
-            send_all_server(_pClient.clientSocket, _pSendBuffer, payloadLength, this, _pClient);
+            send_all_server(_pClient.clientSocket, _pSendBuffer, payloadLength,
+                            useTLS, _pClient.ssl, this, _pClient);
         }
         Logger::getInstance().log(LogLevel::DEBUG, "[Server::Send to " + GetClientIPAddress(_pClient) + "] Payload sent successfully.");
         return static_cast<int>(payloadLength); // Return payload length
@@ -725,10 +750,14 @@ void Networking::Server::SendFile(const std::string& _pFilePath, Networking::Cli
 
 
 // Helper function to receive exactly 'length' bytes (Server context)
-static bool recv_all_server(SOCKET sock, char* buffer, size_t length, Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
+static bool recv_all_server(SOCKET sock, char* buffer, size_t length,
+                            bool useTLS, SSL* ssl,
+                            Networking::Server* server_this, Networking::ClientConnection& client_conn_ref) {
     size_t totalBytesReceived = 0;
     while (totalBytesReceived < length) {
-        int bytesReceived = recv(sock, buffer + totalBytesReceived, length - totalBytesReceived, 0);
+        int bytesReceived = useTLS ?
+            SSL_read(ssl, buffer + totalBytesReceived, length - totalBytesReceived) :
+            recv(sock, buffer + totalBytesReceived, length - totalBytesReceived, 0);
         if (bytesReceived == 0) { // Graceful shutdown by peer
             Logger::getInstance().log(LogLevel::INFO, "recv_all_server: Peer (socket " + std::to_string(sock) + ") has performed an orderly shutdown during message reception.");
             // Server-side, this means the client closed the connection.
@@ -756,7 +785,10 @@ std::vector<char> Networking::Server::Receive(Networking::ClientConnection clien
     uint32_t netPayloadLength;
     Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Receiving header (4 bytes).");
     try {
-        recv_all_server(client.clientSocket, reinterpret_cast<char*>(&netPayloadLength), sizeof(netPayloadLength), this, client);
+        recv_all_server(client.clientSocket,
+                        reinterpret_cast<char*>(&netPayloadLength),
+                        sizeof(netPayloadLength), useTLS, client.ssl,
+                        this, client);
     } catch (const Networking::NetworkException& e) {
         if (e.GetErrorCode() == 0) { // Peer shutdown during header read
             Logger::getInstance().log(LogLevel::INFO, "Server::Receive: Client " + GetClientIPAddress(client) + " shutdown while reading header.");
@@ -781,7 +813,8 @@ std::vector<char> Networking::Server::Receive(Networking::ClientConnection clien
     std::vector<char> payloadBuffer(payloadLength);
     Logger::getInstance().log(LogLevel::DEBUG, "[Server::Receive from " + GetClientIPAddress(client) + "] Receiving payload (" + std::to_string(payloadLength) + " bytes).");
     try {
-        recv_all_server(client.clientSocket, payloadBuffer.data(), payloadLength, this, client);
+        recv_all_server(client.clientSocket, payloadBuffer.data(), payloadLength,
+                        useTLS, client.ssl, this, client);
     } catch (const Networking::NetworkException& e) {
         if (e.GetErrorCode() == 0) { // Peer shutdown during payload read
             Logger::getInstance().log(LogLevel::INFO, "Server::Receive: Client " + GetClientIPAddress(client) + " shutdown while reading payload.");
@@ -949,8 +982,12 @@ void Networking::Server::DisconnectClient(Networking::ClientConnection _pClient)
         Logger::getInstance().log(LogLevel::ERROR, "Error during DisconnectClient for " + GetClientIPAddress(_pClient) + ": " + std::string(ex.what()));
 	}
     Logger::getInstance().log(LogLevel::INFO, "Disconnecting client " + GetClientIPAddress(_pClient) + " socket " + std::to_string(_pClient.clientSocket));
-	// Close the socket
-	CLOSESOCKET(_pClient.clientSocket);
+        // Close the socket
+        if (_pClient.ssl) {
+            SSL_shutdown(_pClient.ssl);
+            SSL_free(_pClient.ssl);
+        }
+        CLOSESOCKET(_pClient.clientSocket);
 
 	// Remove the client from the list of clients
     std::lock_guard<std::mutex> lock(clients_mutex_);
@@ -1066,4 +1103,25 @@ int Networking::Server::GetPort()
             return ntohs(serverInfo6.sin6_port);
         }
         return ntohs(serverInfo.sin_port);
+}
+
+bool Networking::Server::enableTLS(const std::string& certFile, const std::string& keyFile) {
+    SSL_load_error_strings();
+    OpenSSL_add_ssl_algorithms();
+    const SSL_METHOD* method = TLS_server_method();
+    sslCtx = SSL_CTX_new(method);
+    if (!sslCtx) {
+        ERR_print_errors_fp(stderr);
+        return false;
+    }
+    if (!SSL_CTX_use_certificate_file(sslCtx, certFile.c_str(), SSL_FILETYPE_PEM)) {
+        ERR_print_errors_fp(stderr);
+        return false;
+    }
+    if (!SSL_CTX_use_PrivateKey_file(sslCtx, keyFile.c_str(), SSL_FILETYPE_PEM)) {
+        ERR_print_errors_fp(stderr);
+        return false;
+    }
+    useTLS = true;
+    return true;
 }

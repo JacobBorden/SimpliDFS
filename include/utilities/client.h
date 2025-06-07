@@ -40,6 +40,8 @@ typedef const char* PCSTR;
 #include <iostream>
 #include <string>
 #include <vector>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 namespace Networking {
 
@@ -119,6 +121,13 @@ std::string GetRemoteIPAddress();
 // Connects to the server with retry logic.
 bool connectWithRetry(PCSTR _pHost, int _pPortNumber, int attempt = 0);
 
+    /** Enable TLS for this client using the provided certificate, key and
+     *  CA certificate files. Must be called before ConnectClientSocket.
+     */
+    bool enableTLS(const std::string& certFile,
+                   const std::string& keyFile,
+                   const std::string& caFile);
+
 private:
 // Whether the client is currently connected to a host.
 bool clientIsConnected = false;
@@ -134,6 +143,10 @@ WSADATA wsaData;
 // Address information for the client socket.
 addrinfo addressInfo;
 addrinfo* hostAddressInfo;
+
+    bool useTLS = false;              ///< Whether TLS is enabled
+    SSL_CTX* sslCtx = nullptr;        ///< TLS context
+    SSL* ssl = nullptr;               ///< TLS session
 
 };
 
