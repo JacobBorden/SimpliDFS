@@ -1,4 +1,10 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- Lightweight REST server with JWT authentication in `src/rest_server.cpp`.
+- Documentation for the HTTP API in `docs/rest_api.md`.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added
