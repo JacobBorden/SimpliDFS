@@ -10,6 +10,17 @@ add_executable(blockio_bench
     # For now, blockio.cpp is self-contained with blockio.hpp
 )
 
+# gRPC latency benchmark
+add_executable(grpc_bench grpc_bench.cpp)
+target_link_libraries(grpc_bench PRIVATE
+    simplidfs_grpc
+    Threads::Threads
+)
+target_include_directories(grpc_bench PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/include/grpc
+)
+
 # Ensure headers from src are found
 target_include_directories(blockio_bench PRIVATE ${CMAKE_SOURCE_DIR}/include)
 

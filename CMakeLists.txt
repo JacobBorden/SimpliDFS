@@ -80,6 +80,9 @@ FetchContent_Declare(
 # Make GoogleTest available
 FetchContent_MakeAvailable(googletest)
 
+find_package(Protobuf REQUIRED)
+find_package(gRPC CONFIG REQUIRED)
+
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEFINITIONS:_GLIBCXX_USE_CXX11_ABI>")
@@ -138,6 +141,21 @@ target_link_libraries(SimpliDFS_NodeLib
     PRIVATE
     Threads::Threads
 )
+
+# gRPC library
+add_library(simplidfs_grpc
+    src/grpc/filesystem.pb.cc
+    src/grpc/filesystem.grpc.pb.cc
+    src/grpc_server.cpp)
+target_include_directories(simplidfs_grpc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/grpc)
+target_link_libraries(simplidfs_grpc
+    PUBLIC
+    gRPC::grpc++
+    protobuf::libprotobuf
+    SimpliDFS_Utils
+    Threads::Threads)
 
 # Define the node executable
 add_executable(node src/main_node.cpp) # Assuming a main_node.cpp for the executable
