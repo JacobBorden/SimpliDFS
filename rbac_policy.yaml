@@ -1,0 +1,11 @@
+roles:
+  admin:
+    - write
+    - read
+    - delete
+  reader:
+    - read
+users:
+  0: admin
+  1000: admin
+  1001: reader

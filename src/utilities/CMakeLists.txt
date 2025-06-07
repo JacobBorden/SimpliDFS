@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 # Library for common utilities (SimpliDFS_Utils, now includes BlockIO functionality)
 project(SimpliDFSUtils CXX) # Specify language for project command
 find_package(OpenSSL REQUIRED)
+find_package(yaml-cpp REQUIRED)
 add_library(SimpliDFS_Utils
     logger.cpp
     filesystem.cpp
@@ -20,6 +21,7 @@ add_library(SimpliDFS_Utils
     prometheus_server.cpp
     audit_log.cpp
     audit_verifier.cpp
+    rbac.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC
@@ -46,6 +48,7 @@ target_link_libraries(SimpliDFS_Utils
         ${SODIUM_LIBRARIES}
         OpenSSL::SSL
         OpenSSL::Crypto
+        yaml-cpp
 )
 
 # Link ZSTD to SimpliDFS_Utils (similar to how it was done for BlockIOLib)
