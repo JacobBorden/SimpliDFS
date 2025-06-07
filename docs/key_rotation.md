@@ -1,8 +1,10 @@
 # Cluster Key Rotation
 
 SimpliDFS supports rotating the cluster encryption key while keeping the previous
-key available for a short period. This allows running nodes to decrypt data
-encrypted with the old key during the transition.
+key available for a short period. Nodes load the key from the
+`SIMPLIDFS_CLUSTER_KEY` environment variable or, if unset, from a key that the
+`KeyManager` generates automatically at startup. During a rotation, the old key
+remains valid briefly so nodes can decrypt data encrypted before the change.
 
 ## Steps
 

@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include "utilities/blockio.hpp" // Adjust path as necessary
+#include "utilities/key_manager.hpp"
 #include <vector>
 #include <cstddef> // For std::byte
 #include <numeric> // For std::iota
@@ -369,4 +370,19 @@ TEST(BlockIOTest, CombinedOperations) {
     std::vector<std::byte> decrypted = bio.decrypt_data(decompressed_encrypted, FIXED_TEST_KEY, nonce);
     ASSERT_EQ(decrypted.size(), original_data.size());
     EXPECT_EQ(decrypted, original_data);
+}
+
+TEST(BlockIOTest, EncryptDecryptWithClusterKey) {
+    simplidfs::KeyManager& km = simplidfs::KeyManager::getInstance();
+    km.initialize();
+    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+    km.getClusterKey(key);
+
+    BlockIO bio;
+    std::vector<std::byte> data = string_to_byte_vector("cluster secret");
+    std::vector<unsigned char> nonce;
+    std::vector<std::byte> enc = bio.encrypt_data(data, key, nonce);
+    ASSERT_FALSE(enc.empty());
+    std::vector<std::byte> dec = bio.decrypt_data(enc, key, nonce);
+    EXPECT_EQ(dec, data);
 }

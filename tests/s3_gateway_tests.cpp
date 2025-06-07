@@ -2,6 +2,7 @@
 #include "s3_gateway.h"
 #include "httplib.h"
 #include "utilities/logger.h"
+#include "utilities/key_manager.hpp"
 #include <thread>
 #include <chrono>
 
@@ -12,6 +13,7 @@ protected:
 
     void SetUp() override {
         Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::ERROR);
+        simplidfs::KeyManager::getInstance().initialize();
         gateway = std::make_unique<S3Gateway>(fs);
     }
 

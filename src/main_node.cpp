@@ -1,6 +1,7 @@
 #include "node/node.h"
 #include "utilities/logger.h"
 #include "utilities/fips.h"
+#include "utilities/key_manager.hpp"
 #include <string>
 #include <iostream>
 #include <stdexcept>
@@ -55,6 +56,13 @@ int main(int argc, char* argv[]) {
 
     if (!fips_self_test()) {
         std::cerr << "FATAL: FIPS self test failed" << std::endl;
+        return 1;
+    }
+
+    try {
+        simplidfs::KeyManager::getInstance().initialize();
+    } catch (const std::exception& e) {
+        std::cerr << "FATAL: KeyManager initialization failed: " << e.what() << std::endl;
         return 1;
     }
 

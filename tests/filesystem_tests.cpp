@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "utilities/filesystem.h"
 #include "utilities/logger.h"
+#include "utilities/key_manager.hpp"
 #include "utilities/blockio.hpp" // For crypto_aead_aes256gcm_ABYTES, etc.
 #include <cstdio>   // For std::remove
 #include <sys/stat.h>
@@ -34,6 +35,7 @@ protected:
             // Using a unique log file per test run might be better if tests run in parallel
             // or if log content is critical for debugging specific tests.
             Logger::init("filesystem_tests.log", LogLevel::DEBUG);
+            simplidfs::KeyManager::getInstance().initialize();
         } catch (const std::exception& e) {
             // No action needed if logger init fails, tests might still run
         }

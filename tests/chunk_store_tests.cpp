@@ -1,10 +1,12 @@
 #include "gtest/gtest.h"
 #include "utilities/chunk_store.hpp"
 #include "utilities/filesystem.h"
+#include "utilities/key_manager.hpp"
 #include <string>
 #include <vector>
 
 TEST(ChunkStoreTest, AddAndRetrieveChunk) {
+    simplidfs::KeyManager::getInstance().initialize();
     ChunkStore store;
     std::string data = "hello";
     std::vector<std::byte> bytes;
@@ -18,6 +20,7 @@ TEST(ChunkStoreTest, AddAndRetrieveChunk) {
 }
 
 TEST(ChunkStoreTest, GarbageCollectUnreferenced) {
+    simplidfs::KeyManager::getInstance().initialize();
     ChunkStore store;
     FileSystem fs;
 

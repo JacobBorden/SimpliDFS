@@ -156,8 +156,9 @@ performance.
 ## Security
 SimpliDFS relies on a cluster-wide encryption key. Set the
 `SIMPLIDFS_CLUSTER_KEY` environment variable on every node before starting the
-metaserver or storage nodes to ensure they share the same key. The value must be
-a 64-character hex string (32 bytes). Example:
+metaserver or storage nodes to ensure they share the same key. If the variable
+is unset, the `KeyManager` automatically generates a random key at startup. The
+value must be a 64-character hex string (32 bytes) when provided. Example:
 
 ```sh
 export SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
