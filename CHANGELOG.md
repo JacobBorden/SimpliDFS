@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.3.19] - 2025-06-21
+## [0.3.19] - 2025-06-07
 
 ### Fixed
 - Avoid duplicate protobuf target errors by relying on gRPC's bundled protobuf.
 
 
-## [0.3.18] - 2025-06-20
+## [0.3.18] - 2025-06-07
 
 ### Changed
 - Updated CMake policies to silence warnings on newer CMake versions.
@@ -14,26 +14,26 @@
 
 
 
-## [0.3.17] - 2025-06-19
+## [0.3.17] - 2025-06-07
 
 ### Added
 - Prometheus gauges `simplidfs_tier_bytes` and `simplidfs_replication_pending` for monitoring tier usage and replication backlog.
 - Dashboard panels for these metrics.
 
-## [0.3.16] - 2025-06-18
+## [0.3.16] - 2025-06-07
 
 ### Added
 - Configurable hashing/compression/encryption pipeline in `BlockIO`.
 - Runtime configuration via `simplidfs_config.yaml` for compression level and cipher algorithm.
 
 
-## [0.3.15] - 2025-06-17
+## [0.3.15] - 2025-06-07
 
 ### Added
 - Concurrent metadata test covering file create/delete, node registration,
   heartbeats and dead-node checks.
 
-## [0.3.14] - 2025-06-16
+## [0.3.14] - 2025-06-07
 
 ### Added
 - KeyManager initialization during node and metaserver startup.
@@ -43,92 +43,92 @@
 ### Changed
 - Unit tests initialize KeyManager and verify encryption with the cluster key.
 
-## [0.3.13] - 2025-06-15
+## [0.3.13] - 2025-06-07
 
 ### Added
 - setup_dependencies_opensuse.sh for installing dependencies on openSUSE via zypper.
 
-## [0.3.12] - 2025-06-14
+## [0.3.12] - 2025-06-07
 
 ### Fixed
 - GitHub workflows now install `libyaml-cpp-dev` so CMake can find yaml-cpp.
 
-## [0.3.11] - 2025-06-13
+## [0.3.11] - 2025-06-07
 
 ### Fixed
 - CI workflow now installs Boost to avoid missing dependency errors.
 
 
-## [0.3.10] - 2025-06-12
+## [0.3.10] - 2025-06-07
 
 ### Added
 - gRPC and Protobuf development packages in GitHub workflow and
   `setup_dependencies.sh` to ensure builds succeed.
 
-## [0.3.9] - 2025-06-11
+## [0.3.9] - 2025-06-07
 
 ### Added
 - IPFS gateway with JWT-protected block retrieval.
 
 
-## [0.3.8] - 2025-06-11
+## [0.3.8] - 2025-06-07
 
 ### Added
 - Minimal S3 gateway translating PUT and GET requests to SimpliDFS file operations.
 - Integration test for uploads and downloads via the gateway.
 
 
-## [0.3.7] - 2025-06-11
+## [0.3.7] - 2025-06-07
 ### Added
 - Re-replication now performs actual data transfer when nodes fail.
 - RepairWorker triggers replication callbacks for partial files.
 
 
-## [0.3.6] - 2025-06-11
+## [0.3.6] - 2025-06-07
 
 ### Added
 - Configurable compression level and cipher algorithm loaded at runtime.
 
 
-## [0.3.5] - 2025-06-10
+## [0.3.5] - 2025-06-07
 
 ### Added
 - POSIX compliance tests runnable via `-DBUILD_POSIX_TEST_SUITE=ON`.
 
-## [0.3.4] - 2025-06-11
+## [0.3.4] - 2025-06-07
 
 ### Added
 - Metaserver and node load TLS certificates via command-line flags and enable TLS.
 - README examples show TLS-enabled startup commands.
 
 
-## [0.3.3] - 2025-06-11
+## [0.3.3] - 2025-06-07
 
 ### Added
 - Lightweight REST server with JWT authentication in `src/rest_server.cpp`.
 - Documentation for the HTTP API in `docs/rest_api.md`.
 
 
-## [0.3.2] - 2025-06-11
+## [0.3.2] - 2025-06-07
 
 ### Added
 - Chaos test now provisions an edge node with Ansible, repeatedly kills it,
   runs latency benchmarks and prints availability metrics.
 
 
-## [0.3.1] - 2025-06-11
+## [0.3.1] - 2025-06-07
 
 ### Added
 - FIPS self test at startup.
 
-## [0.3.0] - 2025-06-11
+## [0.3.0] - 2025-06-07
 
 ### Added
 - Cluster key rotation APIs with configurable window.
 - `scripts/rotate_key.sh` helper for rotating keys.
 - Documentation in `docs/key_rotation.md`.
 
-## [0.2.10] - 2025-06-11
+## [0.2.10] - 2025-06-07
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
@@ -139,17 +139,17 @@
 
 
 
-## [0.2.9] - 2025-06-10
+## [0.2.9] - 2025-06-07
 
 ### Added
 - Dependency installation script now installs `libyaml-cpp-dev`.
 
-## [0.2.8] - 2025-06-09
+## [0.2.8] - 2025-06-07
 
 ### Added
 - Initial FedRAMP RMF control mapping in `docs/fedramp_mapping.md`.
 
-## [0.2.7] - 2025-06-08
+## [0.2.7] - 2025-06-07
 
 ### Added
 - YAML-defined RBAC policy with middleware checks for node operations.
