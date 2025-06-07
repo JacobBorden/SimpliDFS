@@ -49,6 +49,7 @@ void NodeHealthCache::recordSuccess(const NodeID &id) {
         if (e.successes > successThreshold_) e.successes = successThreshold_;
     }
     MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(e.state), {{"node", id}});
+    updateReplicationMetric();
 }
 
 void NodeHealthCache::recordFailure(const NodeID &id) {
@@ -72,6 +73,7 @@ void NodeHealthCache::recordFailure(const NodeID &id) {
         e.lastChange = now;
     }
     MetricsRegistry::instance().setGauge("simplidfs_node_health", toVal(e.state), {{"node", id}});
+    updateReplicationMetric();
 }
 
 std::vector<NodeID> NodeHealthCache::getHealthyNodes() const {
@@ -93,4 +95,13 @@ std::unordered_map<NodeID, NodeHealthCache::StateInfo> NodeHealthCache::snapshot
         res.emplace(kv.first, StateInfo{kv.second.state, kv.second.lastChange});
     }
     return res;
+}
+
+void NodeHealthCache::updateReplicationMetric() const {
+    size_t pending = 0;
+    for (const auto &kv : map_) {
+        if (kv.second.state != NodeState::ALIVE) ++pending;
+    }
+    MetricsRegistry::instance().setGauge("simplidfs_replication_pending", static_cast<double>(pending),
+                                         {{"component", "nodes"}});
 }

@@ -4,6 +4,8 @@
     {"type": "graph", "title": "Node Health", "targets": [{"expr": "simplidfs_node_health"}]},
     {"type": "graph", "title": "Raft Role", "targets": [{"expr": "simplidfs_raft_role"}]},
     {"type": "graph", "title": "FUSE Latency", "targets": [{"expr": "rate(simplidfs_fuse_latency_seconds_sum[1m])/rate(simplidfs_fuse_latency_seconds_count[1m])"}]}
+    ,{"type": "graph", "title": "Tier Storage", "targets": [{"expr": "simplidfs_tier_bytes"}]}
+    ,{"type": "graph", "title": "Replication Pending", "targets": [{"expr": "simplidfs_replication_pending"}]}
   ],
   "schemaVersion": 16,
   "title": "SimpliDFS",

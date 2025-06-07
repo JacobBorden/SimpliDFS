@@ -45,6 +45,7 @@ public:
     std::unordered_map<NodeID, StateInfo> snapshot() const;
 
 private:
+    void updateReplicationMetric() const;
     struct Entry {
         NodeState state{NodeState::ALIVE};
         std::size_t failures{0};

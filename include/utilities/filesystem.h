@@ -27,7 +27,14 @@ public:
    */
   explicit FileSystem(int compression_level = 1,
                       BlockIO::CipherAlgorithm cipher_algo =
-                          BlockIO::CipherAlgorithm::AES_256_GCM);
+                          BlockIO::CipherAlgorithm::AES_256_GCM,
+                      std::string tier = "orbit");
+
+  /**
+   * @brief Set the storage tier label used for metrics.
+   * @param tier Name of the tier (e.g., "orbit" or "ground").
+   */
+  void setTier(const std::string &tier);
   /**
    * @brief Creates a new, empty file in the file system.
    * If the file already exists, the operation fails.
@@ -181,6 +188,10 @@ private:
 
   int compression_level_{1};
   BlockIO::CipherAlgorithm cipher_algo_{BlockIO::CipherAlgorithm::AES_256_GCM};
+  std::string tier_{"orbit"};
+
+  /** Update Prometheus gauge for this tier's storage usage. */
+  void updateStorageMetric();
 };
 
 #endif

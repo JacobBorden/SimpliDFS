@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.17] - 2025-06-19
+
+### Added
+- Prometheus gauges `simplidfs_tier_bytes` and `simplidfs_replication_pending` for monitoring tier usage and replication backlog.
+- Dashboard panels for these metrics.
+
 ## [0.3.16] - 2025-06-18
 
 ### Added
