@@ -7,6 +7,7 @@
 #include "utilities/logger.h" // For Logger
 #include "metaserver/metaserver.h" // For MetadataManager (declaration)
 #include "utilities/raft.h"
+#include "utilities/prometheus_server.h"
 
 #include <cstdlib> // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -118,6 +119,7 @@ int main(int argc, char* argv[])
     });
     gRaftNode->start();
     metadataManager.setRaftNode(gRaftNode.get());
+    PrometheusServer::start(9100);
 
     Logger::getInstance().log(LogLevel::INFO, "Main: Starting persistence thread.");
     std::thread persist_thread(persistence_thread_function);

@@ -1,4 +1,5 @@
 #include "repair/ReplicaVerifier.h"
+#include "utilities/metrics.h"
 #include <algorithm>
 
 bool ReplicaVerifier::verifyFile(const std::string& filename) {
@@ -30,6 +31,7 @@ bool ReplicaVerifier::verifyFile(const std::string& filename) {
         }
     }
     if (mismatch) entry.partial = true;
+    MetricsRegistry::instance().setGauge("simplidfs_replica_healthy", mismatch ? 0 : 1, {{"file", filename}});
     return !mismatch;
 }
 
