@@ -28,8 +28,10 @@ void RepairWorker::runOnce() {
     auto candidates = cache_.getHealthyNodes();
     for (auto &kv : table_) {
         auto &inode = kv.second;
-        if (!inode.partial)
-            continue;
+        inode.replicas.erase(
+            std::remove_if(inode.replicas.begin(), inode.replicas.end(),
+                           [&](const NodeID &id) { return cache_.state(id) != NodeState::ALIVE; }),
+            inode.replicas.end());
         size_t missing = replicationFactor_ > inode.replicas.size()
                              ? replicationFactor_ - inode.replicas.size()
                              : 0;
@@ -41,7 +43,6 @@ void RepairWorker::runOnce() {
                 --missing;
             }
         }
-        if (inode.replicas.size() >= replicationFactor_)
-            inode.partial = false;
+        inode.partial = inode.replicas.size() < replicationFactor_;
     }
 }
