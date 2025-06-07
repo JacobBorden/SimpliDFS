@@ -9,6 +9,7 @@
 #include "utilities/raft.h"
 #include "utilities/prometheus_server.h"
 #include "utilities/fips.h"
+#include "utilities/key_manager.hpp"
 
 #include <cstdlib> // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -133,6 +134,13 @@ int main(int argc, char* argv[])
 
     if (!fips_self_test()) {
         std::cerr << "FATAL: FIPS self test failed" << std::endl;
+        return 1;
+    }
+
+    try {
+        simplidfs::KeyManager::getInstance().initialize();
+    } catch (const std::exception& e) {
+        std::cerr << "FATAL: KeyManager initialization failed: " << e.what() << std::endl;
         return 1;
     }
 

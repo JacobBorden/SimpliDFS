@@ -2,10 +2,13 @@
 #include "utilities/filesystem.h"
 #include "utilities/audit_log.hpp"
 #include "utilities/audit_verifier.hpp"
+#include "utilities/key_manager.hpp"
 
 TEST(AuditLog, ChainIntegrity) {
     AuditLog& log = AuditLog::getInstance();
     log.clear();
+
+    simplidfs::KeyManager::getInstance().initialize();
 
     FileSystem fs;
     ASSERT_TRUE(fs.createFile("a"));

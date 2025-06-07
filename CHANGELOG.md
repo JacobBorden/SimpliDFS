@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.14] - 2025-06-16
+
+### Added
+- KeyManager initialization during node and metaserver startup.
+- FileSystem encryption now uses the cluster key from KeyManager.
+- Documentation on setting `SIMPLIDFS_CLUSTER_KEY` or allowing auto generation.
+
+### Changed
+- Unit tests initialize KeyManager and verify encryption with the cluster key.
+
 ## [0.3.13] - 2025-06-15
 
 ### Added

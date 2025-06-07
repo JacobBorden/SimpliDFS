@@ -5,6 +5,7 @@
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/merkle_tree.hpp"
 #include "utilities/audit_log.hpp"
+#include "utilities/key_manager.hpp"
 
 #include <algorithm> // For std::copy, std::transform
 #include <cstddef>   // For std::byte
@@ -77,9 +78,9 @@ bool FileSystem::writeFile(const std::string &_pFilename,
     DigestResult hashResult = hasher.finalize_hashed();
     std::string cid = hashResult.cid;
 
-    // 3. Define placeholder encryption key
+    // 3. Retrieve the cluster encryption key
     std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-    key.fill('A'); // Placeholder - MUST be replaced with proper key management
+    simplidfs::KeyManager::getInstance().getClusterKey(key);
 
     // 4. Encrypt the raw data
     std::vector<unsigned char> nonce;
@@ -179,9 +180,9 @@ std::string FileSystem::readFile(const std::string &_pFilename) {
         std::stoul(encrypted_size_str); // size of data before compression (i.e.
                                         // encrypted data size)
 
-    // 2. Define placeholder encryption key (must match writeFile)
+    // 2. Retrieve the cluster encryption key
     std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-    key.fill('A'); // Placeholder
+    simplidfs::KeyManager::getInstance().getClusterKey(key);
 
     BlockIO localBlockIO(compression_level_, cipher_algo_);
 
@@ -355,7 +356,7 @@ bool FileSystem::verifyFileIntegrity(const std::string &filename) const {
 
   std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
   std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-  key.fill('A');
+  simplidfs::KeyManager::getInstance().getClusterKey(key);
   BlockIO bio(compression_level_, cipher_algo_);
   std::vector<std::byte> decrypted = bio.decrypt_data(
       bio.decompress_data(compressedData, encrypted_size), key, nonce);
@@ -519,7 +520,7 @@ bool FileSystem::snapshotExportCar(const std::string &name,
 
     std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
     std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-    key.fill('A');
+    simplidfs::KeyManager::getInstance().getClusterKey(key);
     BlockIO local(compression_level_, cipher_algo_);
     std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
     std::vector<std::byte> raw = local.decrypt_data(decompressed, key, nonce);
