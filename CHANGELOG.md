@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.4] - 2025-06-11
+
+### Added
+- Metaserver and node load TLS certificates via command-line flags and enable TLS.
+- README examples show TLS-enabled startup commands.
+
+
 ## [0.3.3] - 2025-06-11
 
 ### Added
@@ -30,6 +37,7 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
+
 
 
 
