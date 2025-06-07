@@ -68,6 +68,8 @@ void NodeHealthCache::recordFailure(const NodeID &id) {
         e.failures = 0;
         e.lastChange = now;
         e.lastFailure = now;
+        MetricsRegistry::instance().incrementCounter(
+            "simplidfs_replication_failures", 1.0, {{"node", id}});
     } else {
         e.state = NodeState::SUSPECT;
         e.lastChange = now;

@@ -27,6 +27,13 @@ public:
     /** Serialize all metrics in Prometheus text format. */
     std::string toPrometheus() const;
 
+    /**
+     * @brief Clear all stored metrics.
+     *
+     * Primarily used by unit tests to ensure a clean registry state.
+     */
+    void reset();
+
     /** Convert labels map to Prometheus label string. */
     static std::string labelsToString(const std::map<std::string,std::string>& labels);
 

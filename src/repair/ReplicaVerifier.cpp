@@ -15,6 +15,8 @@ bool ReplicaVerifier::verifyFile(const std::string& filename) {
 
     if (healthy.empty()) {
         entry.partial = true;
+        MetricsRegistry::instance().incrementCounter(
+            "simplidfs_replication_failures", 1.0, {{"file", filename}});
         return false;
     }
 
@@ -30,7 +32,11 @@ bool ReplicaVerifier::verifyFile(const std::string& filename) {
             mismatch = true;
         }
     }
-    if (mismatch) entry.partial = true;
+    if (mismatch) {
+        entry.partial = true;
+        MetricsRegistry::instance().incrementCounter(
+            "simplidfs_replication_failures", 1.0, {{"file", filename}});
+    }
     MetricsRegistry::instance().setGauge("simplidfs_replica_healthy", mismatch ? 0 : 1, {{"file", filename}});
     return !mismatch;
 }
