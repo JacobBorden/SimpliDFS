@@ -130,7 +130,10 @@ target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/includ
 
 
 # Define the SimpliDFS_NodeLib library
-add_library(SimpliDFS_NodeLib src/node/node.cpp)
+add_library(SimpliDFS_NodeLib
+    src/node/node.cpp
+    src/ipfs_gateway.cpp
+)
 target_include_directories(SimpliDFS_NodeLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(SimpliDFS_NodeLib
     PUBLIC # If Node.h includes headers from SimpliDFS_Utils that are needed by users of SimpliDFS_NodeLib

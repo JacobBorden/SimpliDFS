@@ -1,4 +1,9 @@
 # Changelog
+## [0.2.10] - 2025-06-11
+
+### Added
+- IPFS gateway with JWT-protected block retrieval.
+
 ## [0.2.9] - 2025-06-10
 
 ### Added
