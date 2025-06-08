@@ -148,6 +148,13 @@ void DisconnectClient(Networking::ClientConnection _pClient);
 // currently connected clients
 std::vector<Networking::ClientConnection> getClients() const;
 
+    /**
+     * @brief Check if a client is still connected.
+     * @param client Client connection to check.
+     * @return True if the client is in the active connection list.
+     */
+    bool isClientConnected(const Networking::ClientConnection& client) const;
+
 //Handles errors
 void ErrorHandling(NetworkException _pNetEx);
 

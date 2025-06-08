@@ -2436,3 +2436,27 @@ TEST(ClientTest, ConnectFailureReturnsErrno) {
         EXPECT_NE(msg.find("ECONNREFUSED"), std::string::npos);
     }
 }
+
+TEST_F(NetworkingTest, IsClientConnectedTracksClients) {
+    const int testPort = 12410;
+    Networking::Server server(testPort);
+    ASSERT_TRUE(server.startListening());
+
+    Networking::ClientConnection conn{};
+    std::thread acceptThread([&]() {
+        conn = server.Accept();
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    Networking::Client client;
+    ASSERT_TRUE(client.connectWithRetry("127.0.0.1", testPort));
+
+    acceptThread.join();
+    EXPECT_TRUE(server.isClientConnected(conn));
+
+    server.DisconnectClient(conn);
+    EXPECT_FALSE(server.isClientConnected(conn));
+
+    client.Disconnect();
+    server.Shutdown();
+}

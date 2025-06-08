@@ -940,7 +940,9 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
     } // End of while(true) loop
 
     try {
-        server_instance.DisconnectClient(_pClient);
+        if (server_instance.isClientConnected(_pClient)) {
+            server_instance.DisconnectClient(_pClient);
+        }
         std::cerr << "DIAGNOSTIC: HandleClientConnection: Client " << client_ip_str << " disconnected." << std::endl;
         Logger::getInstance().log(LogLevel::INFO, "Disconnected client " + client_ip_str);
     } catch (const Networking::NetworkException& ne) {
