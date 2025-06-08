@@ -11,7 +11,6 @@
 ### Fixed
 - FuseConcurrencyTest now skips if the FUSE mount operation fails due to missing permissions.
 
-
 ## [0.3.30] - 2025-06-08
 
 ### Fixed
