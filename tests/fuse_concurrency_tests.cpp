@@ -13,13 +13,15 @@
 #include <sstream>      // For std::ostringstream
 #include <mutex>
 #include <condition_variable>
+#include "fuse_concurrency_test_utils.hpp"
 
 // Helper for timestamp logging in this specific test file
 static std::string getFuseTestTimestamp() {
     auto now = std::chrono::system_clock::now();
     std::ostringstream oss;
     std::time_t t = std::chrono::system_clock::to_time_t(now);
-    std::tm bt = *std::localtime(&t); // Ensure this is thread-safe if heavily used in multithreaded logging directly
+    std::tm bt{};
+    localtime_r(&t, &bt); // thread-safe conversion
     oss << std::put_time(&bt, "%H:%M:%S");
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
@@ -143,9 +145,16 @@ int main() {
         return 1;
     }
     pre_outfile << HEADER_LINE;
-
     size_t expected_total_lines = NUM_THREADS * NUM_LINES_PER_THREAD;
+    const off_t final_size = HEADER_LINE.size() +
+        static_cast<off_t>(expected_total_lines) * (LINE_LENGTH + 1);
     pre_outfile.close();
+    if (!preallocateFile(FULL_TEST_FILE_PATH, final_size)) {
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: "
+                  << std::this_thread::get_id()
+                  << "] Main: Failed to preallocate test file." << std::endl;
+        return 1;
+    }
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test file " << TEST_FILE_NAME << " created at " << MOUNT_POINT << std::endl;
 
     std::vector<std::thread> threads_vector;

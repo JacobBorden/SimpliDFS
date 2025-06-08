@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.26] - 2025-06-08
+
+### Changed
+- Preallocated file in `FuseConcurrencyTest` to avoid failures when seeking
+  beyond EOF.
+- Added unit test for `preallocateFile` helper.
+
 ## [0.3.22] - 2025-06-07
 
 ### Changed
@@ -43,7 +50,6 @@
 - Documentation section in `README.MD` pointing to design docs.
 
 ## [0.3.19] - 2025-06-07
->>>>>>> refs/remotes/origin/development
 
 ### Fixed
 - Avoid duplicate protobuf target errors by relying on gRPC's bundled protobuf.
