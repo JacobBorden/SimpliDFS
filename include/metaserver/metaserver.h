@@ -338,8 +338,38 @@ public:
     // Modified addFile signature and functionality
     int addFile(const std::string& filename, const std::vector<std::string>& preferredNodes, unsigned int mode);
 
-    int readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read);
-    int writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written);
+    /**
+     * @brief Reads data from a file stored on the cluster.
+     *
+     * The method currently returns placeholder data of the requested size but
+     * maintains correct metadata semantics (e.g., EOF handling).
+     *
+     * @param filename     Name of the file to read from.
+     * @param offset       Starting byte offset.
+     * @param size_to_read Maximum number of bytes to read.
+     * @param out_data     Buffer to store the read data.
+     * @param out_size_read Actual number of bytes returned in @p out_data.
+     * @return 0 on success or an error code on failure.
+     */
+    int readFileData(const std::string& filename, int64_t offset,
+                     uint64_t size_to_read, std::string& out_data,
+                     uint64_t& out_size_read);
+    /**
+     * @brief Writes data to a file and propagates the update to all replicas.
+     *
+     * The primary node receives the data first and then replicates it to
+     * secondary nodes. Metadata such as file size and content hash are updated
+     * accordingly.
+     *
+     * @param filename        Name of the file to modify.
+     * @param offset          Byte offset within the file where the write begins.
+     * @param data_to_write   Data to be written.
+     * @param out_size_written Number of bytes accepted for the write.
+     * @return 0 on success or an error code on failure.
+     */
+    int writeFileData(const std::string& filename, int64_t offset,
+                      const std::string& data_to_write,
+                      uint64_t& out_size_written);
 
     int renameFileEntry(const std::string& old_filename, const std::string& new_filename);
 

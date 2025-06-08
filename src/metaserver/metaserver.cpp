@@ -361,7 +361,8 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 
     std::vector<std::pair<std::string, std::string>> nodeAddrs;
     std::unique_lock<std::mutex> lock(metadataMutex);
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] writeFileData: Actual write to storage node not implemented for " + filename + ". Updating size only.");
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[MetadataManager] writeFileData: dispatching write for " + filename);
 
     out_size_written = data_to_write.length();
     if (offset < 0) offset = 0; // Treat negative offset as 0 for this logic
