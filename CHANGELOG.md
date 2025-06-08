@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.27] - 2025-06-08
+
+### Fixed
+- Prevented double disconnection of clients in `HandleClientConnection` by
+  checking connection status before calling `DisconnectClient`.
+- Added `Server::isClientConnected` helper and associated unit test.
+
 ## [0.3.26] - 2025-06-08
 
 ### Changed

@@ -6,6 +6,7 @@
 #include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
 #include <thread>   // For std::this_thread::get_id()
 #include <chrono>   // For timestamp components (used by getNetworkTimestamp)
+#include <algorithm> // For std::find
 #include <unistd.h> // For geteuid
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -1075,7 +1076,13 @@ void Networking::Server::Shutdown()
 std::vector<Networking::ClientConnection> Networking::Server::getClients() const
 {
     std::lock_guard<std::mutex> lock(clients_mutex_);
-	return clients;
+        return clients;
+}
+
+bool Networking::Server::isClientConnected(const Networking::ClientConnection& client) const
+{
+    std::lock_guard<std::mutex> lock(clients_mutex_);
+    return std::find(clients.begin(), clients.end(), client) != clients.end();
 }
 
 std::string Networking::Server::GetClientIPAddress(Networking::ClientConnection _pClient)
