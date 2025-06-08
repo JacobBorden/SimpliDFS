@@ -6,6 +6,8 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <array>
+#include <sodium.h>
 
 /**
  * @brief Preallocate a file to ensure writes beyond EOF succeed.
@@ -40,6 +42,27 @@ inline bool preallocateFile(const std::string& path, off_t size) {
 
     ::close(fd);
     return success;
+}
+
+/**
+ * @brief Compute the SHA-256 hash of the provided string.
+ *
+ * This thin wrapper around libsodium exposes a simple interface for tests
+ * that need hashing functionality without requiring direct libsodium calls.
+ *
+ * @param data Input string to hash.
+ * @return Array containing the SHA-256 digest bytes.
+ */
+inline std::array<unsigned char, crypto_hash_sha256_BYTES>
+compute_sha256(const std::string& data) {
+    crypto_hash_sha256_state state;
+    std::array<unsigned char, crypto_hash_sha256_BYTES> digest{};
+    crypto_hash_sha256_init(&state);
+    crypto_hash_sha256_update(&state,
+                              reinterpret_cast<const unsigned char*>(data.data()),
+                              data.size());
+    crypto_hash_sha256_final(&state, digest.data());
+    return digest;
 }
 
 #endif // SIMPLIDFS_FUSE_CONCURRENCY_TEST_UTILS_HPP

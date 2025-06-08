@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.34] - 2025-06-08
+
+### Added
+- Test for `compute_sha256` helper function.
+
+### Changed
+- FuseConcurrencyTest now only fails if the final SHA-256 hash differs from the expected contents.
+
 ## [0.3.33] - 2025-06-08
 
 ### Changed
