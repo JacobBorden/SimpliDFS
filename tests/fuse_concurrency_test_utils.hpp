@@ -23,12 +23,23 @@ inline bool preallocateFile(const std::string& path, off_t size) {
     if (fd < 0) {
         return false;
     }
+
+    bool success = true;
+
     if (ftruncate(fd, size) == -1) {
-        ::close(fd);
-        return false;
+#ifdef __linux__
+        if (posix_fallocate(fd, 0, size) != 0) {
+            success = false;
+        }
+#else
+        if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
+            success = false;
+        }
+#endif
     }
+
     ::close(fd);
-    return true;
+    return success;
 }
 
 #endif // SIMPLIDFS_FUSE_CONCURRENCY_TEST_UTILS_HPP
