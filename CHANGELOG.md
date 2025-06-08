@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.32] - 2025-06-08
+
+### Fixed
+- CMake uses system-installed gRPC to avoid network downloads that caused
+  configuration stalls. FuseConcurrencyTest now builds and runs reliably.
+
+## [0.3.31] - 2025-06-08
+
+### Fixed
+- FuseConcurrencyTest now skips if the FUSE mount operation fails due to missing permissions.
+
+
+## [0.3.30] - 2025-06-08
+
+### Fixed
+- Added portable fallback logic to `preallocateFile` so FUSE filesystems
+  without full `ftruncate` support can still run `FuseConcurrencyTest`.
+
+## [0.3.29] - 2025-06-08
+
+### Fixed
+- Reverted mount detection change in the FUSE test wrapper and restored the
+  original sleep-based check.
+
 ## [0.3.28] - 2025-06-08
 
 ### Changed

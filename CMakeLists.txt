@@ -94,49 +94,7 @@ FetchContent_MakeAvailable(googletest)
 # version. Avoid calling find_package(Protobuf) to prevent duplicate
 # target definitions that lead to configuration errors.
 
-# Fetch gRPC and let it use its bundled dependencies
-FetchContent_Declare(
-  grpc
-  GIT_REPOSITORY https://github.com/grpc/grpc.git
-  GIT_TAG v1.54.2 # Stable gRPC version
-)
-
-# Get properties of grpc to know its source directory
-FetchContent_GetProperties(grpc)
-if(NOT grpc_POPULATED) # Ensure grpc is populated before trying to patch its files
-  FetchContent_Populate(grpc)
-endif()
-
-# --- Abseil GTest Download Fix ---
-# This path is relative to the build directory after grpc source is populated.
-set(ABSEIL_GTEST_CMAKE_PATH "${grpc_SOURCE_DIR}/third_party/abseil-cpp/CMake/Googletest/DownloadGTest.cmake")
-if(EXISTS ${ABSEIL_GTEST_CMAKE_PATH})
-  file(WRITE ${ABSEIL_GTEST_CMAKE_PATH}
-    "# This file is intentionally overwritten to prevent Abseil from downloading GoogleTest.
-    # The main project should provide GoogleTest.
-    message(STATUS \"Abseil GTest download disabled by project override.\")
-    ")
-  message(STATUS "Applied Abseil GTest download fix for gRPC.")
-else()
-  message(WARNING "Could not find ${ABSEIL_GTEST_CMAKE_PATH} to apply Abseil GTest download fix.")
-endif()
-# --- End Abseil GTest Download Fix ---
-
-# Set options for gRPC build
-# Ensure gRPC uses its own bundled protobuf
-set(gRPC_PROTOBUF_PROVIDER "module" CACHE STRING "Let gRPC find protobuf via CMAKE_MODULE_PATH (should use its own)" FORCE) # This is one way
-set(gRPC_ZLIB_PROVIDER "package" CACHE STRING "Let gRPC find zlib via find_package" FORCE) # Assuming zlib is available or fetched elsewhere
-# Alternatively, and often more robust for protobuf:
-set(gRPC_BUNDLED_PROTOBUF ON CACHE BOOL "Force gRPC to use its bundled protobuf" FORCE)
-
-set(gRPC_BUILD_TESTS OFF CACHE BOOL "Disable gRPC tests" FORCE)
-set(gRPC_INSTALL OFF CACHE BOOL "Disable installing gRPC" FORCE)
-# Other options that might be useful depending on project needs:
-# set(gRPC_BUILD_CODEGEN OFF CACHE BOOL "Disable gRPC codegen build" FORCE) # Usually ON
-# set(gRPC_BUILD_CSHARP_EXT OFF CACHE BOOL "Disable C# build" FORCE)
-
-# Make gRPC available
-FetchContent_MakeAvailable(grpc)
+# Use system-installed gRPC to avoid network downloads
 find_package(gRPC CONFIG REQUIRED)
 
 # Fetch yaml-cpp
