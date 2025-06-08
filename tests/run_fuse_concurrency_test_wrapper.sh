@@ -195,14 +195,14 @@ sleep 5 # Give it time to mount
 
 # Check FUSE Adapter and Mount
 if ! ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
-   echo "SKIP: FUSE adapter process ${FUSE_ADAPTER_PID} failed to start."
-   cleanup_and_exit 0
+   echo "ERROR: FUSE adapter process ${FUSE_ADAPTER_PID} failed to start."
+   cleanup_and_exit 1
 fi
 echo "INFO: FUSE Adapter PID: ${FUSE_ADAPTER_PID}"
 
 if ! mount | grep -q ${MOUNT_POINT}; then
-    echo "SKIP: Mount check: ${MOUNT_POINT} is not mounted."
-    cleanup_and_exit 0
+    echo "ERROR: Mount check: ${MOUNT_POINT} is not mounted."
+    cleanup_and_exit 1
 fi
 echo "INFO: FUSE successfully mounted at ${MOUNT_POINT}."
 
