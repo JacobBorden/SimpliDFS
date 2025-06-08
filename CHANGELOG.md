@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.33] - 2025-06-08
+
+### Changed
+- FuseConcurrencyTest now verifies success by comparing SHA-256 hashes of the expected and actual test file.
+
 ## [0.3.32] - 2025-06-08
 
 ### Fixed
