@@ -321,3 +321,37 @@ TEST_F(LoggerTest, LogBeforeInit) {
     // The Logger::getInstance() method already has a check for s_isInitialized.
     SUCCEED() << "Skipping direct test for 'log before init throws' due to singleton state and test order.";
 }
+
+TEST_F(LoggerTest, SetLogLevelEffect) {
+    const std::string logFile = "set_level_test.log";
+    addFileForCleanup(logFile);
+    std::remove(logFile.c_str());
+
+    ASSERT_NO_THROW(Logger::init(logFile, LogLevel::DEBUG));
+    Logger& logger = Logger::getInstance();
+
+    logger.setLogLevel(LogLevel::ERROR);
+    logger.log(LogLevel::WARN, "warn message");
+    logger.log(LogLevel::ERROR, "error message");
+
+    std::string contents = readFileContents(logFile);
+    EXPECT_EQ(contents.find("warn message"), std::string::npos);
+    EXPECT_NE(contents.find("error message"), std::string::npos);
+}
+
+TEST_F(LoggerTest, LogToConsoleOutputs) {
+    ASSERT_NO_THROW(Logger::init(Logger::CONSOLE_ONLY_OUTPUT, LogLevel::INFO));
+    Logger& logger = Logger::getInstance();
+
+    testing::internal::CaptureStdout();
+    logger.logToConsole(LogLevel::INFO, "console message");
+    std::string output = testing::internal::GetCapturedStdout();
+    EXPECT_NE(output.find("console message"), std::string::npos);
+
+    logger.setLogLevel(LogLevel::ERROR);
+    testing::internal::CaptureStdout();
+    logger.logToConsole(LogLevel::INFO, "ignored message");
+    output = testing::internal::GetCapturedStdout();
+    EXPECT_EQ(output, "");
+}
+

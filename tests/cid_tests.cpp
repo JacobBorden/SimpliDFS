@@ -83,3 +83,19 @@ TEST(CIDInvalidInputTest, HandlesInvalidCIDs) {
     ASSERT_NO_THROW(short_data_cid = cppcodec::base32_rfc4648::encode(short_data_bytes));
     ASSERT_THROW(sgns::utils::cid_to_digest(short_data_cid), std::runtime_error); // Decoded data too short overall.
 }
+
+TEST(CIDToBytesTest, ProducesCorrectByteVector) {
+    std::array<uint8_t, crypto_hash_sha256_BYTES> digest;
+    for (size_t i = 0; i < digest.size(); ++i) {
+        digest[i] = static_cast<uint8_t>(i);
+    }
+    std::string cid = sgns::utils::digest_to_cid(digest);
+
+    std::vector<uint8_t> result = sgns::utils::cid_to_bytes(cid);
+
+    std::vector<uint8_t> expected(sgns::utils::CID_PREFIX.begin(), sgns::utils::CID_PREFIX.end());
+    expected.insert(expected.end(), digest.begin(), digest.end());
+
+    ASSERT_EQ(result, expected);
+}
+
