@@ -5,7 +5,6 @@
 #include <thread>
 #include <numeric>      // For std::iota
 #include <algorithm>    // For std::sort
-#include <array>
 #include <sys/stat.h>   // For stat, S_ISDIR
 #include <unistd.h>     // For access()
 #include <cstdio>       // For std::remove
@@ -30,26 +29,6 @@ static std::string getFuseTestTimestamp() {
     return oss.str();
 }
 
-/**
- * @brief Compute the SHA-256 hash of a string.
- *
- * This helper wraps libsodium's SHA-256 functions to return the digest
- * for the provided input string.
- *
- * @param data Input string to hash.
- * @return SHA-256 digest bytes.
- */
-static std::array<unsigned char, crypto_hash_sha256_BYTES>
-compute_sha256(const std::string& data) {
-    crypto_hash_sha256_state state;
-    std::array<unsigned char, crypto_hash_sha256_BYTES> digest{};
-    crypto_hash_sha256_init(&state);
-    crypto_hash_sha256_update(&state,
-                              reinterpret_cast<const unsigned char*>(data.data()),
-                              data.size());
-    crypto_hash_sha256_final(&state, digest.data());
-    return digest;
-}
 
 // Configuration
 const std::string MOUNT_POINT = "/tmp/myfusemount"; // Adjust if your mount point is different
@@ -161,6 +140,13 @@ int main() {
         return 1;
     }
 
+    if (sodium_init() < 0) {
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: "
+                  << std::this_thread::get_id()
+                  << "] Failed to initialize libsodium." << std::endl;
+        return 1;
+    }
+
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Creating/truncating test file " << FULL_TEST_FILE_PATH << std::endl;
     std::ofstream pre_outfile(FULL_TEST_FILE_PATH, std::ios::out | std::ios::trunc | std::ios::binary);
     if (!pre_outfile.is_open()) {
@@ -216,12 +202,24 @@ int main() {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: File read for verification. Total lines (excl header): " << lines_read_from_file.size() << std::endl;
 
 
+    bool content_match_success = true;
+
     if (lines_read_from_file.size() != expected_total_lines) {
-        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION FAILED: Line count mismatch." << std::endl;
-        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Expected " << expected_total_lines << " lines (excluding header), but read " << lines_read_from_file.size() << " lines." << std::endl;
-        return 1;
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: "
+                  << std::this_thread::get_id()
+                  << "] VERIFICATION WARNING: Line count mismatch." << std::endl;
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: "
+                  << std::this_thread::get_id()
+                  << "] Expected " << expected_total_lines
+                  << " lines (excluding header), but read "
+                  << lines_read_from_file.size() << " lines." << std::endl;
+        content_match_success = false;
+    } else {
+        std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: "
+                  << std::this_thread::get_id()
+                  << "] Main: Line count matches expected: "
+                  << lines_read_from_file.size() << std::endl;
     }
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Line count matches expected: " << lines_read_from_file.size() << std::endl;
 
     std::vector<std::string> expected_lines_content;
     for (int i = 0; i < NUM_THREADS; ++i) {
@@ -232,8 +230,6 @@ int main() {
 
     std::sort(lines_read_from_file.begin(), lines_read_from_file.end());
     std::sort(expected_lines_content.begin(), expected_lines_content.end());
-
-    bool content_match_success = true;
     for (size_t i = 0; i < lines_read_from_file.size(); ++i) {
         if (lines_read_from_file[i] != expected_lines_content[i]) {
             std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION FAILED: Content mismatch at sorted line index " << i << std::endl;

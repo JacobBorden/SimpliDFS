@@ -23,6 +23,7 @@ add_executable(SimpliDFSTests
     concurrency_tests.cpp
     node_health_tracker_tests.cpp
     preallocate_file_tests.cpp
+    sha256_helper_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
