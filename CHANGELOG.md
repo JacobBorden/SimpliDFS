@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.28] - 2025-06-08
+
+### Changed
+- Updated `writeFileData` logging to reflect active writes to nodes.
+- Documented `readFileData` and `writeFileData` with Doxygen comments.
+
 ## [0.3.27] - 2025-06-08
 
 ### Fixed
