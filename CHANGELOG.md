@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.32] - 2025-06-08
+
+### Fixed
+- CMake uses system-installed gRPC to avoid network downloads that caused
+  configuration stalls. FuseConcurrencyTest now builds and runs reliably.
+
+## [0.3.31] - 2025-06-08
+
+### Fixed
+- FuseConcurrencyTest now skips if the FUSE mount operation fails due to missing permissions.
+
 ## [0.3.30] - 2025-06-08
 
 ### Fixed

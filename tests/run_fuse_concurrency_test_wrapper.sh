@@ -196,12 +196,20 @@ sleep 5 # Give it time to mount
 # Check FUSE Adapter and Mount
 if ! ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
    echo "ERROR: FUSE adapter process ${FUSE_ADAPTER_PID} failed to start."
+   if grep -q "Operation not permitted" "${FUSE_ADAPTER_STDOUT_LOG}" 2>/dev/null; then
+       echo "SKIP: FUSE mount operation not permitted. Skipping test."
+       cleanup_and_exit 0
+   fi
    cleanup_and_exit 1
 fi
 echo "INFO: FUSE Adapter PID: ${FUSE_ADAPTER_PID}"
 
 if ! mount | grep -q ${MOUNT_POINT}; then
     echo "ERROR: Mount check: ${MOUNT_POINT} is not mounted."
+    if grep -q "Operation not permitted" "${FUSE_ADAPTER_STDOUT_LOG}" 2>/dev/null; then
+        echo "SKIP: FUSE mount failed due to insufficient permissions."
+        cleanup_and_exit 0
+    fi
     cleanup_and_exit 1
 fi
 echo "INFO: FUSE successfully mounted at ${MOUNT_POINT}."
