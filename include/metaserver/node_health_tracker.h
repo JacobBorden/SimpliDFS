@@ -15,7 +15,7 @@ public:
      * @brief Construct with the given dead threshold.
      * @param threshold Duration after which a node is considered dead.
      */
-    explicit NodeHealthTracker(std::chrono::seconds threshold = std::chrono::seconds(30));
+    explicit NodeHealthTracker(std::chrono::milliseconds threshold = std::chrono::seconds(30));
 
     /** Record a successful RPC to the given node. */
     void recordSuccess(const std::string &nodeId);
@@ -28,10 +28,10 @@ public:
     bool isNodeDead(const std::string &nodeId) const;
 
     /** Change the dead threshold. */
-    void setThreshold(std::chrono::seconds threshold);
+    void setThreshold(std::chrono::milliseconds threshold);
 
 private:
-    std::chrono::seconds deadThreshold_;
+    std::chrono::milliseconds deadThreshold_;
     mutable std::mutex mutex_;
     std::unordered_map<std::string, TimePoint> lastSuccess_;
 };

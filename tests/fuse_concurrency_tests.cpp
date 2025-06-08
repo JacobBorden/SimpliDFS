@@ -17,7 +17,6 @@
 // Helper for timestamp logging in this specific test file
 static std::string getFuseTestTimestamp() {
     auto now = std::chrono::system_clock::now();
-    auto now_c = std::chrono::system_clock::to_time_t(now);
     std::ostringstream oss;
     std::time_t t = std::chrono::system_clock::to_time_t(now);
     std::tm bt = *std::localtime(&t); // Ensure this is thread-safe if heavily used in multithreaded logging directly

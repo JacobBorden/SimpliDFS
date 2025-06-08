@@ -4,7 +4,7 @@
 
 #include "metaserver/node_health_tracker.h"
 
-NodeHealthTracker::NodeHealthTracker(std::chrono::seconds threshold)
+NodeHealthTracker::NodeHealthTracker(std::chrono::milliseconds threshold)
     : deadThreshold_(threshold) {}
 
 void NodeHealthTracker::recordSuccess(const std::string &nodeId) {
@@ -27,7 +27,7 @@ bool NodeHealthTracker::isNodeDead(const std::string &nodeId) const {
     return (now - it->second) > deadThreshold_;
 }
 
-void NodeHealthTracker::setThreshold(std::chrono::seconds threshold) {
+void NodeHealthTracker::setThreshold(std::chrono::milliseconds threshold) {
     // Update the duration after which nodes are considered dead
     deadThreshold_ = threshold;
 }

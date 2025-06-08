@@ -13,6 +13,18 @@
 ### Changed
 - Expanded comments in `node_health_tracker.cpp` for clarity.
 
+## [0.3.24] - 2025-06-07
+
+### Fixed
+- Resolved compilation error in `FuseConcurrencyTest` caused by an unused
+  variable in `getFuseTestTimestamp`.
+
+## [0.3.25] - 2025-06-08
+
+### Fixed
+- Adjusted `NodeHealthTracker` to use millisecond thresholds so tests compile
+  correctly.
+
 ## [0.3.21] - 2025-06-07
 
 ### Added
