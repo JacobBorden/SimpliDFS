@@ -65,6 +65,7 @@ add_executable(SimpliDFSFuseConcurrencyTest
 target_link_libraries(SimpliDFSFuseConcurrencyTest
     PRIVATE
     Threads::Threads
+    ${SODIUM_LIBRARIES}
 )
 
 # Add the FUSE concurrency test to CTest

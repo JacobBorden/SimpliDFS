@@ -5,6 +5,7 @@
 #include <thread>
 #include <numeric>      // For std::iota
 #include <algorithm>    // For std::sort
+#include <array>
 #include <sys/stat.h>   // For stat, S_ISDIR
 #include <unistd.h>     // For access()
 #include <cstdio>       // For std::remove
@@ -13,6 +14,7 @@
 #include <sstream>      // For std::ostringstream
 #include <mutex>
 #include <condition_variable>
+#include <sodium.h>      // For SHA-256 hashing
 #include "fuse_concurrency_test_utils.hpp"
 
 // Helper for timestamp logging in this specific test file
@@ -26,6 +28,27 @@ static std::string getFuseTestTimestamp() {
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     oss << '.' << std::setfill('0') << std::setw(3) << ms.count();
     return oss.str();
+}
+
+/**
+ * @brief Compute the SHA-256 hash of a string.
+ *
+ * This helper wraps libsodium's SHA-256 functions to return the digest
+ * for the provided input string.
+ *
+ * @param data Input string to hash.
+ * @return SHA-256 digest bytes.
+ */
+static std::array<unsigned char, crypto_hash_sha256_BYTES>
+compute_sha256(const std::string& data) {
+    crypto_hash_sha256_state state;
+    std::array<unsigned char, crypto_hash_sha256_BYTES> digest{};
+    crypto_hash_sha256_init(&state);
+    crypto_hash_sha256_update(&state,
+                              reinterpret_cast<const unsigned char*>(data.data()),
+                              data.size());
+    crypto_hash_sha256_final(&state, digest.data());
+    return digest;
 }
 
 // Configuration
@@ -219,13 +242,41 @@ int main() {
         }
     }
 
-    if (content_match_success) {
-        std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION SUCCESSFUL: All written lines are present and correctly written." << std::endl;
-    } else {
+    if (!content_match_success) {
         std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] VERIFICATION FAILED: Data integrity issues detected." << std::endl;
-        return 1;
+    }
+
+    // Compute expected and actual SHA-256 hashes to determine final pass/fail
+    std::string expected_combined = HEADER_LINE;
+    for (int i = 0; i < NUM_THREADS; ++i) {
+        for (int j = 0; j < NUM_LINES_PER_THREAD; ++j) {
+            expected_combined += generate_line_content(i, j) + '\n';
+        }
+    }
+
+    std::ifstream full_in(FULL_TEST_FILE_PATH, std::ios::in | std::ios::binary);
+    std::string actual_contents((std::istreambuf_iterator<char>(full_in)),
+                               std::istreambuf_iterator<char>());
+    full_in.close();
+
+    auto digest_exp = compute_sha256(expected_combined);
+    auto digest_act = compute_sha256(actual_contents);
+
+    bool hashes_match = std::equal(digest_exp.begin(), digest_exp.end(), digest_act.begin());
+    std::ostringstream exp_hex; exp_hex << std::hex << std::setfill('0');
+    std::ostringstream act_hex; act_hex << std::hex << std::setfill('0');
+    for (unsigned char c : digest_exp) exp_hex << std::setw(2) << static_cast<int>(c);
+    for (unsigned char c : digest_act) act_hex << std::setw(2) << static_cast<int>(c);
+
+    if (hashes_match) {
+        std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Hash verification successful." << std::endl;
+    } else {
+        std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Hash mismatch!" << std::endl;
+        std::cerr << "Expected SHA256: " << exp_hex.str() << std::endl;
+        std::cerr << "Actual   SHA256: " << act_hex.str() << std::endl;
     }
 
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Main: Test finished." << std::endl;
-    return 0;
+
+    return hashes_match ? 0 : 1;
 }
