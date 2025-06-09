@@ -371,6 +371,17 @@ public:
                       const std::string& data_to_write,
                       uint64_t& out_size_written);
 
+    /**
+     * @brief Truncate or extend a file to the specified size.
+     *
+     * Updates internal metadata to reflect the new file size.
+     *
+     * @param filename Name of the file to modify.
+     * @param size     Desired size in bytes.
+     * @return 0 on success or an error code on failure.
+     */
+    int truncateFile(const std::string& filename, uint64_t size);
+
     int renameFileEntry(const std::string& old_filename, const std::string& new_filename);
 
     // Existing methods (signatures mostly unchanged, but implementations might need review for new members)
