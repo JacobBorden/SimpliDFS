@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.35] - 2025-06-08
+
+### Fixed
+- Improved FuseConcurrencyTest verification to address header, line count, and hash mismatches.
+
 ## [0.3.34] - 2025-06-08
 
 ### Added
