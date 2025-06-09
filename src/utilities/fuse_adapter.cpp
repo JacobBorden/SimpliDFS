@@ -578,6 +578,7 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
         StorageNodeClient snc;
         snc.client = storage_node_client;
+        snc.path = path_str;
 
         std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
         data->active_storage_clients[fi->fh] = snc;
@@ -856,12 +857,19 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 }
 
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi) {
-    (void)fi;
     FuseLatency metric("write");
     std::string path_str(path);
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (path_str.empty() && data) {
+        std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
+        auto it = data->active_storage_clients.find(fi->fh);
+        if (it != data->active_storage_clients.end()) {
+            path_str = it->second.path;
+        }
+    }
     Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Entry for path: " + path_str + ", size: " + std::to_string(size) + ", offset: " + std::to_string(offset));
 
-    SimpliDfsFuseData* data = get_fuse_data();
+    data = get_fuse_data();
     if (!data || !data->metadata_client) {
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: FUSE data or metadata_client not available for " + path_str);
         return -EIO;

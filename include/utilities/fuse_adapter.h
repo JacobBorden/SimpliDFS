@@ -29,6 +29,7 @@
 // Structure to hold client connection to a storage node
 struct StorageNodeClient {
     Networking::Client* client = nullptr;
+    std::string path; ///< File path associated with this client
     // std::string node_id; // Optional: Could be added later if needed for logic/debugging
     // std::string node_address; // Optional: Could be added later
 };

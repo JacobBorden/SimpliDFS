@@ -11,6 +11,13 @@
 - Added additional fallback logic to `preallocateFile` for filesystems lacking
   `posix_fallocate` support, resolving test setup failures on FUSE.
 
+## [0.3.37] - 2025-06-09
+
+### Fixed
+- Stored file paths alongside open handles so `simpli_write` can recover the
+  path when FUSE provides an empty string. This resolves preallocation failures
+  in `FuseConcurrencyTest`.
+
 ## [0.3.34] - 2025-06-08
 
 ### Added
