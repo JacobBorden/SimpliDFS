@@ -278,3 +278,64 @@ TEST_F(MetadataManagerTest, ApplySnapshotDeltaAddsFile) {
 
     sa.stop(); sb.stop(); sc.stop();
 }
+
+TEST_F(MetadataManagerTest, ReadFileDataReturnsWrittenContent) {
+    const std::string filename = "readback.txt";
+    const uint32_t mode = 0100644;
+    const std::string node1 = "NodeRead1";
+    const std::string node2 = "NodeRead2";
+    const std::string node3 = "NodeRead3";
+
+    metadataManager.registerNode(node1, "127.0.0.1", 17001);
+    metadataManager.registerNode(node2, "127.0.0.1", 17002);
+    metadataManager.registerNode(node3, "127.0.0.1", 17003);
+
+    struct ReadServer {
+        Networking::Server server;
+        std::thread th;
+        std::string payload;
+        ReadServer(int port, const std::string& data, int expected)
+            : server(port), payload(data) {
+            server.startListening();
+            th = std::thread([this, expected]() {
+                for (int i = 0; i < expected; ++i) {
+                    auto c = server.Accept();
+                    auto raw = server.Receive(c);
+                    if (!raw.empty()) {
+                        Message m = Message::Deserialize(std::string(raw.begin(), raw.end()));
+                        if (m._Type == MessageType::ReadFile) {
+                            server.Send(payload.c_str(), c);
+                        } else {
+                            server.Send("", c);
+                        }
+                    } else {
+                        server.Send("", c);
+                    }
+                    server.DisconnectClient(c);
+                }
+            });
+        }
+        void stop() {
+            if (th.joinable()) th.join();
+            server.Shutdown();
+        }
+    };
+
+    ReadServer s1(17001, "hello world", 5);
+    DummyServer s2(17002,2), s3(17003,2);
+
+    std::vector<std::string> nodes = {node1, node2, node3};
+    ASSERT_EQ(metadataManager.addFile(filename, nodes, mode), 0);
+
+    uint64_t written = 0;
+    ASSERT_EQ(metadataManager.writeFileData(filename, 0, "hello world", written), 0);
+    ASSERT_EQ(written, static_cast<uint64_t>(11));
+
+    std::string out;
+    uint64_t read = 0;
+    ASSERT_EQ(metadataManager.readFileData(filename, 0, 5, out, read), 0);
+    EXPECT_EQ(read, 5u);
+    EXPECT_EQ(out, "hello");
+
+    s1.stop(); s2.stop(); s3.stop();
+}
