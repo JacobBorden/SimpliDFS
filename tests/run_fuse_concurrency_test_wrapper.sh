@@ -65,36 +65,106 @@ done
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"
     EXIT_STATUS=$1
+    PIDS_TO_WAIT_ON=()
 
     # Kill FUSE adapter first
-    if [ -n "${FUSE_ADAPTER_PID}" ] && ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
-        echo "INFO: Killing FUSE adapter PID ${FUSE_ADAPTER_PID}..."
-        kill ${FUSE_ADAPTER_PID}
-        wait ${FUSE_ADAPTER_PID} 2>/dev/null || true
+    FUSE_ADAPTER_PID_TO_KILL=""
+    if [ -f /tmp/fuse_adapter_wrapper.pid ]; then
+        FUSE_ADAPTER_PID_FROM_FILE=$(cat /tmp/fuse_adapter_wrapper.pid)
+        if [ -n "${FUSE_ADAPTER_PID_FROM_FILE}" ] && ps -p ${FUSE_ADAPTER_PID_FROM_FILE} > /dev/null; then
+            FUSE_ADAPTER_PID_TO_KILL=${FUSE_ADAPTER_PID_FROM_FILE}
+        elif [ -n "${FUSE_ADAPTER_PID_FROM_FILE}" ]; then
+             echo "INFO: FUSE adapter PID ${FUSE_ADAPTER_PID_FROM_FILE} from PID file not found running prior to kill."
+        fi
+    elif [ -n "${FUSE_ADAPTER_PID}" ] && ps -p ${FUSE_ADAPTER_PID} > /dev/null; then # Fallback to global var if PID file missing
+        FUSE_ADAPTER_PID_TO_KILL=${FUSE_ADAPTER_PID}
+        echo "WARN: FUSE adapter PID file missing, using global PID ${FUSE_ADAPTER_PID} for cleanup."
+    fi
+
+    if [ -n "${FUSE_ADAPTER_PID_TO_KILL}" ]; then
+        echo "INFO: Attempting to kill FUSE adapter PID ${FUSE_ADAPTER_PID_TO_KILL}..."
+        kill ${FUSE_ADAPTER_PID_TO_KILL}
+        PIDS_TO_WAIT_ON+=(${FUSE_ADAPTER_PID_TO_KILL})
+    else
+        echo "INFO: FUSE adapter process not found or PID file missing, skipping kill."
     fi
 
     # Kill Storage Nodes
-    for pid in "${NODE_WRAPPER_PIDS[@]}"; do
-        if [ -n "$pid" ] && ps -p $pid > /dev/null; then
-            echo "INFO: Killing NodeWrapper PID $pid..."
-            kill $pid
-            wait $pid 2>/dev/null || true
+    for i in $(seq 0 $((${#NODE_WRAPPER_PIDS[@]}-1))); do
+        # Prioritize PID from the array if available, then from file.
+        NODE_PID_TO_KILL=""
+        NODE_PID_ARRAY_VAL=${NODE_WRAPPER_PIDS[$i]}
+        NODE_PID_FILE_VAL=""
+        if [ -f "${NODE_WRAPPER_PID_FILES[$i]}" ]; then
+            NODE_PID_FILE_VAL=$(cat "${NODE_WRAPPER_PID_FILES[$i]}")
+        fi
+
+        node_name_for_cleanup="NodeWrapper$((i+1))"
+
+        if [ -n "$NODE_PID_ARRAY_VAL" ] && ps -p "$NODE_PID_ARRAY_VAL" > /dev/null; then
+            NODE_PID_TO_KILL=$NODE_PID_ARRAY_VAL
+            if [ -n "$NODE_PID_FILE_VAL" ] && [ "$NODE_PID_ARRAY_VAL" != "$NODE_PID_FILE_VAL" ]; then
+                echo "WARN: $node_name_for_cleanup PID mismatch: array ($NODE_PID_ARRAY_VAL) vs file ($NODE_PID_FILE_VAL). Using array PID."
+            fi
+        elif [ -n "$NODE_PID_FILE_VAL" ] && ps -p "$NODE_PID_FILE_VAL" > /dev/null; then
+            NODE_PID_TO_KILL=$NODE_PID_FILE_VAL
+            echo "WARN: $node_name_for_cleanup PID for running process taken from file ($NODE_PID_FILE_VAL) as array PID ($NODE_PID_ARRAY_VAL) not running or invalid."
+        elif [ -n "$NODE_PID_ARRAY_VAL" ] || [ -n "$NODE_PID_FILE_VAL" ]; then
+             echo "INFO: $node_name_for_cleanup PID $NODE_PID_ARRAY_VAL (array) or $NODE_PID_FILE_VAL (file) not found running prior to kill."
+        fi
+
+        if [ -n "${NODE_PID_TO_KILL}" ]; then
+            echo "INFO: Attempting to kill $node_name_for_cleanup PID ${NODE_PID_TO_KILL}..."
+            kill ${NODE_PID_TO_KILL}
+            PIDS_TO_WAIT_ON+=(${NODE_PID_TO_KILL})
+        else
+            # This case is already covered by the "not found running prior to kill" message above.
+            # echo "INFO: $node_name_for_cleanup process not found, skipping kill."
+            : # No operation needed here, placeholder for clarity
         fi
     done
 
     # Kill Metaserver
-    if [ -n "${METASERVER_PID}" ] && ps -p ${METASERVER_PID} > /dev/null; then
-        echo "INFO: Killing Metaserver PID ${METASERVER_PID}..."
-        kill ${METASERVER_PID}
-        wait ${METASERVER_PID} 2>/dev/null || true
+    METASERVER_PID_TO_KILL=""
+    if [ -f /tmp/metaserver_wrapper.pid ]; then
+        METASERVER_PID_FROM_FILE=$(cat /tmp/metaserver_wrapper.pid)
+        if [ -n "${METASERVER_PID_FROM_FILE}" ] && ps -p ${METASERVER_PID_FROM_FILE} > /dev/null; then
+            METASERVER_PID_TO_KILL=${METASERVER_PID_FROM_FILE}
+        elif [ -n "${METASERVER_PID_FROM_FILE}" ]; then
+            echo "INFO: Metaserver PID ${METASERVER_PID_FROM_FILE} from PID file not found running prior to kill."
+        fi
+    elif [ -n "${METASERVER_PID}" ] && ps -p ${METASERVER_PID} > /dev/null; then # Fallback to global var
+        METASERVER_PID_TO_KILL=${METASERVER_PID}
+        echo "WARN: Metaserver PID file missing, using global PID ${METASERVER_PID} for cleanup."
     fi
 
-    echo "INFO: Unmounting ${MOUNT_POINT}..."
-    fusermount3 -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-       fusermount -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-       umount ${MOUNT_POINT} > /dev/null 2>&1 || true
+    if [ -n "${METASERVER_PID_TO_KILL}" ]; then
+        echo "INFO: Attempting to kill Metaserver PID ${METASERVER_PID_TO_KILL}..."
+        kill ${METASERVER_PID_TO_KILL}
+        PIDS_TO_WAIT_ON+=(${METASERVER_PID_TO_KILL})
+    else
+        echo "INFO: Metaserver process not found or PID file missing, skipping kill."
+    fi
+
+    # Wait for all killed processes
+    if [ ${#PIDS_TO_WAIT_ON[@]} -gt 0 ]; then
+        echo "INFO: Waiting for PIDs: ${PIDS_TO_WAIT_ON[*]} to terminate..."
+        for pid_to_wait in "${PIDS_TO_WAIT_ON[@]}"; do
+            wait ${pid_to_wait} 2>/dev/null || echo "WARN: Process ${pid_to_wait} may not have terminated cleanly or was already dead."
+        done
+        echo "INFO: Finished waiting for PIDs."
+    else
+        echo "INFO: No PIDs were marked for waiting."
+    fi
+
+    echo "INFO: Attempting to unmount ${MOUNT_POINT}..."
+    # Try fusermount3 first, then fusermount, then umount
+    fusermount3 -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+       fusermount -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+       umount "${MOUNT_POINT}" > /dev/null 2>&1 || true
 
     # Remove PID files (log files removal can be separate or here)
+    echo "INFO: Removing PID files..."
     rm -f /tmp/metaserver_wrapper.pid /tmp/fuse_adapter_wrapper.pid
     for pid_file in "${NODE_WRAPPER_PID_FILES[@]}"; do
         rm -f "$pid_file"
@@ -125,18 +195,54 @@ cleanup_and_exit() {
 }
 
 # Start Metaserver
-echo "INFO: Starting Metaserver on port ${METASERVER_PORT}..."
+echo "INFO: Attempting to start Metaserver on port ${METASERVER_PORT}..."
 ${METASERVER_EXEC} ${METASERVER_PORT} > ${METASERVER_LOG} 2>&1 &
 METASERVER_PID=$!
 echo ${METASERVER_PID} > /tmp/metaserver_wrapper.pid
-sleep 2 # Give it a moment to start
+echo "INFO: Metaserver process initiated with PID: ${METASERVER_PID}"
 
-# Check Metaserver
-if ! ps -p ${METASERVER_PID} > /dev/null; then
-   echo "ERROR: Metaserver process ${METASERVER_PID} failed to start or died."
-   cleanup_and_exit 1
+echo "INFO: Waiting for Metaserver (PID: ${METASERVER_PID}) to be ready..."
+MS_READY=0
+# Max attempts for metaserver readiness
+MS_MAX_ATTEMPTS=10
+MS_SLEEP_INTERVAL=0.5
+
+for i in $(seq 1 ${MS_MAX_ATTEMPTS}); do
+    if ! ps -p ${METASERVER_PID} > /dev/null; then
+        echo "ERROR: Metaserver process ${METASERVER_PID} died during startup."
+        cleanup_and_exit 1
+    fi
+
+    # Attempt to connect using netcat as primary check
+    if command -v nc >/dev/null && nc -z 127.0.0.1 ${METASERVER_PORT} >/dev/null 2>&1; then
+        echo "INFO: Metaserver detected as ready via netcat on port ${METASERVER_PORT} (attempt $i/${MS_MAX_ATTEMPTS})."
+        MS_READY=1
+        break
+    fi
+
+    # Fallback: Check for a specific log message if nc failed or not available
+    # Adjust "Metaserver listening on port" to the actual success message in your metaserver's log
+    if grep -q "Metaserver listening on port" "${METASERVER_LOG}"; then
+        echo "INFO: Metaserver detected as ready via log message in ${METASERVER_LOG} (attempt $i/${MS_MAX_ATTEMPTS})."
+        MS_READY=1
+        break
+    fi
+
+    echo "INFO: Metaserver not ready yet (attempt $i/${MS_MAX_ATTEMPTS}), waiting ${MS_SLEEP_INTERVAL}s..."
+    sleep ${MS_SLEEP_INTERVAL}
+done
+
+if [ "$MS_READY" -eq 0 ]; then
+    echo "ERROR: Metaserver failed to become ready on port ${METASERVER_PORT} after ${MS_MAX_ATTEMPTS} attempts."
+    # Additional check to confirm if process is still running
+    if ! ps -p ${METASERVER_PID} > /dev/null; then
+        echo "ERROR: Metaserver process ${METASERVER_PID} is not running at timeout."
+    else
+        echo "INFO: Metaserver process ${METASERVER_PID} is running but did not signal readiness (port unresponsive and log message not found)."
+    fi
+    cleanup_and_exit 1
 fi
-echo "INFO: Metaserver PID: ${METASERVER_PID}"
+echo "INFO: Metaserver started successfully. PID: ${METASERVER_PID}"
 
 # Start Storage Nodes
 echo "INFO: Starting Storage Nodes..."
@@ -185,34 +291,56 @@ echo "INFO: All storage nodes started successfully."
 sleep 2 # Give nodes time to register with metaserver
 
 # Start FUSE adapter
-echo "INFO: Starting FUSE adapter..."
+echo "INFO: Attempting to start FUSE adapter..."
 # The -f flag keeps fuse in the foreground for its own process, but we still background the script's execution of it.
 ${FUSE_ADAPTER_EXEC} 127.0.0.1 ${METASERVER_PORT} ${MOUNT_POINT} -f > ${FUSE_ADAPTER_STDOUT_LOG} 2>&1 &
 FUSE_ADAPTER_PID=$!
 echo ${FUSE_ADAPTER_PID} > /tmp/fuse_adapter_wrapper.pid
-echo "INFO: Waiting for FUSE adapter to mount (5 seconds)..."
-sleep 5 # Give it time to mount
+echo "INFO: FUSE adapter process initiated with PID: ${FUSE_ADAPTER_PID}"
 
-# Check FUSE Adapter and Mount
-if ! ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
-   echo "ERROR: FUSE adapter process ${FUSE_ADAPTER_PID} failed to start."
-   if grep -q "Operation not permitted" "${FUSE_ADAPTER_STDOUT_LOG}" 2>/dev/null; then
-       echo "SKIP: FUSE mount operation not permitted. Skipping test."
-       cleanup_and_exit 0
-   fi
-   cleanup_and_exit 1
-fi
-echo "INFO: FUSE Adapter PID: ${FUSE_ADAPTER_PID}"
+echo "INFO: Waiting for FUSE adapter (PID: ${FUSE_ADAPTER_PID}) to mount ${MOUNT_POINT}..."
+MOUNT_READY=0
+# Max attempts for FUSE adapter readiness
+FUSE_MAX_ATTEMPTS=10
+FUSE_SLEEP_INTERVAL=1 # Increased sleep interval for FUSE mount
 
-if ! mount | grep -q ${MOUNT_POINT}; then
-    echo "ERROR: Mount check: ${MOUNT_POINT} is not mounted."
+for i in $(seq 1 ${FUSE_MAX_ATTEMPTS}); do
+    if ! ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
+        echo "ERROR: FUSE adapter process ${FUSE_ADAPTER_PID} died during startup or mount attempt."
+        # Check common reason for FUSE failure
+        if grep -q "Operation not permitted" "${FUSE_ADAPTER_STDOUT_LOG}" 2>/dev/null; then
+            echo "SKIP: FUSE mount operation not permitted. Skipping test based on log."
+            cleanup_and_exit 0 # Exit with 0 for skip
+        fi
+        cleanup_and_exit 1
+    fi
+
+    # Check if mount point is active
+    if mount | grep -q "${MOUNT_POINT}"; then
+        echo "INFO: FUSE adapter mounted ${MOUNT_POINT} successfully (attempt $i/${FUSE_MAX_ATTEMPTS})."
+        MOUNT_READY=1
+        break
+    fi
+
+    echo "INFO: Mount point ${MOUNT_POINT} not ready yet (attempt $i/${FUSE_MAX_ATTEMPTS}). FUSE PID ${FUSE_ADAPTER_PID} is running. Waiting ${FUSE_SLEEP_INTERVAL}s..."
+    sleep ${FUSE_SLEEP_INTERVAL}
+done
+
+if [ "$MOUNT_READY" -eq 0 ]; then
+    echo "ERROR: FUSE adapter failed to mount ${MOUNT_POINT} after ${FUSE_MAX_ATTEMPTS} attempts."
+    if ! ps -p ${FUSE_ADAPTER_PID} > /dev/null; then
+        echo "ERROR: FUSE adapter process ${FUSE_ADAPTER_PID} is not running at timeout."
+    else
+        echo "INFO: FUSE adapter process ${FUSE_ADAPTER_PID} is running but mount point '${MOUNT_POINT}' not detected."
+    fi
+    # Check common reason for FUSE failure again on timeout
     if grep -q "Operation not permitted" "${FUSE_ADAPTER_STDOUT_LOG}" 2>/dev/null; then
-        echo "SKIP: FUSE mount failed due to insufficient permissions."
-        cleanup_and_exit 0
+        echo "SKIP: FUSE mount operation not permitted. Skipping test based on log during timeout."
+        cleanup_and_exit 0 # Exit with 0 for skip
     fi
     cleanup_and_exit 1
 fi
-echo "INFO: FUSE successfully mounted at ${MOUNT_POINT}."
+echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_PID}, Mount: ${MOUNT_POINT}"
 
 # Run the actual test
 echo "INFO: Running SimpliDFSFuseConcurrencyTest..."

@@ -8,6 +8,9 @@
 #include <sys/stat.h>
 #include <array>
 #include <sodium.h>
+#include <iostream> // For std::cerr
+#include <cstring>  // For strerror
+#include <cerrno>   // For errno
 
 /**
  * @brief Preallocate a file to ensure writes beyond EOF succeed.
@@ -23,28 +26,103 @@
 inline bool preallocateFile(const std::string& path, off_t size) {
     int fd = ::open(path.c_str(), O_RDWR | O_CREAT, 0666);
     if (fd < 0) {
+        std::cerr << "preallocateFile Error: Failed to open file '" << path << "': " << strerror(errno) << std::endl;
         return false;
     }
 
-    bool success = true;
+    bool success = true; // Assume success initially
 
-    if (ftruncate(fd, size) != 0) {
-        success = false;
-    }
 #ifdef __linux__
-    if (posix_fallocate(fd, 0, size) != 0) {
-        // Fallback to manual extension when posix_fallocate is unsupported
-        if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
+    // Attempt posix_fallocate first on Linux
+    int fallocate_ret = posix_fallocate(fd, 0, size);
+    if (fallocate_ret == 0) {
+        // posix_fallocate succeeded
+    } else {
+        // posix_fallocate failed, log it and try ftruncate as a primary fallback
+        std::cerr << "preallocateFile Info: posix_fallocate for '" << path << "' to size " << size
+                  << " failed: " << strerror(fallocate_ret) // posix_fallocate returns errno value directly
+                  << ". Attempting ftruncate and manual write." << std::endl;
+
+        if (ftruncate(fd, size) != 0) {
+            std::cerr << "preallocateFile Error: ftruncate for '" << path << "' to size " << size
+                      << " failed: " << strerror(errno) << std::endl;
             success = false;
+            // Even if ftruncate fails, attempt the manual write as a last resort if size > 0
+        }
+
+        // Fallback to manual extension if ftruncate failed or if we want to be absolutely sure (e.g. for older systems or specific FS)
+        // This is particularly important if size is 0, as lseek to -1 is invalid.
+        if (success && size > 0) { // Only try seek/write if ftruncate seemed to work and size is positive
+            if (lseek(fd, size - 1, SEEK_SET) == -1) {
+                std::cerr << "preallocateFile Error: lseek for '" << path << "' to offset " << (size - 1)
+                          << " failed: " << strerror(errno) << std::endl;
+                success = false;
+            } else {
+                if (::write(fd, "", 1) != 1) {
+                    std::cerr << "preallocateFile Error: write of last byte for '" << path << "' at offset " << (size - 1)
+                              << " failed: " << strerror(errno) << std::endl;
+                    success = false;
+                }
+            }
+        } else if (size == 0 && success) {
+            // If size is 0, ftruncate should have already set it. No need for seek/write.
+            // If ftruncate failed for size 0, success would be false.
+        } else if (!success && size > 0) {
+             std::cerr << "preallocateFile Info: Skipping manual extension for '" << path << "' due to prior ftruncate failure." << std::endl;
         }
     }
-#else
-    if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
+#else // Non-Linux systems (e.g., macOS)
+    // On non-Linux, try ftruncate first
+    if (ftruncate(fd, size) != 0) {
+        std::cerr << "preallocateFile Error: ftruncate for '" << path << "' to size " << size
+                  << " failed: " << strerror(errno) << std::endl;
         success = false;
+    }
+
+    // Fallback to manual extension if ftruncate failed or if it's the standard way (e.g. on macOS)
+    // This is particularly important if size is 0, as lseek to -1 is invalid.
+    if (success && size > 0) { // Only try seek/write if ftruncate seemed to work and size is positive
+        if (lseek(fd, size - 1, SEEK_SET) == -1) {
+            std::cerr << "preallocateFile Error: lseek for '" << path << "' to offset " << (size - 1)
+                      << " failed: " << strerror(errno) << std::endl;
+            success = false;
+        } else {
+            if (::write(fd, "", 1) != 1) {
+                std::cerr << "preallocateFile Error: write of last byte for '" << path << "' at offset " << (size -1)
+                          << " failed: " << strerror(errno) << std::endl;
+                success = false;
+            }
+        }
+    } else if (size == 0 && success) {
+        // If size is 0, ftruncate should have already set it.
+    } else if (!success && size > 0) {
+        std::cerr << "preallocateFile Info: Skipping manual extension for '" << path << "' due to prior ftruncate failure." << std::endl;
     }
 #endif
 
-    ::close(fd);
+    // Post-preallocation size check
+    if (success) { // Only check size if allocation attempts were thought to be successful
+        struct stat sb;
+        if (fstat(fd, &sb) == -1) {
+            std::cerr << "preallocateFile Error: fstat failed for file '" << path << "': " << strerror(errno) << std::endl;
+            success = false;
+        } else {
+            if (sb.st_size != size) {
+                std::cerr << "preallocateFile Error: Size mismatch for file '" << path
+                          << "'. Expected: " << size << ", Actual: " << sb.st_size << std::endl;
+                success = false;
+            } else {
+                 std::cout << "preallocateFile Info: Size check for '" << path << "' PASSED. Expected: " << size << ", Actual: " << sb.st_size << std::endl;
+            }
+        }
+    }
+
+
+    if (::close(fd) != 0 && success) { // If we thought we were successful, but close fails, then we are not.
+        std::cerr << "preallocateFile Error: Failed to close file descriptor for '" << path << "': " << strerror(errno) << std::endl;
+        success = false; // Mark as failure if close fails
+    }
+
     return success;
 }
 
