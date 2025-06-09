@@ -318,37 +318,92 @@ int MetadataManager::openFile(const std::string& filename, uint32_t flags) {
     return 0;
 }
 
-int MetadataManager::readFileData(const std::string& filename, int64_t offset, uint64_t size_to_read, std::string& out_data, uint64_t& out_size_read) {
+int MetadataManager::readFileData(const std::string& filename,
+                                  int64_t offset,
+                                  uint64_t size_to_read,
+                                  std::string& out_data,
+                                  uint64_t& out_size_read) {
     if (!waitForFileMetadata(filename)) {
         return ENOENT;
     }
-    std::lock_guard<std::mutex> lock(metadataMutex);
-    Logger::getInstance().log(LogLevel::WARN, "[MetadataManager] readFileData: Actual read from storage node not implemented. Returning placeholder for " + filename);
 
-    // Using stored size for more realistic placeholder behavior
-    uint64_t current_file_size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
+    std::vector<std::pair<std::string, std::string>> nodeAddrs;
+    uint64_t current_file_size = 0;
+    {
+        std::lock_guard<std::mutex> lock(metadataMutex);
+        auto nodes = fileMetadata[filename];
+        for (const auto& n : nodes) {
+            auto it = registeredNodes.find(n);
+            if (it != registeredNodes.end()) {
+                nodeAddrs.emplace_back(n, it->second.nodeAddress);
+            }
+        }
+        current_file_size = fileSizes.count(filename) ? fileSizes.at(filename) : 0;
+    }
+
+    if (nodeAddrs.empty()) {
+        Logger::getInstance().log(LogLevel::ERROR,
+            "[MetadataManager] readFileData: no available replicas for " + filename);
+        return ERR_NO_REPLICA;
+    }
+
+    std::string full_data;
+    bool fetched = false;
+    std::string usedNode;
+
+    for (const auto& entry : nodeAddrs) {
+        const std::string& nodeID = entry.first;
+        const std::string& addr = entry.second;
+        std::string ip = addr.substr(0, addr.find(':'));
+        int port = std::stoi(addr.substr(addr.find(':') + 1));
+
+        try {
+            Message readMsg;
+            readMsg._Type = MessageType::ReadFile;
+            readMsg._Filename = filename;
+
+            Networking::Client client(ip.c_str(), port);
+            client.Send(Message::Serialize(readMsg).c_str());
+            std::vector<char> vec = client.Receive();
+            client.Disconnect();
+
+            full_data.assign(vec.begin(), vec.end());
+            healthTracker_.recordSuccess(nodeID);
+            healthCache_.recordSuccess(nodeID);
+            fetched = true;
+            usedNode = nodeID;
+            break;
+        } catch (const std::exception& e) {
+            Logger::getInstance().log(LogLevel::ERROR,
+                "[MetadataManager] Failed to read from node " + nodeID + ": " + e.what());
+            healthCache_.recordFailure(nodeID);
+        }
+    }
+
+    if (!fetched) {
+        return EIO;
+    }
 
     if (offset < 0) offset = 0;
     uint64_t u_offset = static_cast<uint64_t>(offset);
 
-    if (u_offset >= current_file_size) {
+    if (u_offset >= full_data.size()) {
         out_data.clear();
         out_size_read = 0;
-        return 0; // Read past EOF is not an error, returns 0 bytes
+        Logger::getInstance().log(LogLevel::DEBUG,
+            "[MetadataManager] readFileData for " + filename +
+            " on " + usedNode + ": offset past EOF");
+        return 0;
     }
 
-    uint64_t available_len = current_file_size - u_offset;
+    uint64_t available_len = full_data.size() - u_offset;
     out_size_read = std::min(size_to_read, available_len);
+    out_data.assign(full_data.data() + u_offset, out_size_read);
 
-    if (out_size_read > 0) {
-         // Simulate reading `out_size_read` bytes of character 'D'
-         out_data.assign(static_cast<size_t>(out_size_read), 'D');
-         Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData for " + filename + ": returning " + std::to_string(out_size_read) + " placeholder bytes.");
-    } else {
-        out_data.clear();
-         Logger::getInstance().log(LogLevel::DEBUG, "[MetadataManager] readFileData for " + filename + ": returning 0 bytes (EOF or zero size read).");
-    }
-    return 0; // Success
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[MetadataManager] readFileData for " + filename +
+        " from " + usedNode + ": returned " + std::to_string(out_size_read) + " bytes.");
+    return 0;
 }
 
 int MetadataManager::writeFileData(const std::string& filename, int64_t offset, const std::string& data_to_write, uint64_t& out_size_written) {
