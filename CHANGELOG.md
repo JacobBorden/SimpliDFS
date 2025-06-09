@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.3.35] - 2025-06-08
+
+### Fixed
+- Improved FuseConcurrencyTest verification to address header, line count, and hash mismatches.
+
+## [0.3.36] - 2025-06-09
+
+### Fixed
+- Added additional fallback logic to `preallocateFile` for filesystems lacking
+  `posix_fallocate` support, resolving test setup failures on FUSE.
+
+## [0.3.38] - 2025-06-09
+
+### Fixed
+- Always call `posix_fallocate` after `ftruncate` and fall back to manual seek/write if needed. This guarantees correct preallocation on FUSE.
+
+## [0.3.37] - 2025-06-09
+
+### Fixed
+- Stored file paths alongside open handles so `simpli_write` can recover the
+  path when FUSE provides an empty string. This resolves preallocation failures
+  in `FuseConcurrencyTest`.
+
 ## [0.3.34] - 2025-06-08
 
 ### Added
