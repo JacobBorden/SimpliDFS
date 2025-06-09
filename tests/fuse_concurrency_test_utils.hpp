@@ -28,20 +28,21 @@ inline bool preallocateFile(const std::string& path, off_t size) {
 
     bool success = true;
 
-    if (ftruncate(fd, size) == -1) {
+    if (ftruncate(fd, size) != 0) {
+        success = false;
+    }
 #ifdef __linux__
-        if (posix_fallocate(fd, 0, size) != 0) {
-            // Fallback to manual extension when posix_fallocate is unsupported
-            if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
-                success = false;
-            }
-        }
-#else
+    if (posix_fallocate(fd, 0, size) != 0) {
+        // Fallback to manual extension when posix_fallocate is unsupported
         if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
             success = false;
         }
-#endif
     }
+#else
+    if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
+        success = false;
+    }
+#endif
 
     ::close(fd);
     return success;
