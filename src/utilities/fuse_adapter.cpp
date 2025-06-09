@@ -90,6 +90,8 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset, struct f
 int simpli_access(const char *path, int mask);
 int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi);
 int simpli_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fi);
+int simpli_truncate(const char *path, off_t size, struct fuse_file_info *fi);
+int simpli_fallocate(const char *path, int mode, off_t offset, off_t length, struct fuse_file_info *fi);
 int simpli_unlink(const char *path);
 int simpli_rename(const char *from_path, const char *to_path, unsigned int flags);
 int simpli_release(const char *path, struct fuse_file_info *fi);
@@ -217,6 +219,8 @@ int main(int argc, char *argv[]) {
     simpli_ops.access  = simpli_access;
     simpli_ops.create  = simpli_create;
     simpli_ops.write   = simpli_write;
+    simpli_ops.truncate = simpli_truncate;
+    simpli_ops.fallocate = simpli_fallocate;
     simpli_ops.unlink  = simpli_unlink;
     simpli_ops.rename  = simpli_rename;
     simpli_ops.release = simpli_release;
@@ -918,6 +922,61 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
         Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Exception for " + path_str + ": " + std::string(e.what()));
         return -EIO;
     }
+}
+
+int simpli_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
+    FuseLatency metric("truncate");
+    std::string path_str(path);
+    SimpliDfsFuseData* data = get_fuse_data();
+    if (path_str.empty() && data) {
+        std::lock_guard<std::mutex> guard(data->active_storage_clients_mutex);
+        auto it = data->active_storage_clients.find(fi->fh);
+        if (it != data->active_storage_clients.end()) {
+            path_str = it->second.path;
+        }
+    }
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: Entry for path: " + path_str + " size: " + std::to_string(size));
+
+    if (!data || !data->metadata_client) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: FUSE data or metadata_client not available for " + path_str);
+        return -EIO;
+    }
+    std::lock_guard<std::mutex> lock(data->metadata_client_mutex);
+    if (!ensure_metadata_connection_locked(data)) {
+        return -EIO;
+    }
+
+    Message req_msg;
+    req_msg._Type = MessageType::TruncateFile;
+    req_msg._Path = path_str;
+    req_msg._Size = static_cast<uint64_t>(size);
+
+    try {
+        std::string serialized_req = Message::Serialize(req_msg);
+        if (!data->metadata_client->Send(serialized_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: Failed to send request for " + path_str);
+            return -EIO;
+        }
+        std::vector<char> recv_vec = data->metadata_client->Receive();
+        if (recv_vec.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: Received empty response for " + path_str);
+            return -EIO;
+        }
+        Message res = Message::Deserialize(std::string(recv_vec.begin(), recv_vec.end()));
+        if (res._ErrorCode != 0) {
+            return -res._ErrorCode;
+        }
+        return 0;
+    } catch (const std::exception& e) {
+        Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: Exception for " + path_str + ": " + e.what());
+        return -EIO;
+    }
+}
+
+int simpli_fallocate(const char *path, int mode, off_t offset, off_t length, struct fuse_file_info *fi) {
+    (void)mode; // modes like FALLOC_FL_KEEP_SIZE not yet supported
+    off_t end = offset + length;
+    return simpli_truncate(path, end, fi);
 }
 
 int simpli_unlink(const char *path) {

@@ -529,6 +529,18 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
     return 0; // Success
 }
 
+int MetadataManager::truncateFile(const std::string& filename, uint64_t size) {
+    if (!waitForFileMetadata(filename)) {
+        return ENOENT;
+    }
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    fileSizes[filename] = size;
+    Logger::getInstance().log(LogLevel::INFO,
+        "[MetadataManager] File " + filename + " truncated to " + std::to_string(size));
+    markDirty();
+    return 0;
+}
+
 int MetadataManager::renameFileEntry(const std::string& old_filename, const std::string& new_filename) {
     if (!waitForFileMetadata(old_filename)) {
         return ENOENT;
@@ -792,6 +804,19 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case WriteFile, path '" << request._Path << "'" << std::endl;
                 server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                break;
+            }
+            case MessageType::TruncateFile:
+            {
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: Processing case TruncateFile for path '" << request._Path << "'" << std::endl;
+                Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Received TruncateFile for: " + request._Path + " size " + std::to_string(request._Size));
+                Message res_msg;
+                res_msg._Type = MessageType::TruncateFileResponse;
+                std::string norm_path = normalize_path_to_filename(request._Path);
+                res_msg._ErrorCode = metadataManager.truncateFile(norm_path, request._Size);
+                std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case TruncateFile, path '" << request._Path << "'" << std::endl;
+                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                if(res_msg._ErrorCode == 0) shouldSave = true;
                 break;
             }
             case MessageType::Unlink:

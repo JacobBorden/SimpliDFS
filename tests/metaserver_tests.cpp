@@ -339,3 +339,25 @@ TEST_F(MetadataManagerTest, ReadFileDataReturnsWrittenContent) {
 
     s1.stop(); s2.stop(); s3.stop();
 }
+
+TEST_F(MetadataManagerTest, TruncateFileUpdatesSize) {
+    std::string filename = "trunc.txt";
+    const std::string n1 = "NodeT1";
+    const std::string n2 = "NodeT2";
+    const std::string n3 = "NodeT3";
+    metadataManager.registerNode(n1, "127.0.0.1", 18001);
+    metadataManager.registerNode(n2, "127.0.0.1", 18002);
+    metadataManager.registerNode(n3, "127.0.0.1", 18003);
+    DummyServer s1(18001,1), s2(18002,1), s3(18003,1);
+
+    ASSERT_EQ(metadataManager.addFile(filename, {n1, n2, n3}, 0644), 0);
+    ASSERT_EQ(metadataManager.truncateFile(filename, 4096), 0);
+
+    uint32_t mode, uid, gid; uint64_t size;
+    ASSERT_EQ(metadataManager.getFileAttributes(filename, mode, uid, gid, size), 0);
+    EXPECT_EQ(size, static_cast<uint64_t>(4096));
+
+    s1.stop();
+    s2.stop();
+    s3.stop();
+}

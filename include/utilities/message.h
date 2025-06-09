@@ -44,6 +44,8 @@ enum class MessageType{
     ReadResponse,
     Write,
     WriteResponse,
+    TruncateFile,
+    TruncateFileResponse,
     Unlink,
     UnlinkResponse,
     Rename,
