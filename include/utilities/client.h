@@ -83,7 +83,7 @@ void SetProtocol(int _pProtocol);
 void SetFamily(int _pFamily);
 
 // Sends the specified data buffer to the connected host.
-int Send(PCSTR _pSendBuffer);
+int Send(const std::string& sendBuffer);
 
 // Send data to a specified address and port
 int SendTo(PCSTR pBuffer, PCSTR pAddress, int pPort);

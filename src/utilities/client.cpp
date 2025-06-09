@@ -329,14 +329,14 @@ static bool send_all(SOCKET sock, const char* buffer, size_t length,
 }
 
 // Send data to the server (modified for length-prefixing)
-int Networking::Client::Send(PCSTR _pSendBuffer)
+int Networking::Client::Send(const std::string& sendBuffer)
 {
     if (!clientIsConnected || INVALIDSOCKET(connectionSocket)) {
         Logger::getInstance().log(LogLevel::ERROR, "Client::Send: Attempting to send when not connected.");
         return -1;
     }
 
-    size_t payloadLength = strlen(_pSendBuffer);
+    size_t payloadLength = sendBuffer.length(); // Use std::string::length()
     uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
 
     Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Sending header: payloadLength = " + std::to_string(payloadLength));
@@ -351,12 +351,16 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
         throw; // Re-throw to inform caller
     }
 
-    Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Header sent. Sending payload: " + std::string(_pSendBuffer, payloadLength));
+    // Log the payload carefully, as it might contain non-printable characters or be very long.
+    // For debugging, one might log a snippet or indicate its presence without printing fully.
+    // Here, we'll use the existing pattern but be mindful it might be truncated by logger or terminal if very large/binary.
+    Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Header sent. Sending payload (size: " + std::to_string(payloadLength) + ")");
+
 
     // Send the actual payload
     if (payloadLength > 0) {
         try {
-            send_all(connectionSocket, _pSendBuffer, payloadLength,
+            send_all(connectionSocket, sendBuffer.data(), payloadLength, // Use std::string::data()
                      useTLS, ssl, this->clientIsConnected);
         } catch (const Networking::NetworkException& e) {
             // clientIsConnected and socket cleanup is handled by send_all

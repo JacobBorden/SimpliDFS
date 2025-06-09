@@ -95,6 +95,7 @@ int simpli_rename(const char *from_path, const char *to_path, unsigned int flags
 int simpli_release(const char *path, struct fuse_file_info *fi);
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi);
 void simpli_destroy(void* private_data);
+static int simpli_truncate(const char *path, off_t size, struct fuse_file_info *fi); // Forward declaration
 
 // Global map to serialize concurrent writes per file
 static std::mutex g_lock_map_mutex;
@@ -222,6 +223,8 @@ int main(int argc, char *argv[]) {
     simpli_ops.release = simpli_release;
     simpli_ops.utimens = simpli_utimens;
     simpli_ops.destroy = simpli_destroy;
+    // Add truncate operation
+    simpli_ops.truncate = simpli_truncate;
 #ifdef SIMPLIDFS_HAS_STATX
     simpli_ops.statx   = simpli_statx;
 #endif
@@ -1067,5 +1070,30 @@ int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_fi
     Logger& logger = Logger::getInstance();
     logger.log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_utimens: Entry for path: " + path_str);
     logger.log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_utimens: Operation not yet fully implemented for " + path_str + ". Optimistically succeeding.");
+    return 0;
+}
+
+// Stub for simpli_truncate
+static int simpli_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
+    // fi can be NULL if truncate is called on a path, not an open file descriptor.
+    // Or if FUSE version/configuration calls the 2-argument version of truncate.
+    // For maximum compatibility, we should handle fi potentially being null.
+    (void)fi; // Mark as unused for now if not immediately needed.
+    std::string path_str(path);
+    Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_truncate: STUB CALLED for path: " + path_str + ", size: " + std::to_string(size));
+
+    // For now, just return 0 (success) to see if test progresses.
+    // TODO: Implement full truncate logic:
+    // 1. Get SimpliDfsFuseData.
+    // 2. Ensure metadata client is connected.
+    // 3. Send a Truncate message to Metaserver (requires new MessageType and Metaserver handler).
+    //    Message should include path and new size.
+    // 4. Metaserver updates its file size metadata.
+    // 5. Metaserver might need to inform storage nodes if blocks need to be deallocated (for shrinking)
+    //    or if preallocation is actually supported on storage nodes (for expanding).
+    //    For now, just updating metaserver size might be enough for some scenarios.
+    // 6. Return success/error based on Metaserver response.
+
+    // Simulating success:
     return 0;
 }

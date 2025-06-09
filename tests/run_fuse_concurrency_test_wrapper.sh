@@ -62,6 +62,10 @@ do
     rm -f "/tmp/${NODE_NAME}.log" "/tmp/${NODE_NAME}.pid"
 done
 
+# Remove persisted metadata files from the Metaserver's CWD (likely build/tests/)
+# This ensures a clean state for each test run.
+rm -f ./file_metadata.dat ./node_registry.dat
+
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"
     EXIT_STATUS=$1
