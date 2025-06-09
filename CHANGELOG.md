@@ -5,6 +5,12 @@
 ### Fixed
 - Improved FuseConcurrencyTest verification to address header, line count, and hash mismatches.
 
+## [0.3.36] - 2025-06-09
+
+### Fixed
+- Added additional fallback logic to `preallocateFile` for filesystems lacking
+  `posix_fallocate` support, resolving test setup failures on FUSE.
+
 ## [0.3.34] - 2025-06-08
 
 ### Added

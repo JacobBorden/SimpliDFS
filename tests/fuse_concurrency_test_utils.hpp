@@ -31,7 +31,10 @@ inline bool preallocateFile(const std::string& path, off_t size) {
     if (ftruncate(fd, size) == -1) {
 #ifdef __linux__
         if (posix_fallocate(fd, 0, size) != 0) {
-            success = false;
+            // Fallback to manual extension when posix_fallocate is unsupported
+            if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
+                success = false;
+            }
         }
 #else
         if (lseek(fd, size - 1, SEEK_SET) == -1 || ::write(fd, "", 1) != 1) {
