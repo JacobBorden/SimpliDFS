@@ -223,6 +223,9 @@ add_library(simplidfs_grpc
 target_include_directories(simplidfs_grpc PUBLIC
     "${GENERATED_PROTO_DIR}"
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/grpc
+
 )
 
 target_link_libraries(simplidfs_grpc
