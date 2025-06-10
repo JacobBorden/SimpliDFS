@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.42] - 2025-06-12
+### Fixed
+- Regenerate gRPC sources during the build to match installed Protocol Buffers.
+
+
+
 ## [0.3.41] - 2025-06-11
 
 ### Added
