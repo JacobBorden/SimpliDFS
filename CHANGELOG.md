@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.41] - 2025-06-11
+
+### Added
+- Added unit tests for MetricsRegistry and MerkleTree utilities to improve
+  coverage across the project.
+
 ## [0.3.40] - 2025-06-10
 
 ### Fixed
