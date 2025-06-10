@@ -13,14 +13,27 @@
 #include <cerrno>   // For errno
 
 /**
- * @brief Preallocate a file to ensure writes beyond EOF succeed.
+ * @brief Preallocate a file to a specified size.
  *
- * This helper creates or opens the file at @p path and expands it to
- * @p size bytes. It is primarily used by FuseConcurrencyTest to avoid
- * failures when multiple threads seek past the end of the file.
+ * This helper function creates or opens the file at the given @p path and attempts
+ * to expand it to the target @p size. It's a critical utility for the
+ * `FuseConcurrencyTest` suite.
  *
- * @param path File to extend.
- * @param size Desired size in bytes.
+ * For the Random Write Test in `FuseConcurrencyTest`, preallocating the file to its
+ * full expected size is essential. It ensures that when multiple threads use `seekp()`
+ * to write to their distinct, calculated offsets, they are operating on already
+ * allocated disk space. This practice helps prevent race conditions or undefined
+ * behavior that might arise if threads were to simultaneously try to extend the file
+ * themselves. It is key to the test's design of verifying concurrent writes to
+ * non-overlapping, pre-determined regions of a file.
+ *
+ * The function tries `posix_fallocate` (on Linux) or `ftruncate` first. If these
+ * methods are insufficient or fail, it can fall back to a manual method of seeking to
+ * the desired size minus one byte and writing a single byte to extend the file.
+ * Finally, it performs a size check using `fstat` to confirm the operation.
+ *
+ * @param path Path to the file to be preallocated.
+ * @param size The desired size of the file in bytes after preallocation.
  * @return true on success, false otherwise.
  */
 inline bool preallocateFile(const std::string& path, off_t size) {
