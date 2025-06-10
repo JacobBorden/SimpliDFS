@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.40] - 2025-06-10
+
+### Fixed
+- Removed duplicate main declaration in `fuse_concurrency_tests.cpp` to restore test compilation.
+
 ## [0.3.39] - 2025-06-09
 
 ### Added

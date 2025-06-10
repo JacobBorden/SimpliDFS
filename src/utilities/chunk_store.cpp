@@ -3,10 +3,17 @@
 
 std::string ChunkStore::addChunk(const std::vector<std::byte>& data) {
     BlockIO bio;
+
+    // Feed the data into the digest calculator. Empty chunks are
+    // still hashed to produce a unique CID.
     if (!data.empty()) {
         bio.ingest(data.data(), data.size());
     }
+
+    // Finalize and obtain both the CID and raw bytes.
     DigestResult dr = bio.finalize_hashed();
+
+    // Store the chunk thread-safely.
     std::lock_guard<std::mutex> lock(mutex_);
     chunks_[dr.cid] = dr.raw;
     return dr.cid;
@@ -31,6 +38,8 @@ ChunkStore::GCStats ChunkStore::garbageCollect(const std::unordered_set<std::str
     std::lock_guard<std::mutex> lock(mutex_);
     GCStats stats{};
     stats.totalChunks = chunks_.size();
+
+    // Iterate over all stored chunks and remove those not referenced
     for (auto it = chunks_.begin(); it != chunks_.end(); ) {
         if (referencedCids.count(it->first) == 0) {
             stats.reclaimableChunks++;

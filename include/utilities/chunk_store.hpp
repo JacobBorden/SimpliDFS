@@ -10,13 +10,24 @@
 
 class ChunkStore {
 public:
-    // Adds a chunk and returns its content-addressed hash (CID)
+    /**
+     * @brief Add a chunk to the store.
+     * @param data Raw bytes that make up the chunk.
+     * @return A content identifier (CID) derived from the chunk contents.
+     */
     std::string addChunk(const std::vector<std::byte>& data);
 
-    // Checks if a chunk exists
+    /**
+     * @brief Check if a chunk exists.
+     * @param cid Content identifier returned by @ref addChunk.
+     */
     bool hasChunk(const std::string& cid) const;
 
-    // Retrieves a chunk by CID. Returns empty vector if not found
+    /**
+     * @brief Retrieve a chunk by CID.
+     * @param cid Identifier of the desired chunk.
+     * @return The chunk data, or an empty vector if not found.
+     */
     std::vector<std::byte> getChunk(const std::string& cid) const;
 
     struct GCStats {
@@ -27,12 +38,19 @@ public:
         size_t freedBytes{0};
     };
 
-    // Remove any chunks not present in referencedCids. When dryRun is true,
-    // the chunks are left untouched but stats report what would be reclaimed.
+    /**
+     * @brief Garbage collect unreferenced chunks.
+     *
+     * Chunks whose CIDs are not present in @p referencedCids are deleted
+     * unless @p dryRun is true.  Statistics about the operation are
+     * returned in all cases.
+     */
     GCStats garbageCollect(const std::unordered_set<std::string>& referencedCids,
                            bool dryRun);
 
-    // Retrieve copy of all stored chunks
+    /**
+     * @brief Obtain a snapshot of all stored chunks.
+     */
     std::unordered_map<std::string, std::vector<std::byte>> getAllChunks() const;
 
 private:

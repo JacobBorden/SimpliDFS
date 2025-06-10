@@ -740,7 +740,6 @@ bool run_append_test() {
 int main() {
 // Main function: Entry point for the FUSE concurrency test program.
 // Orchestrates the execution of different test scenarios (Random Write, Append).
-int main() {
   // --- Initial Test Setup ---
   // Log the start of the entire test suite.
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
