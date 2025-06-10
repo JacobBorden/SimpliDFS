@@ -8,6 +8,7 @@ These guidelines apply to the entire repository.
 - Document public functions using Doxygen style comments.
 - write tests for every function
 - use descriptive variable names
+- comment extensively explaining everything 
 - use comments to explain each step
 
 ## Commit Messages
@@ -19,7 +20,7 @@ Run the unit tests with CMake/CTest:
 mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
-ctest --output-on-failure -VV -E FuseTestEnv
+ctest --output-on-failure -VV 
 ```
 The `-E FuseTestEnv` filter excludes the FUSE integration setup which requires root privileges.
 
