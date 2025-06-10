@@ -256,24 +256,23 @@ bool Networking::Client::ConnectClientSocket()
         }
     }
 
-    // Set receive timeout for the connected socket
+    // Set receive timeout for the connected socket. FuseConcurrencyTest can
+    // trigger heavy network delays, so use a generous timeout.
     #ifdef _WIN32
-        DWORD timeout = 5000; // 5 seconds in milliseconds
+        DWORD timeout = 20000; // 20 seconds in milliseconds
         if (setsockopt(connectionSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof timeout) < 0) {
             Logger::getInstance().log(LogLevel::WARN, "Failed to set SO_RCVTIMEO on client socket: " + std::to_string(WSAGetLastError()));
-            // Not failing fatally, connection is up, but receives might block indefinitely.
         } else {
-            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 5 seconds on client socket.");
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 20 seconds on client socket.");
         }
     #else // POSIX
         struct timeval tv;
-        tv.tv_sec = 5;  // 5 seconds timeout
+        tv.tv_sec = 20;  // 20 seconds timeout
         tv.tv_usec = 0;
         if (setsockopt(connectionSocket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv) < 0) {
             Logger::getInstance().log(LogLevel::WARN, "Failed to set SO_RCVTIMEO on client socket: " + std::string(strerror(errno)));
-            // Not failing fatally.
         } else {
-            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 5 seconds on client socket.");
+            Logger::getInstance().log(LogLevel::DEBUG, "Successfully set SO_RCVTIMEO to 20 seconds on client socket.");
         }
     #endif
 

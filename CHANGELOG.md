@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.40] - 2025-06-10
+
+### Fixed
+- Increased client receive timeout to 20 seconds to prevent false connection timeouts during FuseConcurrencyTest.
+
 
 ## [0.3.39] - 2025-06-09
 
