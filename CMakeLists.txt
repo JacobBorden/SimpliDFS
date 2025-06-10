@@ -96,6 +96,7 @@ FetchContent_MakeAvailable(googletest)
 
 # Use system-installed gRPC to avoid network downloads
 find_package(gRPC CONFIG REQUIRED)
+find_package(Protobuf REQUIRED)
 
 # Fetch yaml-cpp
 FetchContent_Declare(
@@ -167,20 +168,69 @@ target_link_libraries(SimpliDFS_NodeLib
     Threads::Threads
 )
 
-# gRPC library
+# ------------------------------------------------------------------------------
+# gRPC protobuf generation
+# ------------------------------------------------------------------------------
+
+# Directory to place generated sources. Keeping them in the build tree keeps the
+# repository clean and ensures regeneration when the proto file changes.
+set(GENERATED_PROTO_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+# Path to the proto definitions
+set(PROTO_FILES "proto/filesystem.proto")
+
+# Ensure the output directory exists so protoc can write files
+file(MAKE_DIRECTORY ${GENERATED_PROTO_DIR}/proto)
+
+# Custom command to generate both the protobuf messages and gRPC service stubs.
+# Using the protoc executable and grpc_cpp_plugin from the found packages
+# guarantees that the headers match the libraries we link against.
+add_custom_command(
+    OUTPUT
+        "${GENERATED_PROTO_DIR}/proto/filesystem.pb.cc"
+        "${GENERATED_PROTO_DIR}/proto/filesystem.pb.h"
+        "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.cc"
+        "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
+    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+            --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
+            --cpp_out=${GENERATED_PROTO_DIR}
+            --grpc_out=${GENERATED_PROTO_DIR}
+            --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+            ${CMAKE_CURRENT_SOURCE_DIR}/${PROTO_FILES}
+    DEPENDS ${PROTO_FILES}
+    COMMENT "Generating gRPC sources from ${PROTO_FILES}"
+    VERBATIM
+)
+
+# Group generated files for IDE convenience.
+set(GENERATED_PROTO_SRCS
+    "${GENERATED_PROTO_DIR}/proto/filesystem.pb.cc"
+    "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.cc"
+)
+set(GENERATED_PROTO_HDRS
+    "${GENERATED_PROTO_DIR}/proto/filesystem.pb.h"
+    "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
+)
+
+# Define the gRPC library using the generated sources.
 add_library(simplidfs_grpc
-    src/grpc/filesystem.pb.cc
-    src/grpc/filesystem.grpc.pb.cc
-    src/grpc_server.cpp)
+    ${GENERATED_PROTO_SRCS}
+    src/grpc_server.cpp
+)
+
+
+# Include directories for generated headers and public API headers.
 target_include_directories(simplidfs_grpc PUBLIC
+    "${GENERATED_PROTO_DIR}"
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/grpc)
+)
+
 target_link_libraries(simplidfs_grpc
     PUBLIC
     gRPC::grpc++
-    # protobuf::libprotobuf # This should now come transitively from gRPC::grpc++
     SimpliDFS_Utils
-    Threads::Threads)
+    Threads::Threads
+)
 
 # Define the node executable
 add_executable(node src/main_node.cpp) # Assuming a main_node.cpp for the executable

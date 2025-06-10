@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.42] - 2025-06-12
+### Fixed
+- Regenerate gRPC sources during the build to match installed Protocol Buffers.
+
+## [0.3.43] - 2025-06-12
+### Fixed
+- Remove stale generated protobuf files and update include paths to use
+  build-time generated sources.
+
+
+
 ## [0.3.41] - 2025-06-11
 
 ### Added

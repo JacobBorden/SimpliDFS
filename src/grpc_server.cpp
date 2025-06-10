@@ -1,5 +1,5 @@
 #include "grpc/grpc_server.h"
-#include "grpc/proto/filesystem.grpc.pb.h"
+#include "proto/filesystem.grpc.pb.h"
 #include "utilities/filesystem.h"
 #include <grpcpp/grpcpp.h>
 #include <memory>
