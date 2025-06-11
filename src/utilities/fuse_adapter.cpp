@@ -887,26 +887,29 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     std::lock_guard<std::mutex> file_guard(*file_lock);
     if (size == 0) return 0;
 
+    size_t old_len = 0;
+    {
+        Message attr_req_len;
+        attr_req_len._Type = MessageType::GetAttr;
+        attr_req_len._Path = path_str;
+        std::string ser_attr_req_len = Message::Serialize(attr_req_len);
+        if (data->metadata_client->Send(ser_attr_req_len.c_str())) {
+            std::vector<char> len_vec = data->metadata_client->Receive();
+            if (!len_vec.empty()) {
+                Message len_res = Message::Deserialize(std::string(len_vec.begin(), len_vec.end()));
+                if (len_res._ErrorCode == 0) {
+                    old_len = static_cast<size_t>(len_res._Size);
+                }
+            }
+        }
+    }
+    Logger::trace("WRITE  path=%s  size=%zu  offset=%jd  flags=%x  old_len=%zu",
+                  path_str.c_str(), size, static_cast<intmax_t>(offset),
+                  fi ? fi->flags : 0, old_len);
+
     off_t effective_offset = offset;
     if (fi && (fi->flags & O_APPEND)) {
-        Message attr_req;
-        attr_req._Type = MessageType::GetAttr;
-        attr_req._Path = path_str;
-        std::string ser_attr_req = Message::Serialize(attr_req);
-        if (!data->metadata_client->Send(ser_attr_req.c_str())) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to send GetAttr request for " + path_str);
-            return -EIO;
-        }
-        std::vector<char> attr_vec = data->metadata_client->Receive();
-        if (attr_vec.empty()) {
-            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Empty GetAttr response for " + path_str);
-            return -EIO;
-        }
-        Message attr_res = Message::Deserialize(std::string(attr_vec.begin(), attr_vec.end()));
-        if (attr_res._ErrorCode != 0) {
-            return -attr_res._ErrorCode;
-        }
-        effective_offset = static_cast<off_t>(attr_res._Size);
+        effective_offset = static_cast<off_t>(old_len);
     }
 
     Message req_msg;

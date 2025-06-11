@@ -87,6 +87,20 @@ TEST_F(LoggerTest, LogLevelFiltering) {
     EXPECT_NE(logContents.find("This is a fatal message."), std::string::npos);
 }
 
+TEST_F(LoggerTest, TraceHelper) {
+    const std::string testLogFile = "test_trace_helper.log";
+    addFileForCleanup(testLogFile);
+    std::remove(testLogFile.c_str());
+
+    ASSERT_NO_THROW(Logger::init(testLogFile, LogLevel::TRACE));
+
+    Logger::trace("Trace number %d %s", 42, "ok");
+
+    std::string logContents = readFileContents(testLogFile);
+    ASSERT_NE(logContents, "");
+    EXPECT_NE(logContents.find("Trace number 42 ok"), std::string::npos);
+}
+
 TEST_F(LoggerTest, JsonOutputFormat) {
     const std::string testLogFile = "test_json_format.log";
     addFileForCleanup(testLogFile);

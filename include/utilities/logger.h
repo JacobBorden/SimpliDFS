@@ -32,6 +32,16 @@ public:
     void setLogLevel(LogLevel level);
     void log(LogLevel level, const std::string& message);
     void logToConsole(LogLevel level, const std::string& message);
+    /**
+     * @brief Convenience wrapper for TRACE level logging.
+     *
+     * Formats the provided printf-style string and logs it at TRACE level.
+     * The method is thread-safe through Logger::log.
+     *
+     * @param format printf-style format string.
+     * @param ...    Format arguments.
+     */
+    static void trace(const char *format, ...);
 
 private:
     Logger(const std::string& logFile, LogLevel level, long long maxFileSizeVal, int maxBackupFilesVal); // Private Constructor
