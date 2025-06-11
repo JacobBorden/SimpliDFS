@@ -26,6 +26,7 @@ add_executable(SimpliDFSTests
     sha256_helper_tests.cpp
     metrics_registry_tests.cpp
     merkle_tree_tests.cpp
+    open_file_with_retry_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp

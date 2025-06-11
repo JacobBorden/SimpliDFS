@@ -658,9 +658,11 @@ bool run_append_test() {
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id()
             << "] AppendTest: Starting verification phase for " << FULL_APPEND_TEST_FILE_PATH << std::endl;
-  // Open the append test file for reading.
-  std::ifstream infile(FULL_APPEND_TEST_FILE_PATH, std::ios::in | std::ios::binary);
-  if (!infile.is_open()) {
+  // Open the append test file for reading. Similar to the random write test we
+  // retry a few times to allow the filesystem to settle.
+  std::ifstream infile;
+  if (!openFileWithRetry(FULL_APPEND_TEST_FILE_PATH, infile,
+                         std::ios::in | std::ios::binary)) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
               << "] AppendTest: VERIFICATION FAILED: Failed to open file for verification: "
@@ -857,12 +859,15 @@ bool run_random_write_test() {
             << " TID: " << std::this_thread::get_id()
             << "] Main: Starting verification phase." << std::endl;
 
-  // Open the test file for reading its contents for verification.
-  std::ifstream infile(FULL_TEST_FILE_PATH, std::ios::in | std::ios::binary);
-  if (!infile.is_open()) {
+  // Open the test file for reading its contents for verification. The FUSE
+  // layer may take a short moment to expose the file after all writes
+  // complete, so retry a few times before giving up.
+  std::ifstream infile;
+  if (!openFileWithRetry(FULL_TEST_FILE_PATH, infile,
+                         std::ios::in | std::ios::binary)) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
-              << "] Main: Failed to open file for verification: "
+              << "] Main: Failed to open file for verification after retries: "
               << FULL_TEST_FILE_PATH << std::endl;
     return 1; // Cannot proceed with verification if the file can't be opened.
   }

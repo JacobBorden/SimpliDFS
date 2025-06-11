@@ -7,6 +7,9 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <array>
+#include <fstream>
+#include <thread>
+#include <chrono>
 #include <sodium.h>
 #include <iostream> // For std::cerr
 #include <cstring>  // For strerror
@@ -158,6 +161,34 @@ compute_sha256(const std::string& data) {
                               data.size());
     crypto_hash_sha256_final(&state, digest.data());
     return digest;
+}
+
+/**
+ * @brief Attempt to open a file stream with retry logic.
+ *
+ * This helper is used by the FUSE concurrency tests to tolerate brief
+ * delays between when the test threads finish writing and when the
+ * filesystem exposes the final file for reading. It repeatedly attempts
+ * to open the file before giving up.
+ *
+ * @param path      Path to the file to open.
+ * @param stream    Reference to the stream object to open.
+ * @param mode      Open mode flags (e.g., std::ios::in | std::ios::binary).
+ * @param retries   Number of additional attempts after the first try.
+ * @param delay_ms  Delay in milliseconds between attempts.
+ * @return true if the file was successfully opened, false otherwise.
+ */
+inline bool openFileWithRetry(const std::string& path, std::ifstream& stream,
+                              std::ios_base::openmode mode,
+                              int retries = 3, int delay_ms = 100) {
+    for (int attempt = 0; attempt <= retries; ++attempt) {
+        stream.open(path, mode);
+        if (stream.is_open()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+    return false;
 }
 
 #endif // SIMPLIDFS_FUSE_CONCURRENCY_TEST_UTILS_HPP

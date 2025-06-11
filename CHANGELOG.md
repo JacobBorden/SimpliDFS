@@ -1,4 +1,10 @@
 # Changelog
+## [0.3.52] - 2025-06-11
+### Fixed
+- FuseRandomWriteTest now retries opening the result file before verification,
+  avoiding sporadic failures when the filesystem needs extra time.
+- Wrapper script cleans up storage nodes only if they are running, preventing
+  "Aborted" process messages.
 ## [0.3.51] - 2025-06-11
 ### Fixed
 - Storage nodes now apply writes at explicit offsets, enabling random write and
