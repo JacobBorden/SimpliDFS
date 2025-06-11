@@ -16,10 +16,11 @@ FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
 TEST_EXEC=./SimpliDFSFuseConcurrencyTest
 
-MOUNT_POINT="/tmp/myfusemount"
+BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
+MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
 METASERVER_PORT=50505 # Changed port
-METASERVER_LOG="/tmp/metaserver_wrapper.log"
-FUSE_ADAPTER_STDOUT_LOG="/tmp/fuse_adapter_wrapper.log"
+METASERVER_LOG="${BASE_TMP_DIR}/metaserver_wrapper.log"
+FUSE_ADAPTER_STDOUT_LOG="${BASE_TMP_DIR}/fuse_adapter_wrapper.log"
 
 NUM_NODES=3
 NODE_START_PORT=50010 # Starting port for wrapper nodes
@@ -55,11 +56,11 @@ mkdir -p ${MOUNT_POINT}
 
 # Clear logs and PID files
 rm -f ${METASERVER_LOG} ${FUSE_ADAPTER_STDOUT_LOG} /tmp/fuse_adapter_main.log
-rm -f /tmp/metaserver_wrapper.pid /tmp/fuse_adapter_wrapper.pid
+rm -f ${BASE_TMP_DIR}/metaserver_wrapper.pid ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid
 for i in $(seq 1 $NUM_NODES)
 do
     NODE_NAME="NodeWrapper$i"
-    rm -f "/tmp/${NODE_NAME}.log" "/tmp/${NODE_NAME}.pid"
+    rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
 # Remove stale metadata files to avoid persistence between runs
 rm -f file_metadata.dat node_registry.dat
@@ -71,8 +72,8 @@ cleanup_and_exit() {
 
     # Kill FUSE adapter first
     FUSE_ADAPTER_PID_TO_KILL=""
-    if [ -f /tmp/fuse_adapter_wrapper.pid ]; then
-        FUSE_ADAPTER_PID_FROM_FILE=$(cat /tmp/fuse_adapter_wrapper.pid)
+    if [ -f ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid ]; then
+        FUSE_ADAPTER_PID_FROM_FILE=$(cat ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid)
         if [ -n "${FUSE_ADAPTER_PID_FROM_FILE}" ] && ps -p ${FUSE_ADAPTER_PID_FROM_FILE} > /dev/null; then
             FUSE_ADAPTER_PID_TO_KILL=${FUSE_ADAPTER_PID_FROM_FILE}
         elif [ -n "${FUSE_ADAPTER_PID_FROM_FILE}" ]; then
@@ -128,8 +129,8 @@ cleanup_and_exit() {
 
     # Kill Metaserver
     METASERVER_PID_TO_KILL=""
-    if [ -f /tmp/metaserver_wrapper.pid ]; then
-        METASERVER_PID_FROM_FILE=$(cat /tmp/metaserver_wrapper.pid)
+    if [ -f ${BASE_TMP_DIR}/metaserver_wrapper.pid ]; then
+        METASERVER_PID_FROM_FILE=$(cat ${BASE_TMP_DIR}/metaserver_wrapper.pid)
         if [ -n "${METASERVER_PID_FROM_FILE}" ] && ps -p ${METASERVER_PID_FROM_FILE} > /dev/null; then
             METASERVER_PID_TO_KILL=${METASERVER_PID_FROM_FILE}
         elif [ -n "${METASERVER_PID_FROM_FILE}" ]; then
@@ -167,10 +168,11 @@ cleanup_and_exit() {
 
     # Remove PID files (log files removal can be separate or here)
     echo "INFO: Removing PID files..."
-    rm -f /tmp/metaserver_wrapper.pid /tmp/fuse_adapter_wrapper.pid
+    rm -f ${BASE_TMP_DIR}/metaserver_wrapper.pid ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid
     for pid_file in "${NODE_WRAPPER_PID_FILES[@]}"; do
         rm -f "$pid_file"
     done
+
 
     # Optionally display logs that might have been missed if failure happened early
     if [ "$EXIT_STATUS" -ne 0 ]; then
@@ -185,12 +187,15 @@ cleanup_and_exit() {
            cat /tmp/fuse_adapter_main.log || echo "FUSE adapter main log not found."
            echo "-----------------------------------------------------------"
         fi
-        for log_file in "${NODE_WRAPPER_LOGS[@]}"; do
-            echo "--- Node Log (${log_file}) on failure ---"
-            cat "${log_file}" || echo "Node log ${log_file} not found."
-            echo "-------------------------------------"
-        done
+    for log_file in "${NODE_WRAPPER_LOGS[@]}"; do
+        echo "--- Node Log (${log_file}) on failure ---"
+        cat "${log_file}" || echo "Node log ${log_file} not found."
+        echo "-------------------------------------"
+    done
     fi
+
+    # Remove temporary directory with logs and mount point after logs are shown
+    rm -rf "${BASE_TMP_DIR}"
 
     echo "INFO: Wrapper script finished. Exiting with status: ${EXIT_STATUS}"
     exit ${EXIT_STATUS}
@@ -200,7 +205,7 @@ cleanup_and_exit() {
 echo "INFO: Attempting to start Metaserver on port ${METASERVER_PORT}..."
 ${METASERVER_EXEC} ${METASERVER_PORT} > ${METASERVER_LOG} 2>&1 &
 METASERVER_PID=$!
-echo ${METASERVER_PID} > /tmp/metaserver_wrapper.pid
+echo ${METASERVER_PID} > ${BASE_TMP_DIR}/metaserver_wrapper.pid
 echo "INFO: Metaserver process initiated with PID: ${METASERVER_PID}"
 
 echo "INFO: Waiting for Metaserver (PID: ${METASERVER_PID}) to be ready..."
@@ -252,8 +257,8 @@ for i in $(seq 1 $NUM_NODES)
 do
     NODE_NAME="NodeWrapper$i"
     NODE_PORT=$((NODE_START_PORT + i))
-    NODE_LOG_FILE="/tmp/${NODE_NAME}.log"
-    NODE_PID_FILE_PATH="/tmp/${NODE_NAME}.pid"
+    NODE_LOG_FILE="${BASE_TMP_DIR}/${NODE_NAME}.log"
+    NODE_PID_FILE_PATH="${BASE_TMP_DIR}/${NODE_NAME}.pid"
 
     NODE_WRAPPER_LOGS+=("$NODE_LOG_FILE")
     NODE_WRAPPER_PID_FILES+=("$NODE_PID_FILE_PATH")
@@ -297,7 +302,7 @@ echo "INFO: Attempting to start FUSE adapter..."
 # The -f flag keeps fuse in the foreground for its own process, but we still background the script's execution of it.
 ${FUSE_ADAPTER_EXEC} 127.0.0.1 ${METASERVER_PORT} ${MOUNT_POINT} -f > ${FUSE_ADAPTER_STDOUT_LOG} 2>&1 &
 FUSE_ADAPTER_PID=$!
-echo ${FUSE_ADAPTER_PID} > /tmp/fuse_adapter_wrapper.pid
+echo ${FUSE_ADAPTER_PID} > ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid
 echo "INFO: FUSE adapter process initiated with PID: ${FUSE_ADAPTER_PID}"
 
 echo "INFO: Waiting for FUSE adapter (PID: ${FUSE_ADAPTER_PID}) to mount ${MOUNT_POINT}..."
