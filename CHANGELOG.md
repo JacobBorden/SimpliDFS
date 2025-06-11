@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.49] - 2025-06-11
+### Fixed
+- Fuse concurrency wrapper now prefixes test executables with `./` so CTest
+  can locate them in the build directory.
+
 ## [0.3.48] - 2025-06-11
 ### Added
 - Split FuseConcurrencyTest into separate RandomWrite and Append tests for easier debugging.

@@ -15,6 +15,14 @@ METASERVER_EXEC=../metaserver
 FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
 TEST_EXEC=${1:-./SimpliDFSFuseConcurrencyTest}
+# If the provided test executable does not contain a path component, prefix it
+# with ./ so the shell searches the current working directory. CTest runs the
+# wrapper from build/tests where the compiled binaries live, but that directory
+# usually is not part of PATH.  This ensures the requested test binary is
+# executed from the build directory.
+if [[ "${TEST_EXEC}" != */* ]]; then
+    TEST_EXEC="./${TEST_EXEC}"
+fi
 
 BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
 MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
