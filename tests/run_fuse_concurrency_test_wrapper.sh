@@ -61,6 +61,8 @@ do
     NODE_NAME="NodeWrapper$i"
     rm -f "/tmp/${NODE_NAME}.log" "/tmp/${NODE_NAME}.pid"
 done
+# Remove stale metadata files to avoid persistence between runs
+rm -f file_metadata.dat node_registry.dat
 
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"

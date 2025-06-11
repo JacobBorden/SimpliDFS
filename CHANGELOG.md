@@ -1,23 +1,22 @@
 # Changelog
 
+## [0.3.45] - 2025-06-10
+### Fixed
+- Remove stale metadata before FuseConcurrencyTest to avoid partial replication.
 
 ## [0.3.44] - 2025-06-10
 ### Fixed
 - Ensure protobuf sources are generated before compilation using a new `generate_protos` CMake target.
 - Document removing stale build artifacts prior to configuring.
 
-
 ## [0.3.43] - 2025-06-10
 ### Fixed
 - Remove stale generated protobuf files and update include paths to use
   build-time generated sources.
 
-
-
 ## [0.3.42] - 2025-06-10
 ### Fixed
 - Regenerate gRPC sources during the build to match installed Protocol Buffers.
-
 
 ## [0.3.41] - 2025-06-10
 
@@ -150,7 +149,6 @@
 ### Changed
 - Updated README and progress documentation to reflect working replication and re-replication.
 
-
 ## [0.3.20] - 2025-06-07
 
 ### Added
@@ -163,14 +161,11 @@
 ### Fixed
 - Avoid duplicate protobuf target errors by relying on gRPC's bundled protobuf.
 
-
 ## [0.3.18] - 2025-06-07
 
 ### Changed
 - Updated CMake policies to silence warnings on newer CMake versions.
 - Added explicit gRPC package lookup to ensure `gRPC::grpc++` target is available.
-
-
 
 ## [0.3.17] - 2025-06-07
 
@@ -183,7 +178,6 @@
 ### Added
 - Configurable hashing/compression/encryption pipeline in `BlockIO`.
 - Runtime configuration via `simplidfs_config.yaml` for compression level and cipher algorithm.
-
 
 ## [0.3.15] - 2025-06-07
 
@@ -216,7 +210,6 @@
 ### Fixed
 - CI workflow now installs Boost to avoid missing dependency errors.
 
-
 ## [0.3.10] - 2025-06-07
 
 ### Added
@@ -228,25 +221,21 @@
 ### Added
 - IPFS gateway with JWT-protected block retrieval.
 
-
 ## [0.3.8] - 2025-06-07
 
 ### Added
 - Minimal S3 gateway translating PUT and GET requests to SimpliDFS file operations.
 - Integration test for uploads and downloads via the gateway.
 
-
 ## [0.3.7] - 2025-06-07
 ### Added
 - Re-replication now performs actual data transfer when nodes fail.
 - RepairWorker triggers replication callbacks for partial files.
 
-
 ## [0.3.6] - 2025-06-07
 
 ### Added
 - Configurable compression level and cipher algorithm loaded at runtime.
-
 
 ## [0.3.5] - 2025-06-07
 
@@ -259,20 +248,17 @@
 - Metaserver and node load TLS certificates via command-line flags and enable TLS.
 - README examples show TLS-enabled startup commands.
 
-
 ## [0.3.3] - 2025-06-07
 
 ### Added
 - Lightweight REST server with JWT authentication in `src/rest_server.cpp`.
 - Documentation for the HTTP API in `docs/rest_api.md`.
 
-
 ## [0.3.2] - 2025-06-07
 
 ### Added
 - Chaos test now provisions an edge node with Ansible, repeatedly kills it,
   runs latency benchmarks and prints availability metrics.
-
 
 ## [0.3.1] - 2025-06-07
 
@@ -290,12 +276,6 @@
 
 ### Added
 - Tiered storage deployment playbook with monitoring steps.
-
-
-
-
-
-
 
 ## [0.2.9] - 2025-06-07
 
@@ -323,7 +303,6 @@
 ### Added
 - Prometheus metrics for cluster state, replica health and FUSE latency.
 - Default Grafana dashboard in `monitoring/grafana`.
-
 
 ## [0.2.4] - 2025-06-07
 
