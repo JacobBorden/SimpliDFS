@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.44] - 2025-06-11
+### Fixed
+- Ensure protobuf sources are generated before compilation using a new `generate_protos` CMake target.
+- Document removing stale build artifacts prior to configuring.
+
+## [0.3.42] - 2025-06-12
+### Fixed
+- Regenerate gRPC sources during the build to match installed Protocol Buffers.
+
+## [0.3.43] - 2025-06-12
+### Fixed
+- Remove stale generated protobuf files and update include paths to use
+  build-time generated sources.
+
+
+
 ## [0.3.41] - 2025-06-11
 
 ### Added

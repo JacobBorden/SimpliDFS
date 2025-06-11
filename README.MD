@@ -77,13 +77,18 @@ SimpliDFS is a distributed file system project designed to manage files across m
      ```sh
      ./setup_dependencies_opensuse.sh
      ```
-3. Create a build directory and run CMake:
+3. If you built a previous revision, remove the old `build` directory and any
+   generated protobuf headers to avoid mixing versions:
+   ```sh
+   rm -rf build include/grpc/proto
+   ```
+4. Create a build directory and run CMake:
    ```sh
    mkdir build && cd build
    cmake ..
    make
    ```
-4. Run the tests:
+5. Run the tests:
    ```sh
    ./test/SimpliDFSTests
    ```

@@ -18,7 +18,6 @@ target_link_libraries(grpc_bench PRIVATE
 )
 target_include_directories(grpc_bench PRIVATE
     ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/include/grpc
 )
 
 # Ensure headers from src are found
