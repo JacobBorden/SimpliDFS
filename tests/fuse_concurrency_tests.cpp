@@ -1,4 +1,5 @@
 #include "fuse_concurrency_test_utils.hpp"
+#include "fuse_concurrency_tests.hpp"
 #include <algorithm> // For std::sort
 #include <chrono>    // For timestamps
 #include <condition_variable>
@@ -758,7 +759,7 @@ bool run_append_test() {
 }
 
 
-int main() {
+bool run_random_write_test() {
 // Main function: Entry point for the FUSE concurrency test program.
 // Orchestrates the execution of different test scenarios (Random Write, Append).
   // --- Initial Test Setup ---
@@ -1096,36 +1097,5 @@ int main() {
             << " TID: " << std::this_thread::get_id()
             << "] Main: Random write test part finished." << std::endl;
 
-  // --- Start of Append Test Phase ---
-  // After the Random Write Test (including its setup, execution, and verification) is complete,
-  // the program proceeds to the Append Test.
-  std::cout << "======================================================================" << std::endl;
-  std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-            << " TID: " << std::this_thread::get_id()
-            << "] Main: Starting APPEND Test Phase." << std::endl;
-  std::cout << "======================================================================" << std::endl;
-  // Execute the append test logic. run_append_test() encapsulates all operations
-  // (setup, thread execution, verification) for the append scenario.
-  bool append_test_overall_success = run_append_test();
-  std::cout << "======================================================================" << std::endl;
-  std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-            << " TID: " << std::this_thread::get_id()
-            << "] Main: APPEND Test Phase Finished. Success: " << (append_test_overall_success ? "Yes" : "No") << std::endl;
-  std::cout << "======================================================================" << std::endl;
-
-  // --- Overall Success Determination ---
-  // The entire test suite passes if and only if both the Random Write Test (`main_test_success`)
-  // and the Append Test (`append_test_overall_success`) reported success.
-  bool all_tests_passed = main_test_success && append_test_overall_success;
-
-  // Log the final overall result of the entire test suite.
-  std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-            << " TID: " << std::this_thread::get_id()
-            << "] Main: All tests finished. Overall result: "
-            << (all_tests_passed ? "PASSED" : "FAILED") << std::endl;
-
-  // Exit the program with a status code indicating success (0) or failure (1).
-  // This is a standard convention for test executables, allowing automated systems
-  // to easily determine the test outcome.
-  return all_tests_passed ? 0 : 1;
+  return main_test_success;
 }

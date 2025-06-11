@@ -60,24 +60,39 @@ gtest_discover_tests(SimpliDFSTests)
 
 # --- Add FUSE Concurrency Test ---
 # Add executable for the FUSE concurrency test
-add_executable(SimpliDFSFuseConcurrencyTest
+add_executable(SimpliDFSFuseRandomWriteTest
     fuse_concurrency_tests.cpp
+    fuse_random_write_main.cpp
 )
-
-# Link necessary libraries (primarily pthreads for std::thread)
-target_link_libraries(SimpliDFSFuseConcurrencyTest
+target_link_libraries(SimpliDFSFuseRandomWriteTest
     PRIVATE
     Threads::Threads
     ${SODIUM_LIBRARIES}
 )
 
-# Add the FUSE concurrency test to CTest
+add_executable(SimpliDFSFuseAppendTest
+    fuse_concurrency_tests.cpp
+    fuse_append_main.cpp
+)
+target_link_libraries(SimpliDFSFuseAppendTest
+    PRIVATE
+    Threads::Threads
+    ${SODIUM_LIBRARIES}
+)
+
 add_test(
-    NAME FuseConcurrencyTest
-    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh
+    NAME FuseRandomWriteTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseRandomWriteTest
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
-set_tests_properties(FuseConcurrencyTest PROPERTIES DEPENDS FuseTestEnvSetup)
+set_tests_properties(FuseRandomWriteTest PROPERTIES DEPENDS FuseTestEnvSetup)
+
+add_test(
+    NAME FuseAppendTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseAppendTest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(FuseAppendTest PROPERTIES DEPENDS FuseTestEnvSetup)
 # Define a test for running the setup script
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
