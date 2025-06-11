@@ -18,6 +18,7 @@ TEST_EXEC=./SimpliDFSFuseConcurrencyTest
 
 BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
 MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
+export SIMPLIDFS_CONCURRENCY_MOUNT="${MOUNT_POINT}"
 METASERVER_PORT=50505 # Changed port
 METASERVER_LOG="${BASE_TMP_DIR}/metaserver_wrapper.log"
 FUSE_ADAPTER_STDOUT_LOG="${BASE_TMP_DIR}/fuse_adapter_wrapper.log"

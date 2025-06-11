@@ -14,6 +14,7 @@
 #include <sys/stat.h> // For stat, S_ISDIR
 #include <thread>
 #include <unistd.h> // For access()
+#include <cstdlib>   // For getenv()
 #include <vector>
 
 // Copyright [Your Copyright]
@@ -51,7 +52,27 @@ static std::string getFuseTestTimestamp() {
 }
 
 // Configuration for the Random Write Test
-const std::string MOUNT_POINT = "/tmp/myfusemount"; // Base path where the FUSE filesystem is mounted.
+const std::string DEFAULT_MOUNT_POINT = "/tmp/myfusemount"; // Fallback path used if env var is unset.
+
+/**
+ * @brief Get the mount point for FuseConcurrencyTest.
+ *
+ * Checks the environment variable "SIMPLIDFS_CONCURRENCY_MOUNT" which is
+ * populated by the wrapper script. If defined, its value is returned;
+ * otherwise a hard-coded default is used so the test can still run
+ * manually.
+ *
+ * @return Resolved mount point path.
+ */
+static std::string get_mount_point() {
+  const char *env_path = std::getenv("SIMPLIDFS_CONCURRENCY_MOUNT");
+  if (env_path && env_path[0] != '\0') {
+    return std::string(env_path);
+  }
+  return DEFAULT_MOUNT_POINT;
+}
+
+const std::string MOUNT_POINT = get_mount_point();
 const std::string TEST_FILE_NAME = "concurrent_write_test.txt"; // Name of the file used for random write tests.
 const std::string FULL_TEST_FILE_PATH = MOUNT_POINT + "/" + TEST_FILE_NAME; // Full path to the random write test file.
 const int NUM_THREADS = 5; // Number of concurrent threads for the random write test.

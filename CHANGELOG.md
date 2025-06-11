@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.47] - 2025-06-10
+### Fixed
+- FuseConcurrencyTest reads mount point from `SIMPLIDFS_CONCURRENCY_MOUNT`
+  environment variable to match wrapper script.
+
 ## [0.3.46] - 2025-06-10
 ### Fixed
 - Create per-run temporary directories for FuseConcurrencyTest logs and mount
