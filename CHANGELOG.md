@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.51] - 2025-06-11
+### Fixed
+- Storage nodes now apply writes at explicit offsets, enabling random write and
+  append operations in the FUSE adapter.
 ## [0.3.50] - 2025-06-11
 ### Fixed
 - Wrapper verifies storage nodes register with the metaserver before starting
