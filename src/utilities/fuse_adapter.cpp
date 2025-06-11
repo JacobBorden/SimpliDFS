@@ -21,6 +21,7 @@
 #include <sys/stat.h> // For S_IFDIR, S_IFREG, struct stat
 #include <sys/xattr.h> // For XATTR_USER_PREFIX (Linux-specific)
 #include <ctime>     // For time_t, time()
+#include <fcntl.h>   // For O_APPEND
 
 // Conditional include for statx (Linux-specific)
 // Ensure statx definitions are available if SIMPLIDFS_HAS_STATX is defined
@@ -886,13 +887,35 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     std::lock_guard<std::mutex> file_guard(*file_lock);
     if (size == 0) return 0;
 
+    off_t effective_offset = offset;
+    if (fi && (fi->flags & O_APPEND)) {
+        Message attr_req;
+        attr_req._Type = MessageType::GetAttr;
+        attr_req._Path = path_str;
+        std::string ser_attr_req = Message::Serialize(attr_req);
+        if (!data->metadata_client->Send(ser_attr_req.c_str())) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Failed to send GetAttr request for " + path_str);
+            return -EIO;
+        }
+        std::vector<char> attr_vec = data->metadata_client->Receive();
+        if (attr_vec.empty()) {
+            Logger::getInstance().log(LogLevel::ERROR, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_write: Empty GetAttr response for " + path_str);
+            return -EIO;
+        }
+        Message attr_res = Message::Deserialize(std::string(attr_vec.begin(), attr_vec.end()));
+        if (attr_res._ErrorCode != 0) {
+            return -attr_res._ErrorCode;
+        }
+        effective_offset = static_cast<off_t>(attr_res._Size);
+    }
+
     Message req_msg;
     // Use legacy WriteFile message type expected by the current metaserver
     // implementation. The newer MessageType::Write is not yet supported
     // server-side, which caused "unknown message" errors during FUSE tests.
     req_msg._Type = MessageType::WriteFile;
     req_msg._Path = path_str;
-    req_msg._Offset = static_cast<int64_t>(offset);
+    req_msg._Offset = static_cast<int64_t>(effective_offset);
     req_msg._Size = static_cast<uint64_t>(size);
     req_msg._Data.assign(buf, size);
 

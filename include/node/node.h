@@ -331,9 +331,16 @@ public:
                           client);
             }
           }
-        } else { // Non-empty content, try to write (will fail if file doesn't
-                 // exist)
-          success = fileSystem.writeFile(message._Filename, message._Content);
+        } else {
+          // Non-empty content: perform an in-place update at the requested
+          // offset. The FUSE layer sends the target byte position via
+          // message._Offset.
+          size_t writeOffset = 0;
+          if (message._Offset > 0) {
+            writeOffset = static_cast<size_t>(message._Offset);
+          }
+          success = writeFileAtOffset(message._Filename, message._Content,
+                                      writeOffset);
           if (success) {
             server.Send(("File " + message._Filename + " written successfully.")
                             .c_str(),
@@ -469,6 +476,35 @@ public:
     } catch (const std::exception &e) { // Catching other general exceptions
       std::cerr << "Error handling client: " << e.what() << std::endl;
     }
+  }
+
+  /**
+   * @brief Overwrite a portion of a file at the given offset.
+   *
+   * This helper reads the existing file contents, expands the data
+   * buffer if the offset is beyond the current end, and replaces the
+   * specified range with the provided data.
+   *
+   * @param filename Name of the file to modify.
+   * @param data     Data to write.
+   * @param offset   Byte offset where @p data should be placed.
+   * @return True on success, false if the file does not exist or the
+   *         underlying write fails.
+   */
+  bool writeFileAtOffset(const std::string &filename, const std::string &data,
+                         size_t offset) {
+    if (!fileSystem.fileExists(filename)) {
+      return false;
+    }
+    std::string current = fileSystem.readFile(filename);
+    if (current.size() < offset) {
+      current.resize(offset, '\0');
+    }
+    if (offset + data.size() > current.size()) {
+      current.resize(offset + data.size());
+    }
+    current.replace(offset, data.size(), data);
+    return fileSystem.writeFile(filename, current);
   }
 
   /**
