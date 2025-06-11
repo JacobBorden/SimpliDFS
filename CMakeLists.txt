@@ -202,6 +202,7 @@ add_custom_command(
     VERBATIM
 )
 
+
 # Expose a custom target so protobuf generation can be explicitly run and so
 # downstream targets may depend on it. CMake will only rerun protoc when the
 # .proto file changes, keeping rebuilds fast.
@@ -212,6 +213,7 @@ add_custom_target(generate_protos
         "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.cc"
         "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
 )
+
 
 # Group generated files for IDE convenience.
 set(GENERATED_PROTO_SRCS
@@ -228,13 +230,16 @@ add_library(simplidfs_grpc
     ${GENERATED_PROTO_SRCS}
     src/grpc_server.cpp
 )
+
 add_dependencies(simplidfs_grpc generate_protos)
+
 
 
 # Include directories for generated headers and public API headers.
 target_include_directories(simplidfs_grpc PUBLIC
     "${GENERATED_PROTO_DIR}"
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+
 )
 
 target_link_libraries(simplidfs_grpc
