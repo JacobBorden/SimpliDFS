@@ -6,6 +6,7 @@
 #include <cstdio> // For std::rename and std::remove
 #include <sstream> // For escapeJsonString
 #include <string>  // For std::string
+#include <cstdarg> // For va_list, va_start, va_end
 
 // Anonymous namespace for file-static helper functions
 namespace {
@@ -227,6 +228,15 @@ void Logger::logToConsole(LogLevel level, const std::string& message){
 	std::cout << "{\"timestamp\": \"" << getTimestamp()
               << "\", \"level\": \"" << levelToString(level)
               << "\", \"message\": \"" << escapeJsonString(message) << "\"}" << std::endl;
+}
+
+void Logger::trace(const char *format, ...){
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    Logger::getInstance().log(LogLevel::TRACE, buffer);
 }
 
 std::string Logger::getTimestamp(){
