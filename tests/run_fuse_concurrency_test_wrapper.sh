@@ -306,6 +306,26 @@ fi
 echo "INFO: All storage nodes started successfully."
 sleep 2 # Give nodes time to register with metaserver
 
+# Verify that all nodes registered with the metaserver before starting the FUSE adapter.
+NODE_REG_OK=false
+REG_CHECK_ATTEMPTS=10
+REG_CHECK_INTERVAL=0.5
+for i in $(seq 1 ${REG_CHECK_ATTEMPTS}); do
+    REG_COUNT=$(grep -c "Sent registration confirmation to node" "${METASERVER_LOG}" || true)
+    if [ "$REG_COUNT" -ge "$NUM_NODES" ]; then
+        echo "INFO: Detected ${REG_COUNT}/${NUM_NODES} node registrations in metaserver log."
+        NODE_REG_OK=true
+        break
+    fi
+    echo "INFO: Waiting for node registrations (${REG_COUNT}/${NUM_NODES})..."
+    sleep ${REG_CHECK_INTERVAL}
+done
+
+if [ "$NODE_REG_OK" = false ]; then
+    echo "ERROR: Not all storage nodes registered with the metaserver."
+    cleanup_and_exit 1
+fi
+
 # Start FUSE adapter
 echo "INFO: Attempting to start FUSE adapter..."
 # The -f flag keeps fuse in the foreground for its own process, but we still background the script's execution of it.
