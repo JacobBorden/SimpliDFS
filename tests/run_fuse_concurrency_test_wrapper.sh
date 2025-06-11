@@ -6,7 +6,7 @@ echo "INFO: Wrapper script starting..."
 # FUSE-related test scripts so the suite can run in environments without the
 # kernel module loaded (e.g. CI containers).
 if [ ! -e /dev/fuse ]; then
-    echo "SKIP: /dev/fuse not found, skipping FuseConcurrencyTest."
+    echo "SKIP: /dev/fuse not found, skipping FUSE concurrency test."
     exit 0
 fi
 
@@ -14,7 +14,7 @@ fi
 METASERVER_EXEC=../metaserver
 FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
-TEST_EXEC=./SimpliDFSFuseConcurrencyTest
+TEST_EXEC=${1:-./SimpliDFSFuseConcurrencyTest}
 
 BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
 MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
@@ -351,7 +351,7 @@ fi
 echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_PID}, Mount: ${MOUNT_POINT}"
 
 # Run the actual test
-echo "INFO: Running SimpliDFSFuseConcurrencyTest..."
+echo "INFO: Running ${TEST_EXEC}..."
 ${TEST_EXEC}
 TEST_EXIT_CODE=$?
 echo "INFO: Test executable finished with exit code: ${TEST_EXIT_CODE}"

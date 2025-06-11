@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.48] - 2025-06-11
+### Added
+- Split FuseConcurrencyTest into separate RandomWrite and Append tests for easier debugging.
+
 
 ## [0.3.47] - 2025-06-10
 ### Fixed
