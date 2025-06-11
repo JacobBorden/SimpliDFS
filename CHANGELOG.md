@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.50] - 2025-06-11
+### Fixed
+- Wrapper verifies storage nodes register with the metaserver before starting
+  the FUSE adapter, preventing random write and append tests from failing when
+  the metaserver is unavailable.
 ## [0.3.49] - 2025-06-11
 ### Fixed
 - Fuse concurrency wrapper now prefixes test executables with `./` so CTest
