@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.46] - 2025-06-10
+### Fixed
+- Create per-run temporary directories for FuseConcurrencyTest logs and mount
+  point to avoid permission issues from stale files.
+
 ## [0.3.45] - 2025-06-10
 ### Fixed
 - Remove stale metadata before FuseConcurrencyTest to avoid partial replication.
