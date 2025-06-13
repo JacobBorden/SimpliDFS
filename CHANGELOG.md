@@ -1,4 +1,12 @@
 # Changelog
+## [0.3.54] - 2025-06-13
+### Fixed
+- Retried file openings now clear fail states to succeed when the file appears,
+  preventing false failures in `FuseRandomWriteTest` and `FuseAppendTest`.
+## [0.3.53] - 2025-06-13
+### Fixed
+- Increased wait time for node registrations in the FUSE concurrency wrapper
+  to prevent sporadic failures in `FuseRandomWriteTest` and `FuseAppendTest`.
 ## [0.3.52] - 2025-06-11
 ### Fixed
 - FuseRandomWriteTest now retries opening the result file before verification,
