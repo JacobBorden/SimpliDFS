@@ -182,10 +182,12 @@ inline bool openFileWithRetry(const std::string& path, std::ifstream& stream,
                               std::ios_base::openmode mode,
                               int retries = 3, int delay_ms = 100) {
     for (int attempt = 0; attempt <= retries; ++attempt) {
+        stream.clear();
         stream.open(path, mode);
         if (stream.is_open()) {
             return true;
         }
+        stream.clear();
         std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
     }
     return false;

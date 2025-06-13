@@ -308,7 +308,7 @@ sleep 2 # Give nodes time to register with metaserver
 
 # Verify that all nodes registered with the metaserver before starting the FUSE adapter.
 NODE_REG_OK=false
-REG_CHECK_ATTEMPTS=10
+REG_CHECK_ATTEMPTS=20
 REG_CHECK_INTERVAL=0.5
 for i in $(seq 1 ${REG_CHECK_ATTEMPTS}); do
     REG_COUNT=$(grep -c "Sent registration confirmation to node" "${METASERVER_LOG}" || true)
