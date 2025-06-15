@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.55] - 2025-06-14
+### Fixed
+- FUSE adapter assigns unique file handles during `open`, preventing handle
+  collisions that broke concurrent append and random write tests.
 ## [0.3.54] - 2025-06-13
 ### Fixed
 - Retried file openings now clear fail states to succeed when the file appears,
