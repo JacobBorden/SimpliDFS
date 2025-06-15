@@ -1,4 +1,12 @@
 # Changelog
+## [0.3.56] - 2025-06-15
+### Fixed
+- `create` now assigns a unique file handle, matching the `open` behavior. This
+  prevents handle collisions when new files are created through FUSE.
+## [0.3.55] - 2025-06-14
+### Fixed
+- FUSE adapter assigns unique file handles during `open`, preventing handle
+  collisions that broke concurrent append and random write tests.
 ## [0.3.54] - 2025-06-13
 ### Fixed
 - Retried file openings now clear fail states to succeed when the file appears,
