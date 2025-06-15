@@ -76,7 +76,15 @@ static std::string get_mount_point() {
 const std::string MOUNT_POINT = get_mount_point();
 const std::string TEST_FILE_NAME = "concurrent_write_test.txt"; // Name of the file used for random write tests.
 const std::string FULL_TEST_FILE_PATH = MOUNT_POINT + "/" + TEST_FILE_NAME; // Full path to the random write test file.
-const int NUM_THREADS = 5; // Number of concurrent threads for the random write test.
+
+// Allow the number of worker threads to be overridden at compile time. This
+// makes it easy to build alternate test binaries (e.g. single threaded
+// versions) by passing a definition such as `-DFUSE_NUM_THREADS=1`.
+#ifndef FUSE_NUM_THREADS
+#define FUSE_NUM_THREADS 5
+#endif
+const int NUM_THREADS = FUSE_NUM_THREADS; // Number of concurrent threads for the random write test.
+
 const int NUM_LINES_PER_THREAD = 100; // Number of lines each thread will write in the random write test.
 const int LINE_LENGTH = 80; // Fixed length of the content part of each line, excluding newline.
 const std::string HEADER_LINE = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n"; // A header line written once at the beginning of the test file.
@@ -84,7 +92,12 @@ const std::string HEADER_LINE = "CONCURRENCY_TEST_HEADER_LINE_IGNORE\n"; // A he
 // Configuration for the Append Test
 const std::string APPEND_TEST_FILE_NAME = "concurrent_append_test.txt"; // Name of the file used for append tests.
 const std::string FULL_APPEND_TEST_FILE_PATH = MOUNT_POINT + "/" + APPEND_TEST_FILE_NAME; // Full path to the append test file.
-const int NUM_APPEND_THREADS = 4; // Number of concurrent threads for the append test.
+// Similar to NUM_THREADS, allow the append test's thread count to be overridden
+// when compiling. The default remains four threads.
+#ifndef FUSE_NUM_APPEND_THREADS
+#define FUSE_NUM_APPEND_THREADS 4
+#endif
+const int NUM_APPEND_THREADS = FUSE_NUM_APPEND_THREADS; // Number of concurrent threads for the append test.
 const int NUM_LINES_PER_APPEND_THREAD = 50; // Number of lines each thread will append.
 const std::string APPEND_LINE_PREFIX = "AppendThread"; // Prefix used for lines in the append test to identify the writing thread.
 const int APPEND_LINE_FIXED_CONTENT_LENGTH = 60; // Fixed length for the content part of lines in the append test (e.g., "AAAA...").
