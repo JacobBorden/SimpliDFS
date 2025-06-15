@@ -102,6 +102,8 @@ void simpli_destroy(void* private_data);
 // Global map to serialize concurrent writes per file
 static std::mutex g_lock_map_mutex;
 static std::unordered_map<std::string, std::shared_ptr<std::mutex>> g_file_locks;
+// Atomic counter for assigning unique file handles
+static std::atomic<uint64_t> g_next_fh{1};
 
 static std::shared_ptr<std::mutex> get_file_lock(const std::string& path) {
     std::lock_guard<std::mutex> guard(g_lock_map_mutex);
@@ -579,7 +581,10 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
             return -EHOSTUNREACH; // Or EIO
         }
 
-        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port) + ". Storing handle " + std::to_string(fi->fh));
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port));
+
+        // Assign a unique file handle and store the connection
+        fi->fh = g_next_fh.fetch_add(1, std::memory_order_relaxed);
 
         StorageNodeClient snc;
         snc.client = storage_node_client;
@@ -587,14 +592,6 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
         std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
         data->active_storage_clients[fi->fh] = snc;
-        // Note: FUSE sets fi->fh to a unique value if we return 0 and don't set it ourselves,
-        // unless FUSE_CAP_EXPLICIT_INVAL_DATA is set (which it isn't by default).
-        // If fi->fh is 0 here, it means FUSE didn't assign one (e.g. because of direct_io or kernel_cache)
-        // or the open wasn't truly "successful" in a way that FUSE assigns an fh.
-        // This could be an issue if multiple files return fh=0. For now, assume fh is unique non-zero.
-        if (fi->fh == 0) {
-             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: fi->fh is 0 after successful open and storage client connection for " + path_str + ". This might lead to issues if not unique.");
-        }
 
 
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_open: Successfully opened " + path_str + " and connected to storage node.");
@@ -840,16 +837,16 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
             return -EHOSTUNREACH;
         }
 
-        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port) + ". Storing handle " + std::to_string(fi->fh));
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port));
+
+        // Assign a unique file handle and store the connection
+        fi->fh = g_next_fh.fetch_add(1, std::memory_order_relaxed);
 
         StorageNodeClient snc;
         snc.client = storage_node_client;
 
         std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
         data->active_storage_clients[fi->fh] = snc;
-         if (fi->fh == 0) {
-             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: fi->fh is 0 after successful create and storage client connection for " + path_str + ". This might lead to issues if not unique.");
-        }
 
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully created " + path_str + " and connected to storage node.");
         return 0;
@@ -887,30 +884,11 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset, s
     std::lock_guard<std::mutex> file_guard(*file_lock);
     if (size == 0) return 0;
 
-    size_t old_len = 0;
-    {
-        Message attr_req_len;
-        attr_req_len._Type = MessageType::GetAttr;
-        attr_req_len._Path = path_str;
-        std::string ser_attr_req_len = Message::Serialize(attr_req_len);
-        if (data->metadata_client->Send(ser_attr_req_len.c_str())) {
-            std::vector<char> len_vec = data->metadata_client->Receive();
-            if (!len_vec.empty()) {
-                Message len_res = Message::Deserialize(std::string(len_vec.begin(), len_vec.end()));
-                if (len_res._ErrorCode == 0) {
-                    old_len = static_cast<size_t>(len_res._Size);
-                }
-            }
-        }
-    }
-    Logger::trace("WRITE  path=%s  size=%zu  offset=%jd  flags=%x  old_len=%zu",
+    Logger::trace("WRITE  path=%s  size=%zu  offset=%jd  flags=%x",
                   path_str.c_str(), size, static_cast<intmax_t>(offset),
-                  fi ? fi->flags : 0, old_len);
+                  fi ? fi->flags : 0);
 
     off_t effective_offset = offset;
-    if (fi && (fi->flags & O_APPEND)) {
-        effective_offset = static_cast<off_t>(old_len);
-    }
 
     Message req_msg;
     // Use legacy WriteFile message type expected by the current metaserver
