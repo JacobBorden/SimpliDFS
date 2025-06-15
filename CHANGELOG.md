@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.57] - 2025-06-15
+### Added
+- Single-thread variants of `FuseRandomWriteTest` and `FuseAppendTest` to aid debugging of concurrency issues.
+
 ## [0.3.56] - 2025-06-15
 ### Fixed
 - `create` now assigns a unique file handle, matching the `open` behavior. This

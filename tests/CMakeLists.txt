@@ -81,6 +81,31 @@ target_link_libraries(SimpliDFSFuseAppendTest
     ${SODIUM_LIBRARIES}
 )
 
+# Single-thread variants of the FUSE tests. These are compiled with
+# FUSE_NUM_THREADS/FUSE_NUM_APPEND_THREADS set to 1 to help diagnose
+# concurrency issues by removing multi-threading from the equation.
+add_executable(SimpliDFSFuseRandomWriteSingleThreadTest
+    fuse_concurrency_tests.cpp
+    fuse_random_write_main.cpp
+)
+target_compile_definitions(SimpliDFSFuseRandomWriteSingleThreadTest PRIVATE FUSE_NUM_THREADS=1)
+target_link_libraries(SimpliDFSFuseRandomWriteSingleThreadTest
+    PRIVATE
+    Threads::Threads
+    ${SODIUM_LIBRARIES}
+)
+
+add_executable(SimpliDFSFuseAppendSingleThreadTest
+    fuse_concurrency_tests.cpp
+    fuse_append_main.cpp
+)
+target_compile_definitions(SimpliDFSFuseAppendSingleThreadTest PRIVATE FUSE_NUM_APPEND_THREADS=1)
+target_link_libraries(SimpliDFSFuseAppendSingleThreadTest
+    PRIVATE
+    Threads::Threads
+    ${SODIUM_LIBRARIES}
+)
+
 add_test(
     NAME FuseRandomWriteTest
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseRandomWriteTest
@@ -94,6 +119,20 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(FuseAppendTest PROPERTIES DEPENDS FuseTestEnvSetup)
+
+add_test(
+    NAME FuseRandomWriteSingleThreadTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseRandomWriteSingleThreadTest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(FuseRandomWriteSingleThreadTest PROPERTIES DEPENDS FuseTestEnvSetup)
+
+add_test(
+    NAME FuseAppendSingleThreadTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseAppendSingleThreadTest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(FuseAppendSingleThreadTest PROPERTIES DEPENDS FuseTestEnvSetup)
 # Define a test for running the setup script
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
