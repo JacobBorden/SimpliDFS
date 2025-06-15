@@ -248,6 +248,7 @@ void writer_thread_func(int thread_id) {
     std::streampos pos_before_write = outfile.tellp(); // Current position before writing.
     // Perform the actual write operation.
     outfile.write(line_to_write.c_str(), line_to_write.length());
+    outfile.flush();
 
     // Log after write: success/failure, stream state, and bytes written.
     // This confirms the outcome of the write and checks for partial writes or errors.
@@ -379,6 +380,7 @@ void appender_thread_func(int thread_id) {
     // Perform the append operation. Due to std::ios::app, the system should ensure
     // this write occurs at the current end-of-file, even with concurrent appends.
     outfile.write(line_to_write.c_str(), line_to_write.length());
+    outfile.flush();
 
     // Log after append: success/failure, stream state, and positions.
     if (outfile.fail()) {
@@ -774,6 +776,13 @@ bool run_random_write_test() {
   if (!check_mount_point_ready()) {
     // check_mount_point_ready() already logs the error details.
     return 1; // Exit if mount point isn't ready.
+  }
+
+  // Reset the barrier counter so writer threads synchronize properly even if
+  // this test runs in the same process after another.
+  {
+    std::unique_lock<std::mutex> lk(start_mutex);
+    start_count = 0;
   }
 
   // Initialize the libsodium library, which is used for SHA-256 hashing during verification.

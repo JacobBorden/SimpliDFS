@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.57] - 2025-06-15
+### Fixed
+- Random write and append FUSE tests flush data and reset their thread barrier
+  ensuring the computed hash matches the expected result.
 ## [0.3.56] - 2025-06-15
 ### Fixed
 - `create` now assigns a unique file handle, matching the `open` behavior. This
