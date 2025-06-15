@@ -153,6 +153,14 @@ inline bool preallocateFile(const std::string& path, off_t size) {
  */
 inline std::array<unsigned char, crypto_hash_sha256_BYTES>
 compute_sha256(const std::string& data) {
+    // Ensure libsodium is initialized. Multiple calls are safe and return 1 if
+    // already initialized. A return value of -1 indicates a fatal failure and
+    // results in an all-zero digest to avoid undefined behavior.
+    if (sodium_init() < 0) {
+        std::array<unsigned char, crypto_hash_sha256_BYTES> empty_digest{};
+        return empty_digest;
+    }
+
     crypto_hash_sha256_state state;
     std::array<unsigned char, crypto_hash_sha256_BYTES> digest{};
     crypto_hash_sha256_init(&state);
