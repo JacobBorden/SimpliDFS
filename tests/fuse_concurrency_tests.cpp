@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <cstdio> // For std::remove
 #include <fstream>
+#include <ext/stdio_filebuf.h> // For file descriptor access
 #include <iomanip> // For std::put_time
 #include <iostream>
 #include <mutex>
@@ -249,6 +250,11 @@ void writer_thread_func(int thread_id) {
     // Perform the actual write operation.
     outfile.write(line_to_write.c_str(), line_to_write.length());
     outfile.flush();
+    // Flush buffers to the underlying filesystem to prevent stale reads during
+    // the verification phase. GNU's stdio_filebuf provides fd() for this.
+    if (auto fb = dynamic_cast<__gnu_cxx::stdio_filebuf<char>*>(outfile.rdbuf())) {
+      fsync(fb->fd());
+    }
 
     // Log after write: success/failure, stream state, and bytes written.
     // This confirms the outcome of the write and checks for partial writes or errors.
@@ -381,6 +387,9 @@ void appender_thread_func(int thread_id) {
     // this write occurs at the current end-of-file, even with concurrent appends.
     outfile.write(line_to_write.c_str(), line_to_write.length());
     outfile.flush();
+    if (auto fb = dynamic_cast<__gnu_cxx::stdio_filebuf<char>*>(outfile.rdbuf())) {
+      fsync(fb->fd());
+    }
 
     // Log after append: success/failure, stream state, and positions.
     if (outfile.fail()) {

@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.58] - 2025-06-15
+### Fixed
+- FUSE concurrency tests call `fsync` after each write and append so hash
+  verification reliably matches the expected value.
 ## [0.3.57] - 2025-06-15
 ### Fixed
 - Random write and append FUSE tests flush data and reset their thread barrier
