@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.58] - 2025-06-15
+### Fixed
+- SHA-256 helper now self-initializes libsodium to prevent incorrect hashes.
+
 ## [0.3.57] - 2025-06-15
 ### Added
 - Single-thread variants of `FuseRandomWriteTest` and `FuseAppendTest` to aid debugging of concurrency issues.
