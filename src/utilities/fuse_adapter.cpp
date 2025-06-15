@@ -460,7 +460,7 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t of
 
         std::istringstream name_stream(res_msg._Data);
         std::string name_token;
-        while(std::getline(name_stream, name_token, ' ')) { // Corrected: char literal ' '
+        while(std::getline(name_stream, name_token, '\0')) {
             if (!name_token.empty()) {
                 filler(buf, name_token.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
             }
