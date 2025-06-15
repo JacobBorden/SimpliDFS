@@ -5,7 +5,8 @@
 #include <condition_variable>
 #include <cstdio> // For std::remove
 #include <fstream>
-#include <ext/stdio_filebuf.h> // For file descriptor access
+#include <fcntl.h> // For open, O_* flags
+#include <unistd.h> // For pwrite, fsync, close
 #include <iomanip> // For std::put_time
 #include <iostream>
 #include <mutex>
@@ -158,141 +159,68 @@ void writer_thread_func(int thread_id) {
     }
   }
 
-  std::fstream outfile; // File stream object for this thread.
-
-  // Log intention to open the file. This helps trace file access patterns.
-  std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-            << " TID: " << std::this_thread::get_id() << "] Thread "
-            << thread_id << ": Intending to open file " << FULL_TEST_FILE_PATH
-            << std::endl;
-
-  // Open the test file for writing and reading in binary mode.
-  // - std::ios::out: Allows writing to the file.
-  // - std::ios::in: Allows reading from the file. This might seem counter-intuitive for a write test,
-  //   but fstream often requires it for certain operations like seekp to arbitrary locations if the
-  //   file is not truncated, or for checking stream states reliably. It ensures the stream
-  //   is fully functional for read/write operations if needed.
-  // - std::ios::binary: Ensures data is written/read without CRLF translation or other text-mode processing.
-  outfile.open(FULL_TEST_FILE_PATH,
-               std::ios::out | std::ios::in | std::ios::binary);
-
-  // Log success or failure of the open operation. This is critical for diagnosing
-  // issues related to file access permissions or mount point problems.
-  if (!outfile.is_open()) {
+  // Open the file using POSIX APIs so we can perform explicit pwrite and fsync
+  // calls. This avoids any buffering performed by iostreams and gives the test
+  // tighter control over when data reaches the filesystem.
+  int fd = ::open(FULL_TEST_FILE_PATH.c_str(), O_WRONLY);
+  if (fd < 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
               << thread_id << ": Failed to open file " << FULL_TEST_FILE_PATH
-              << ". Stream state: " << outfile.rdstate() << std::endl;
-    return; // Exit thread if file cannot be opened.
+              << ": " << strerror(errno) << std::endl;
+    return; // Exit thread if the file cannot be opened.
   }
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] Thread "
             << thread_id << ": File " << FULL_TEST_FILE_PATH
-            << " opened successfully." << std::endl;
+            << " opened successfully (fd=" << fd << ")." << std::endl;
 
-  // Main loop: Iterates NUM_LINES_PER_THREAD times to write each line assigned to this thread.
+  // Main loop: each iteration writes a single line at its designated offset.
   for (int i = 0; i < NUM_LINES_PER_THREAD; ++i) {
-    // Generate the unique content for the current line.
+    // Generate a deterministic line of content and add a newline.
     std::string content_for_line = generate_line_content(thread_id, i);
-    std::string line_to_write = content_for_line + '\n'; // Append newline character.
+    std::string line_to_write = content_for_line + '\n';
 
-    // Offset Calculation: This is critical for ensuring threads write to distinct regions.
-    // Each thread is assigned a "block" of the file.
-    // - HEADER_LINE.size(): Accounts for the initial header line in the file.
-    // - thread_id * NUM_LINES_PER_THREAD * (LINE_LENGTH + 1): Calculates the starting
-    //   offset for this thread's entire block of lines. Each previous thread has written
-    //   NUM_LINES_PER_THREAD lines, each of size (LINE_LENGTH + 1) bytes (content + newline).
+    // Calculate the target offset within the file for this line.
     off_t thread_block_start_offset =
         HEADER_LINE.size() +
         static_cast<off_t>(thread_id) * NUM_LINES_PER_THREAD * (LINE_LENGTH + 1);
-    // - i * (LINE_LENGTH + 1): Calculates the offset of the current line within this
-    //   thread's assigned block.
     off_t line_offset_in_block = static_cast<off_t>(i) * (LINE_LENGTH + 1);
-    // - offset: The final, absolute byte offset in the file where this line should be written.
     off_t offset = thread_block_start_offset + line_offset_in_block;
 
-    // Log the target offset before attempting to seek. This helps verify offset calculations.
+    // Log intention to write at this offset.
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Line " << i << ", intending to seek to offset " << offset
-              << std::endl;
+              << thread_id << ": Line " << i << ", writing "
+              << line_to_write.length() << " bytes at offset " << offset
+              << ". Snippet: " << line_to_write.substr(0, 10) << "..." << std::endl;
 
-    // Position the file pointer (put pointer) to the calculated offset.
-    // This is key to the "random write" nature of the test, ensuring threads write
-    // to their designated, non-overlapping areas, even if the file was pre-allocated.
-    outfile.seekp(offset);
-
-    // Log success or failure of seekp, including stream state and current position.
-    // This helps debug issues if seek operations are not behaving as expected.
-    if (outfile.fail()) {
+    ssize_t bytes_written = ::pwrite(fd, line_to_write.data(), line_to_write.size(), offset);
+    if (bytes_written != static_cast<ssize_t>(line_to_write.size())) {
       std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Seekp to " << offset
-                << " failed. Stream state: " << outfile.rdstate()
-                << ", current position: " << outfile.tellp() << std::endl;
-      // Depending on strictness, one might choose to break or return here.
+                << thread_id << ": pwrite failed at offset " << offset
+                << ". Wrote " << bytes_written << " bytes." << std::endl;
     } else {
       std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Seekp to " << offset << " succeeded. Current position: "
-                << outfile.tellp() << std::endl;
+                << thread_id << ": pwrite succeeded at offset " << offset << std::endl;
     }
-
-    // Log before writing: content snippet (or length), intended offset, and number of bytes.
-    // This provides context for the write operation.
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-              << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Line " << i << ", intending to write "
-              << line_to_write.length() << " bytes at offset " << outfile.tellp()
-              << ". Content snippet: " << line_to_write.substr(0, 10) << "..." << std::endl;
-
-    std::streampos pos_before_write = outfile.tellp(); // Current position before writing.
-    // Perform the actual write operation.
-    outfile.write(line_to_write.c_str(), line_to_write.length());
-    outfile.flush();
-    // Flush buffers to the underlying filesystem to prevent stale reads during
-    // the verification phase. GNU's stdio_filebuf provides fd() for this.
-    if (auto fb = dynamic_cast<__gnu_cxx::stdio_filebuf<char>*>(outfile.rdbuf())) {
-      fsync(fb->fd());
-    }
-
-    // Log after write: success/failure, stream state, and bytes written.
-    // This confirms the outcome of the write and checks for partial writes or errors.
-    if (outfile.fail()) {
-      std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-                << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Write failed at offset " << pos_before_write
-                << ". Stream state: " << outfile.rdstate()
-                << ", current position: " << outfile.tellp() << std::endl;
-      // Depending on strictness, one might choose to break or return here.
-    } else {
-      std::streampos pos_after_write = outfile.tellp();
-      std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-                << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Write at offset " << pos_before_write
-                << " succeeded. Bytes written: " << (pos_after_write - pos_before_write)
-                << ". Stream good: " << outfile.good() << std::endl;
-    }
+    fsync(fd); // Ensure data reaches the filesystem before the verification phase.
   }
 
-  // Log intention to close the file.
+  // Close the POSIX file descriptor opened earlier.
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] Thread "
             << thread_id << ": Intending to close file " << FULL_TEST_FILE_PATH << std::endl;
-  // Close the file stream for this thread.
-  outfile.close();
-
-  // Log whether the close operation appeared successful by checking stream state.
-  // Errors during close can indicate issues with flushing buffers or releasing resources.
-  if (outfile.fail()) { // Check rdstate for errors after close
+  if (::close(fd) != 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Close operation on file " << FULL_TEST_FILE_PATH
-              << " may have failed. Stream state: " << outfile.rdstate() << std::endl;
+              << thread_id << ": close failed: " << strerror(errno) << std::endl;
   } else {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": File " << FULL_TEST_FILE_PATH << " closed. Stream state good." << std::endl;
+              << thread_id << ": File closed successfully." << std::endl;
   }
 
   // Log thread completion.
@@ -337,102 +265,66 @@ void appender_thread_func(int thread_id) {
     }
   }
 
-  std::fstream outfile; // File stream object for this thread.
-  // Log intention to open file for append.
+  // Use a POSIX file descriptor opened with O_APPEND so each write is atomically
+  // placed at the end of the file. This provides more predictable behavior under
+  // concurrency than relying on iostream buffering.
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] "
             << APPEND_LINE_PREFIX << " " << thread_id << ": Intending to open file "
             << FULL_APPEND_TEST_FILE_PATH << " for append." << std::endl;
-
-  // Open the test file in output, append, and binary modes.
-  // - std::ios::out: Allows writing to the file.
-  // - std::ios::app: This is CRUCIAL for the append test. It ensures that all write
-  //   operations are directed to the current end-of-file, regardless of other concurrent
-  //   operations. This mode is key to testing atomic appends.
-  // - std::ios::binary: Ensures data is written without text-mode processing.
-  outfile.open(FULL_APPEND_TEST_FILE_PATH,
-               std::ios::out | std::ios::app | std::ios::binary);
-
-  // Log success or failure of file opening.
-  if (!outfile.is_open()) {
+  int fd = ::open(FULL_APPEND_TEST_FILE_PATH.c_str(), O_WRONLY | O_APPEND);
+  if (fd < 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] "
               << APPEND_LINE_PREFIX << " " << thread_id << ": Failed to open file "
-              << FULL_APPEND_TEST_FILE_PATH << " for append. Stream state: " << outfile.rdstate() << std::endl;
-    return; // Exit thread if file cannot be opened.
+              << FULL_APPEND_TEST_FILE_PATH << ": " << strerror(errno) << std::endl;
+    return; // Exit thread if the file cannot be opened.
   }
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] "
             << APPEND_LINE_PREFIX << " " << thread_id << ": File "
-            << FULL_APPEND_TEST_FILE_PATH << " opened successfully for append." << std::endl;
+            << FULL_APPEND_TEST_FILE_PATH << " opened successfully for append (fd=" << fd << ")." << std::endl;
 
-  // Main loop: Iterates NUM_LINES_PER_APPEND_THREAD times to append each line.
+  // Main loop: each thread appends its lines sequentially.
   for (int i = 0; i < NUM_LINES_PER_APPEND_THREAD; ++i) {
-    // Line Generation: Create a unique line for this thread and iteration.
-    // Includes a prefix, thread ID, line number, and a fixed-length content string.
-    // This helps in verifying that all lines are written and no data is lost or interleaved incorrectly.
     std::string line_to_write = APPEND_LINE_PREFIX + std::to_string(thread_id) + "_Line" +
                                std::to_string(i) + "_" +
                                std::string(APPEND_LINE_FIXED_CONTENT_LENGTH, 'A' + (thread_id + i) % 26) + "\n";
 
-    // Log before appending: content snippet and length.
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] "
               << APPEND_LINE_PREFIX << " " << thread_id << ": Line " << i
               << ", intending to append " << line_to_write.length() << " bytes. "
               << "Content snippet: " << line_to_write.substr(0, 20) << "..." << std::endl;
 
-    std::streampos pos_before_write = outfile.tellp(); // Position before append (for logging).
-    // Perform the append operation. Due to std::ios::app, the system should ensure
-    // this write occurs at the current end-of-file, even with concurrent appends.
-    outfile.write(line_to_write.c_str(), line_to_write.length());
-    outfile.flush();
-    if (auto fb = dynamic_cast<__gnu_cxx::stdio_filebuf<char>*>(outfile.rdbuf())) {
-      fsync(fb->fd());
-    }
-
-    // Log after append: success/failure, stream state, and positions.
-    if (outfile.fail()) {
+    ssize_t bytes_written = ::write(fd, line_to_write.data(), line_to_write.size());
+    if (bytes_written != static_cast<ssize_t>(line_to_write.size())) {
       std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] "
-                << APPEND_LINE_PREFIX << " " << thread_id << ": Append failed. "
-                << "Stream state: " << outfile.rdstate()
-                << ", pos before: " << pos_before_write
-                << ", pos after: " << outfile.tellp() << std::endl;
+                << APPEND_LINE_PREFIX << " " << thread_id << ": append write failed. "
+                << "Wrote " << bytes_written << " bytes." << std::endl;
     } else {
-      std::streampos pos_after_write = outfile.tellp();
       std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] "
-                << APPEND_LINE_PREFIX << " " << thread_id << ": Append succeeded. "
-                << "Bytes written: " << (pos_after_write - pos_before_write)
-                << ". Stream good: " << outfile.good() << std::endl;
+                << APPEND_LINE_PREFIX << " " << thread_id << ": append succeeded." << std::endl;
     }
-    // Small sleep to increase chance of thread interleaving:
-    // This pause makes it more likely that context switches will occur between threads
-    // while they are all trying to append to the file. This helps to expose potential
-    // race conditions or atomicity issues in the filesystem's append implementation.
+    fsync(fd);
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
 
-  // Log intention to close the file.
+  // Close the POSIX file descriptor used for appending.
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] "
             << APPEND_LINE_PREFIX << " " << thread_id << ": Intending to close file "
             << FULL_APPEND_TEST_FILE_PATH << std::endl;
-  // Close the file stream.
-  outfile.close();
-
-  // Log whether the close operation was successful.
-  if (outfile.fail()) {
+  if (::close(fd) != 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] "
-              << APPEND_LINE_PREFIX << " " << thread_id << ": Close operation on file "
-              << FULL_APPEND_TEST_FILE_PATH << " may have failed. Stream state: " << outfile.rdstate() << std::endl;
+              << APPEND_LINE_PREFIX << " " << thread_id << ": close failed: " << strerror(errno) << std::endl;
   } else {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] "
-              << APPEND_LINE_PREFIX << " " << thread_id << ": File "
-              << FULL_APPEND_TEST_FILE_PATH << " closed. Stream state good." << std::endl;
+              << APPEND_LINE_PREFIX << " " << thread_id << ": File closed successfully." << std::endl;
   }
 
   // Log thread completion.
