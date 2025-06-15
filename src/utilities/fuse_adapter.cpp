@@ -837,16 +837,16 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
             return -EHOSTUNREACH;
         }
 
-        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port) + ". Storing handle " + std::to_string(fi->fh));
+        Logger::getInstance().log(LogLevel::INFO, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully connected to storage node " + node_ip + ":" + std::to_string(node_port));
+
+        // Assign a unique file handle and store the connection
+        fi->fh = g_next_fh.fetch_add(1, std::memory_order_relaxed);
 
         StorageNodeClient snc;
         snc.client = storage_node_client;
 
         std::lock_guard<std::mutex> storage_lock(data->active_storage_clients_mutex);
         data->active_storage_clients[fi->fh] = snc;
-         if (fi->fh == 0) {
-             Logger::getInstance().log(LogLevel::WARN, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: fi->fh is 0 after successful create and storage client connection for " + path_str + ". This might lead to issues if not unique.");
-        }
 
         Logger::getInstance().log(LogLevel::DEBUG, getCurrentTimestamp() + " [FUSE_ADAPTER] simpli_create: Successfully created " + path_str + " and connected to storage node.");
         return 0;
