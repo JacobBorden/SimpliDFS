@@ -1,4 +1,7 @@
 # Changelog
+## [0.3.59] - 2025-06-16
+### Added
+- Unit test for writing and reading files directly through a Node without FUSE.
 ## [0.3.58] - 2025-06-16
 ### Added
 - Basic FUSE mount, write/read and append tests for easier debugging.
