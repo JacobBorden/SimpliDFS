@@ -1,4 +1,7 @@
 # Changelog
+## [0.3.58] - 2025-06-16
+### Added
+- Basic FUSE mount, write/read and append tests for easier debugging.
 ## [0.3.57] - 2025-06-15
 ### Added
 - Single-thread variants of `FuseRandomWriteTest` and `FuseAppendTest` to aid debugging of concurrency issues.
