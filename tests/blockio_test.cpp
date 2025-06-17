@@ -400,7 +400,7 @@ TEST(BlockIOTest, PipelineCompressionEncryption) {
     ASSERT_EQ(result.nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
 
     BlockIO verify;
-    std::vector<std::byte> decompressed = verify.decompress_data(result.data, 0);
-    std::vector<std::byte> decrypted = verify.decrypt_data(decompressed, FIXED_TEST_KEY, result.nonce);
-    EXPECT_EQ(decrypted, data);
+    std::vector<std::byte> decrypted = verify.decrypt_data(result.data, FIXED_TEST_KEY, result.nonce);
+    std::vector<std::byte> decompressed = verify.decompress_data(decrypted, data.size());
+    EXPECT_EQ(decompressed, data);
 }

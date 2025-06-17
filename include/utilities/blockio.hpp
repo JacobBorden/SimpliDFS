@@ -64,8 +64,8 @@ public:
     /**
      * @brief Finalize buffered data through the configured pipeline.
      *
-     * The order of operations is hashing, then encryption, then compression.
-     * Hashing or encryption steps are skipped if disabled.
+     * The order of operations is compression, then encryption, then hashing.
+     * Each step is optional based on the enabled flags.
      *
      * @param key Encryption key if encryption is enabled.
      * @return PipelineResult containing processed data and optional metadata.

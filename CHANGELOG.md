@@ -1,4 +1,8 @@
 # Changelog
+## [0.3.60] - 2025-06-16
+### Changed
+- Data pipeline now compresses before encryption then hashes, reducing chunk store size.
+
 ## [0.3.59] - 2025-06-16
 ### Added
 - Unit test for writing and reading files directly through a Node without FUSE.
