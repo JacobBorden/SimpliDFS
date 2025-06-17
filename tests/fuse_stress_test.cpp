@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdlib>
 
-// Retrieve mount point from environment or fall back to default.
+// Retrieve mount point from environment or fall back to a temporary default.
 static std::string get_mount_point() {
     const char* env = std::getenv("SIMPLIDFS_CONCURRENCY_MOUNT");
     if (env && env[0] != '\0') {
@@ -16,12 +16,17 @@ static std::string get_mount_point() {
 }
 
 bool run_fuse_stress(std::size_t gigabytes) {
-    const std::size_t block_size = 1024 * 1024; // 1MB blocks
+    // We write one megabyte blocks repeatedly to reach the desired total size.
+    const std::size_t block_size = 1024 * 1024; // 1 MB
     const std::size_t blocks_to_write = gigabytes * 1024;
+
+    // File path within the mounted filesystem.
     std::string path = get_mount_point() + "/stress_test.dat";
 
+    // Generate a deterministic pattern for both writing and verification.
     auto pattern = generate_pseudo_random_data(block_size);
 
+    // Write the pattern repeatedly to the file.
     std::ofstream out(path, std::ios::binary);
     if (!out.is_open()) {
         std::cerr << "Failed to open " << path << " for writing\n";
@@ -32,6 +37,7 @@ bool run_fuse_stress(std::size_t gigabytes) {
     }
     out.close();
 
+    // Read the file back and accumulate bit errors.
     std::ifstream in(path, std::ios::binary);
     if (!in.is_open()) {
         std::cerr << "Failed to open " << path << " for reading\n";
@@ -45,13 +51,23 @@ bool run_fuse_stress(std::size_t gigabytes) {
             std::cerr << "Short read encountered\n";
             return false;
         }
+
+        // Compare read data with the expected pattern.
         bit_errors += count_bit_errors(pattern, read_buf);
+
+        // No need to continue once we exceed the threshold.
         if (bit_errors > 1) {
             break;
         }
     }
     in.close();
+
+    // Clean up the test file from the mount point.
     std::remove(path.c_str());
+
+    // Emit the final bit error count for logging.
     std::cout << "BIT_ERRORS:" << bit_errors << std::endl;
+
+    // The pipeline will fail if more than one bit was corrupted.
     return bit_errors <= 1;
 }
