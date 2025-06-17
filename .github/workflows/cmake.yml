@@ -50,3 +50,9 @@ jobs:
       - name: Test
         working-directory: build
         run: ctest -C $BUILD_TYPE --output-on-failure -VV -E FuseTestEnv --timeout 1200
+
+      - name: FUSE stress tests
+        working-directory: build
+        run: |
+          sudo modprobe fuse || true
+          ctest -C $BUILD_TYPE -R Fuse -VV --timeout 7200

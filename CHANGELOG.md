@@ -1,3 +1,9 @@
+## [0.3.62] - 2025-06-18
+### Added
+- CI pipeline now runs the full set of FUSE stress tests.
+### Changed
+- Pipeline fails when bit errors exceed a single bit across 10 GB of writes.
+
 ## [0.3.61] - 2025-06-17
 ### Added
 - Extent-level locking and append batching in FUSE adapter to prevent race corruption.
