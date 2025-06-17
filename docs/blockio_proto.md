@@ -50,7 +50,7 @@ private:
 
 ## Pipeline Processing
 
-`BlockIO` can chain hashing, compression and encryption in that order. Each stage is optional and controlled through the `enable_*` methods shown above. The `finalize_pipeline()` function runs the configured stages and returns the processed data along with metadata such as the SHA‑256 digest, CID and encryption nonce if applicable.
+`BlockIO` can chain compression, encryption and hashing in that order. Each stage is optional and controlled through the `enable_*` methods shown above. The `finalize_pipeline()` function runs the configured stages and returns the processed data along with metadata such as the SHA‑256 digest, CID and encryption nonce if applicable.
 
 ## Runtime Configuration
 

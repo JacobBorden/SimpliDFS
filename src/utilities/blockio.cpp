@@ -224,9 +224,8 @@ BlockIO::PipelineResult BlockIO::finalize_pipeline(
     PipelineResult result{};
     std::vector<std::byte> data = buffer_;
 
-    if (hashing_enabled_) {
-        crypto_hash_sha256_final(&hash_state_, result.digest.data());
-        result.cid = sgns::utils::digest_to_cid(result.digest);
+    if (compression_enabled_) {
+        data = compress_data(data);
     }
 
     if (encryption_enabled_) {
@@ -238,8 +237,11 @@ BlockIO::PipelineResult BlockIO::finalize_pipeline(
         result.nonce = nonce;
     }
 
-    if (compression_enabled_) {
-        data = compress_data(data);
+    if (hashing_enabled_) {
+        crypto_hash_sha256(result.digest.data(),
+                           reinterpret_cast<const unsigned char*>(data.data()),
+                           data.size());
+        result.cid = sgns::utils::digest_to_cid(result.digest);
     }
 
     result.data = data;
