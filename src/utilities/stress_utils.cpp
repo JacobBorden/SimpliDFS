@@ -7,7 +7,8 @@ std::vector<unsigned char> generate_pseudo_random_data(std::size_t size,
     // Use a deterministic Mersenne Twister so tests are reproducible.
     std::mt19937 rng(seed);
 
-    // Generate bytes uniformly across the full 0-255 range.
+    // Generate bytes uniformly across the full 0-255 range but skip the
+    // '|' delimiter used by the message protocol to avoid parse errors.
     std::uniform_int_distribution<int> dist(0, 255);
 
     // Preallocate the output buffer to the requested size.
@@ -15,7 +16,12 @@ std::vector<unsigned char> generate_pseudo_random_data(std::size_t size,
 
     // Fill the buffer one byte at a time.
     for (std::size_t i = 0; i < size; ++i) {
-        buffer[i] = static_cast<unsigned char>(dist(rng));
+        unsigned char val = static_cast<unsigned char>(dist(rng));
+        // Resample if we hit the '|' character to keep protocol parsing intact.
+        while (val == static_cast<unsigned char>('|')) {
+            val = static_cast<unsigned char>(dist(rng));
+        }
+        buffer[i] = val;
     }
 
     return buffer;

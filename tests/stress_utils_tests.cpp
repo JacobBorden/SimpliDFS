@@ -4,6 +4,9 @@
 TEST(StressUtils, GenerateSize) {
     auto data = generate_pseudo_random_data(32, 123);
     EXPECT_EQ(data.size(), 32u);
+    for (unsigned char c : data) {
+        EXPECT_NE(c, static_cast<unsigned char>('|')) << "Data contains '|'";
+    }
 }
 
 TEST(StressUtils, BitErrorsZero) {
