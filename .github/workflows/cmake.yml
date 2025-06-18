@@ -50,3 +50,6 @@ jobs:
       - name: Test
         working-directory: build
         run: ctest -C $BUILD_TYPE --output-on-failure -VV -E FuseTestEnv --timeout 1200
+
+      - name: FUSE Stress Tests
+        run: sudo ./run_fuse_stress_tests.sh

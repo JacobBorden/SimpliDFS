@@ -1,8 +1,13 @@
+## [0.3.63] - 2025-06-18
+### Added
+- CI pipeline now executes FUSE stress tests on every run.
+### Changed
+- Stress tests cover overlapping writes and fsync batching behavior.
+
 ## [0.3.61] - 2025-06-17
 ### Added
 - Extent-level locking and append batching in FUSE adapter to prevent race corruption.
-### Changed
-- Stress tests cover overlapping writes and fsync batching behavior.
+
 
 # Changelog
 ## [0.3.60] - 2025-06-16
