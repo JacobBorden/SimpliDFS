@@ -1,3 +1,21 @@
+## [0.3.68] - 2025-06-18
+### Fixed
+- Negative offsets from FUSE are now clamped to zero, preventing invalid writes during stress tests.
+
+## [0.3.67] - 2025-06-18
+### Fixed
+- Reinstate strict `Message::Deserialize` parsing to resolve FUSE RandomWriteTest failures.
+
+## [0.3.65] - 2025-06-18
+### Fixed
+- Reverted lenient Message deserialization which caused corruption in concurrent
+  random write tests.
+
+## [0.3.66] - 2025-06-18
+### Fixed
+- Restored compatibility with nodes sending short WriteFile messages while still
+  parsing extended fields when present.
+
 ## [0.3.63] - 2025-06-18
 ### Added
 - CI pipeline now executes FUSE stress tests on every run.

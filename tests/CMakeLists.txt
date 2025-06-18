@@ -28,6 +28,7 @@ add_executable(SimpliDFSTests
     merkle_tree_tests.cpp
     open_file_with_retry_tests.cpp
     node_io_tests.cpp
+    fuse_adapter_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
