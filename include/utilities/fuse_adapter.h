@@ -62,6 +62,20 @@ int simpli_rename(const char *from, const char *to, unsigned int flags);
 int simpli_release(const char *path, struct fuse_file_info *fi); // Added release
 int simpli_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi); // Added utimens
 
+/**
+ * @brief Clamp negative offsets to zero.
+ *
+ * FUSE may sometimes pass a negative offset when the file position is
+ * unknown. The metaserver expects non-negative offsets, so this helper
+ * ensures we never send a negative value.
+ *
+ * @param offset Offset received from FUSE.
+ * @return Zero if @p offset was negative, otherwise @p offset unchanged.
+ */
+inline off_t sanitize_offset(off_t offset) {
+    return offset < 0 ? 0 : offset;
+}
+
 #ifdef SIMPLIDFS_HAS_STATX
 struct statx; // Forward declaration for statx structure
 // struct fuse_file_info; // Forward declaration for fuse_file_info structure - already declared by fuse.h inclusion

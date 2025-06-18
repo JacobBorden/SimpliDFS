@@ -86,6 +86,17 @@ static bool parse_ip_port(const std::string &addr_str, std::string &out_ip,
   return false;
 }
 
+/**
+ * @brief Clamp negative offsets to zero.
+ *
+ * A negative offset may be provided if the stream state is invalid. The
+ * metaserver and storage nodes expect non-negative offsets, so this helper
+ * normalizes the value before requests are serialized.
+ *
+ * @param offset The raw offset from FUSE.
+ * @return Zero when @p offset is negative, otherwise the original value.
+ */
+
 struct FuseLatency {
   std::string op;
   std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
@@ -1096,7 +1107,7 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset,
   // implementation. MessageType::Read is not handled server-side yet.
   req_msg._Type = MessageType::ReadFile;
   req_msg._Path = path_str;
-  req_msg._Offset = static_cast<int64_t>(offset);
+  req_msg._Offset = static_cast<int64_t>(sanitize_offset(offset));
   req_msg._Size = static_cast<uint64_t>(size);
 
   try {
@@ -1510,7 +1521,7 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset,
                 path_str.c_str(), size, static_cast<intmax_t>(offset),
                 fi ? fi->flags : 0, old_len);
 
-  off_t effective_offset = offset;
+  off_t effective_offset = sanitize_offset(offset);
   if (fi && (fi->flags & O_APPEND)) {
     // Queue append data for periodic flush instead of immediate write
     {
