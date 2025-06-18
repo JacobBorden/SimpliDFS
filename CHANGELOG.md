@@ -1,3 +1,7 @@
+## [0.3.67] - 2025-06-18
+### Fixed
+- Reinstate strict `Message::Deserialize` parsing to resolve FUSE RandomWriteTest failures.
+
 ## [0.3.65] - 2025-06-18
 ### Fixed
 - Reverted lenient Message deserialization which caused corruption in concurrent

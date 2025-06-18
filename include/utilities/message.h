@@ -185,24 +185,34 @@ public:
     Message msg{}; // Value-initialize
     int msg_type_int;
 
-    auto get_token = [&](const std::string &field_name, bool last = false) {
-      if (last ? !std::getline(iss, token) : !std::getline(iss, token, '|')) {
-        if (iss.eof()) {
+    auto get_token = [&](const std::string &field_name) {
+      if (!std::getline(iss, token, '|')) {
+        // If the data ends with a delimiter, treat the missing field as empty
+        if (iss.eof() && !data.empty() && data.back() == '|') {
           token.clear();
-          return false; // Gracefully allow missing trailing field
+          return;
         }
         throw std::runtime_error(
             "Deserialize error: Stream ended prematurely or missing delimiter. "
             "Expected " + field_name + ". Data: '" + data + "'");
       }
-      return true;
     };
 
-    // Type (mandatory)
-    if (!get_token("MessageType")) {
-      throw std::runtime_error(
-          "Deserialize error: Missing MessageType. Data: '" + data + "'");
-    }
+    auto get_last_token = [&](const std::string &field_name) {
+      if (!std::getline(iss, token)) {
+        if (iss.eof() && !data.empty() && data.back() == '|') {
+          token.clear();
+          return;
+        }
+        if (!iss.eof() && !iss.good()) {
+          throw std::runtime_error("Deserialize error: Stream error while reading " +
+                                   field_name + ". Data: '" + data + "'");
+        }
+      }
+    };
+
+    // Type
+    get_token("MessageType");
     try {
       msg_type_int = std::stoi(token);
       msg._Type = static_cast<MessageType>(msg_type_int);
@@ -216,44 +226,20 @@ public:
           "'. " + std::string(oor.what()));
     }
 
-    // Filename (mandatory)
-    if (!get_token("Filename")) {
-      throw std::runtime_error(
-          "Deserialize error: Missing Filename. Data: '" + data + "'");
-    }
+    // Filename
+    get_token("Filename");
     msg._Filename = token;
 
     // Content
-    if (!get_token("Content")) {
-      msg._Content = token;
-      return msg; // Old-style message ends here
-    }
+    get_token("Content");
     msg._Content = token;
 
     // NodeAddress
-    if (!get_token("NodeAddress")) {
-      msg._NodeAddress = token;
-      return msg;
-    }
+    get_token("NodeAddress");
     msg._NodeAddress = token;
 
     // NodePort
-    if (!get_token("NodePort")) {
-      if (!token.empty()) {
-        try {
-          msg._NodePort = std::stoi(token);
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error(
-              "Deserialize error: Invalid NodePort format '" + token + "'. " +
-              std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error(
-              "Deserialize error: NodePort value out of range '" + token + "'. " +
-              std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("NodePort");
     if (!token.empty()) {
       try {
         msg._NodePort = std::stoi(token);
@@ -269,22 +255,7 @@ public:
     }
 
     // _ErrorCode
-    if (!get_token("ErrorCode")) {
-      if (!token.empty()) {
-        try {
-          msg._ErrorCode = std::stoi(token);
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error(
-              "Deserialize error: Invalid ErrorCode format '" + token + "'. " +
-              std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error(
-              "Deserialize error: ErrorCode value out of range '" + token +
-              "'. " + std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("ErrorCode");
     if (!token.empty()) {
       try {
         msg._ErrorCode = std::stoi(token);
@@ -300,21 +271,7 @@ public:
     }
 
     // _Mode
-    if (!get_token("Mode")) {
-      if (!token.empty()) {
-        try {
-          msg._Mode = static_cast<uint32_t>(std::stoul(token));
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error("Deserialize error: Invalid Mode format '" +
-                                   token + "'. " + std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error(
-              "Deserialize error: Mode value out of range '" + token + "'. " +
-              std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("Mode");
     if (!token.empty()) {
       try {
         msg._Mode = static_cast<uint32_t>(std::stoul(token));
@@ -329,20 +286,7 @@ public:
     }
 
     // _Uid
-    if (!get_token("Uid")) {
-      if (!token.empty()) {
-        try {
-          msg._Uid = static_cast<uint32_t>(std::stoul(token));
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error("Deserialize error: Invalid Uid format '" +
-                                   token + "'. " + std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error("Deserialize error: Uid value out of range '" +
-                                   token + "'. " + std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("Uid");
     if (!token.empty()) {
       try {
         msg._Uid = static_cast<uint32_t>(std::stoul(token));
@@ -356,20 +300,7 @@ public:
     }
 
     // _Gid
-    if (!get_token("Gid")) {
-      if (!token.empty()) {
-        try {
-          msg._Gid = static_cast<uint32_t>(std::stoul(token));
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error("Deserialize error: Invalid Gid format '" +
-                                   token + "'. " + std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error("Deserialize error: Gid value out of range '" +
-                                   token + "'. " + std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("Gid");
     if (!token.empty()) {
       try {
         msg._Gid = static_cast<uint32_t>(std::stoul(token));
@@ -383,21 +314,7 @@ public:
     }
 
     // _Offset
-    if (!get_token("Offset")) {
-      if (!token.empty()) {
-        try {
-          msg._Offset = std::stoll(token);
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error("Deserialize error: Invalid Offset format '" +
-                                   token + "'. " + std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error(
-              "Deserialize error: Offset value out of range '" + token + "'. " +
-              std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("Offset");
     if (!token.empty()) {
       try {
         msg._Offset = std::stoll(token);
@@ -412,21 +329,7 @@ public:
     }
 
     // _Size
-    if (!get_token("Size")) {
-      if (!token.empty()) {
-        try {
-          msg._Size = std::stoull(token);
-        } catch (const std::invalid_argument &ia) {
-          throw std::runtime_error("Deserialize error: Invalid Size format '" +
-                                   token + "'. " + std::string(ia.what()));
-        } catch (const std::out_of_range &oor) {
-          throw std::runtime_error(
-              "Deserialize error: Size value out of range '" + token + "'. " +
-              std::string(oor.what()));
-        }
-      }
-      return msg;
-    }
+    get_token("Size");
     if (!token.empty()) {
       try {
         msg._Size = std::stoull(token);
@@ -441,21 +344,15 @@ public:
     }
 
     // _Data
-    if (!get_token("Data")) {
-      msg._Data = token;
-      return msg;
-    }
+    get_token("Data");
     msg._Data = token;
 
     // _Path
-    if (!get_token("Path")) {
-      msg._Path = token;
-      return msg;
-    }
+    get_token("Path");
     msg._Path = token;
 
     // _NewPath (last field)
-    get_token("NewPath", true);
+    get_last_token("NewPath");
     msg._NewPath = token;
 
     return msg;
