@@ -38,6 +38,11 @@ TEST(MessageTests, DeserializeMessage) {
 }
 
 TEST(MessageTests, DeserializePartialMessage) {
-  std::string serialized = "1|test.txt|data"; // Missing the remaining fields
-  EXPECT_THROW({ Message::Deserialize(serialized); }, std::runtime_error);
+  std::string serialized = "1|test.txt|data"; // Old-style short format
+  Message msg = Message::Deserialize(serialized);
+  EXPECT_EQ(msg._Type, MessageType::WriteFile);
+  EXPECT_EQ(msg._Filename, "test.txt");
+  EXPECT_EQ(msg._Content, "data");
+  EXPECT_EQ(msg._NodeAddress, "");
+  EXPECT_EQ(msg._NodePort, 0);
 }

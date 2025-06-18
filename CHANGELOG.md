@@ -3,6 +3,11 @@
 - Reverted lenient Message deserialization which caused corruption in concurrent
   random write tests.
 
+## [0.3.66] - 2025-06-18
+### Fixed
+- Restored compatibility with nodes sending short WriteFile messages while still
+  parsing extended fields when present.
+
 ## [0.3.63] - 2025-06-18
 ### Added
 - CI pipeline now executes FUSE stress tests on every run.
