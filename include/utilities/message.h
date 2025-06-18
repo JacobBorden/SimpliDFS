@@ -186,23 +186,35 @@ public:
     int msg_type_int;
 
     auto get_token = [&](const std::string &field_name) {
-      (void)field_name; // field_name retained for potential future logging
       if (!std::getline(iss, token, '|')) {
-        // If a field is missing at the end of the string, gracefully
-        // treat it as empty instead of throwing. This improves
-        // robustness when older components send shorter messages.
-        token.clear();
-        return;
+        if (iss.eof() && iss.str().back() == '|') {
+          // message ended with delimiter -> empty field
+          token.clear();
+          return;
+        }
+        throw std::runtime_error(
+            "Deserialize error: Stream ended prematurely or missing delimiter. "
+            "Expected " +
+            field_name + ". Data: '" + data + "'");
       }
     };
 
     auto get_last_token = [&](const std::string &field_name) {
-      (void)field_name;
       if (!std::getline(iss, token)) {
-        // Similar to get_token, if the final field is absent simply set
-        // an empty token. Older message formats might omit trailing
-        // fields entirely.
-        token.clear();
+        if (iss.eof() && iss.str().back() == '|') {
+          token.clear();
+          return;
+        }
+        if (iss.eof() && token.empty()) {
+          // Empty final field without trailing delimiter is ambiguous but allow
+          // as empty.
+          return;
+        }
+        if (!iss.good()) {
+          throw std::runtime_error(
+              "Deserialize error: Stream error while reading " + field_name +
+              ". Data: '" + data + "'");
+        }
       }
     };
 

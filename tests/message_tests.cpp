@@ -39,20 +39,5 @@ TEST(MessageTests, DeserializeMessage) {
 
 TEST(MessageTests, DeserializePartialMessage) {
   std::string serialized = "1|test.txt|data"; // Missing the remaining fields
-  Message msg = Message::Deserialize(serialized);
-
-  EXPECT_EQ(msg._Type, MessageType::WriteFile);
-  EXPECT_EQ(msg._Filename, "test.txt");
-  EXPECT_EQ(msg._Content, "data");
-  EXPECT_EQ(msg._NodeAddress, "");
-  EXPECT_EQ(msg._NodePort, 0);
-  EXPECT_EQ(msg._ErrorCode, 0);
-  EXPECT_EQ(msg._Mode, 0u);
-  EXPECT_EQ(msg._Uid, 0u);
-  EXPECT_EQ(msg._Gid, 0u);
-  EXPECT_EQ(msg._Offset, 0);
-  EXPECT_EQ(msg._Size, 0ULL);
-  EXPECT_EQ(msg._Data, "");
-  EXPECT_EQ(msg._Path, "");
-  EXPECT_EQ(msg._NewPath, "");
+  EXPECT_THROW({ Message::Deserialize(serialized); }, std::runtime_error);
 }

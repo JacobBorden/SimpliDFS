@@ -1,8 +1,7 @@
-## [0.3.64] - 2025-06-18
-### Changed
-- Message deserialization now handles missing fields gracefully.
-### Added
-- Unit test for partial message deserialization.
+## [0.3.65] - 2025-06-18
+### Fixed
+- Reverted lenient Message deserialization which caused corruption in concurrent
+  random write tests.
 
 ## [0.3.63] - 2025-06-18
 ### Added
