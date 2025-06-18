@@ -6,6 +6,7 @@
 #include <chrono>
 #include <vector>
 #include <string>
+#include <array>
 #include <signal.h> // Added for SIGPIPE handling
 #include "utilities/logger.h" // Add this include
 #include <cstdio>   // For std::remove
@@ -1483,6 +1484,36 @@ TEST_F(NetworkingTest, SendReceiveLargeMessage) {
     ASSERT_TRUE(serverThreadCompleted.load()) << "Server thread did not complete its execution as expected (LM Test).";
     server.Shutdown();
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test SendReceiveLargeMessage: Finished." << std::endl;
+}
+
+TEST_F(NetworkingTest, SendReceiveBinaryData) {
+    const int testPort = 12396;
+    Networking::Server server(testPort);
+    ASSERT_TRUE(server.startListening());
+
+    std::array<char,4> binaryMsg{0x00, static_cast<char>(0xFF), 'A', 0x00};
+    std::vector<char> serverReceived;
+
+    std::thread serverThread([&]() {
+        Networking::ClientConnection conn = server.Accept();
+        serverReceived = server.Receive(conn);
+        server.Send(binaryMsg.data(), binaryMsg.size(), conn);
+        server.DisconnectClient(conn);
+    });
+
+    Networking::Client client("127.0.0.1", testPort);
+    ASSERT_TRUE(client.IsConnected());
+    client.Send(binaryMsg.data(), binaryMsg.size());
+    std::vector<char> response = client.Receive();
+    client.Disconnect();
+
+    serverThread.join();
+    server.Shutdown();
+
+    ASSERT_EQ(serverReceived.size(), binaryMsg.size());
+    EXPECT_TRUE(std::equal(serverReceived.begin(), serverReceived.end(), binaryMsg.begin()));
+    ASSERT_EQ(response.size(), binaryMsg.size());
+    EXPECT_TRUE(std::equal(response.begin(), response.end(), binaryMsg.begin()));
 }
 
 TEST_F(NetworkingTest, MultipleClientsConcurrentSendReceive) {

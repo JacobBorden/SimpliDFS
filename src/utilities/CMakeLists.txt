@@ -23,6 +23,7 @@ add_library(SimpliDFS_Utils
     audit_verifier.cpp
     rbac.cpp
     fips.cpp
+    stress_utils.cpp
 )
 target_include_directories(SimpliDFS_Utils
     PUBLIC

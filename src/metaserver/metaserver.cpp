@@ -467,7 +467,10 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 
             try {
                 Networking::Client client(ip.c_str(), port);
-                client.Send(Message::Serialize(writeMsg).c_str());
+                {
+                    std::string payload = Message::Serialize(writeMsg);
+                    client.Send(payload.data(), payload.size());
+                }
                 (void)client.Receive();
                 client.Disconnect();
                 healthTracker_.recordSuccess(primaryID);
@@ -688,7 +691,10 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = metadataManager.getFileAttributes(norm_path, res_msg._Mode, res_msg._Uid, res_msg._Gid, res_msg._Size);
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case GetAttr, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                {
+                    std::string payload = Message::Serialize(res_msg);
+                    server_instance.Send(payload.data(), payload.size(), _pClient);
+                }
                 break;
             }
             case MessageType::Readdir:
@@ -709,7 +715,10 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = ENOTDIR;
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Readdir, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                {
+                    std::string payload = Message::Serialize(res_msg);
+                    server_instance.Send(payload.data(), payload.size(), _pClient);
+                }
                 break;
             }
             case MessageType::Access:

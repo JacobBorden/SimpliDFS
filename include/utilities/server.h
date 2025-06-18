@@ -45,6 +45,7 @@ typedef const char* PCSTR;
 #include <mutex> // Added for std::mutex
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <cstddef>
 #include "utilities/networkexception.h"
 #include "utilities/errorcodes.h"
 #include "utilities/logger.h"
@@ -114,6 +115,25 @@ void SetProtocol(int _pProtocol);
     bool enableTLS(const std::string& certFile, const std::string& keyFile);
 
 // Sends data to a specific client
+/**
+ * @brief Send a data buffer of known length to a specific client.
+ *
+ * This overload supports transmitting binary payloads that may contain
+ * null bytes. The server prepends the length to the message as usual.
+ *
+ * @param buffer Pointer to the bytes to send.
+ * @param length Number of bytes in @p buffer.
+ * @param _pClient Client connection to send the data to.
+ * @return Number of bytes sent on success, -1 on failure.
+ */
+int Send(const char* buffer, size_t length, Networking::ClientConnection _pClient);
+
+/**
+ * @brief Convenience wrapper for null-terminated strings.
+ *
+ * For compatibility with existing code this overload computes the length
+ * internally and forwards to the length-aware version.
+ */
 int Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient);
 
 // Sends data to a specific address and port

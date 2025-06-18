@@ -662,8 +662,8 @@ int simpli_getattr(const char *path, struct stat *stbuf,
   req_msg._Path = path_str;
 
   try {
-    std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req.c_str())) {
+      std::string serialized_req = Message::Serialize(req_msg);
+      if (!data->metadata_client->Send(serialized_req.data(), serialized_req.size())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_getattr: Failed to "

@@ -329,14 +329,15 @@ static bool send_all(SOCKET sock, const char* buffer, size_t length,
 }
 
 // Send data to the server (modified for length-prefixing)
-int Networking::Client::Send(PCSTR _pSendBuffer)
+int Networking::Client::Send(const char* buffer, size_t length)
 {
     if (!clientIsConnected || INVALIDSOCKET(connectionSocket)) {
-        Logger::getInstance().log(LogLevel::ERROR, "Client::Send: Attempting to send when not connected.");
+        Logger::getInstance().log(LogLevel::ERROR,
+            "Client::Send: Attempting to send when not connected.");
         return -1;
     }
 
-    size_t payloadLength = strlen(_pSendBuffer);
+    size_t payloadLength = length;
     uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
 
     Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Sending header: payloadLength = " + std::to_string(payloadLength));
@@ -351,12 +352,14 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
         throw; // Re-throw to inform caller
     }
 
-    Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Header sent. Sending payload: " + std::string(_pSendBuffer, payloadLength));
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[Client::Send] Header sent. Sending payload: " +
+        std::string(buffer, payloadLength));
 
     // Send the actual payload
     if (payloadLength > 0) {
         try {
-            send_all(connectionSocket, _pSendBuffer, payloadLength,
+            send_all(connectionSocket, buffer, payloadLength,
                      useTLS, ssl, this->clientIsConnected);
         } catch (const Networking::NetworkException& e) {
             // clientIsConnected and socket cleanup is handled by send_all
@@ -365,7 +368,12 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
         }
     }
     Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Payload sent successfully.");
-	return static_cast<int>(payloadLength); // Return payload length, consistent with original "bytesSent" intent
+    return static_cast<int>(payloadLength); // Return payload length
+}
+
+int Networking::Client::Send(PCSTR _pSendBuffer)
+{
+    return Send(_pSendBuffer, strlen(_pSendBuffer));
 }
 
 // Send data to a specified address and port

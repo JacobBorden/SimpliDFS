@@ -28,6 +28,7 @@ add_executable(SimpliDFSTests
     merkle_tree_tests.cpp
     open_file_with_retry_tests.cpp
     node_io_tests.cpp
+    stress_utils_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
     # ../../src/utilities/message.cpp
@@ -126,6 +127,12 @@ add_executable(SimpliDFSFuseSimpleAppendTest
 )
 target_link_libraries(SimpliDFSFuseSimpleAppendTest PRIVATE Threads::Threads)
 
+add_executable(SimpliDFSFuseStressTest
+    fuse_stress_test.cpp
+    fuse_stress_main.cpp
+)
+target_link_libraries(SimpliDFSFuseStressTest PRIVATE Threads::Threads SimpliDFS_Utils)
+
 add_test(
     NAME FuseRandomWriteTest
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseRandomWriteTest
@@ -174,6 +181,13 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(FuseSimpleAppendTest PROPERTIES DEPENDS FuseTestEnvSetup)
+
+add_test(
+    NAME FuseStressTest
+    COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/run_fuse_concurrency_test_wrapper.sh SimpliDFSFuseStressTest
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
+set_tests_properties(FuseStressTest PROPERTIES DEPENDS FuseTestEnvSetup)
 # Define a test for running the setup script
 # Define a test for running the setup script
 # Fixtures for FuseConcurrencyTest are now handled by the wrapper script.

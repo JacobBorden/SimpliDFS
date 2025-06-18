@@ -359,7 +359,7 @@ public:
         if (!allowed("read")) break;
         std::string content = fileSystem.readFile(message._Filename);
         if (!content.empty()) {
-          server.Send(content.c_str(), client);
+          server.Send(content.data(), content.size(), client);
         } else {
           server.Send("Error: File not found.", client);
         }

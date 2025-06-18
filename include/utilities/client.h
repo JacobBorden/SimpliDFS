@@ -42,6 +42,7 @@ typedef const char* PCSTR;
 #include <vector>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <cstddef>
 
 namespace Networking {
 
@@ -83,6 +84,27 @@ void SetProtocol(int _pProtocol);
 void SetFamily(int _pFamily);
 
 // Sends the specified data buffer to the connected host.
+/**
+ * @brief Send a data buffer of known length to the connected host.
+ *
+ * This overload is safe for binary data containing null bytes. The caller
+ * provides the exact number of bytes to transmit.
+ *
+ * @param buffer Pointer to the bytes to send.
+ * @param length Number of bytes in @p buffer.
+ * @return Number of bytes sent on success, -1 on failure.
+ */
+int Send(const char* buffer, size_t length);
+
+/**
+ * @brief Convenience wrapper for sending null-terminated strings.
+ *
+ * This retains backwards compatibility with existing code that passes a
+ * C-style string. Internally it forwards to the length-aware overload.
+ *
+ * @param _pSendBuffer Null-terminated string to send.
+ * @return Number of bytes sent on success, -1 on failure.
+ */
 int Send(PCSTR _pSendBuffer);
 
 // Send data to a specified address and port
