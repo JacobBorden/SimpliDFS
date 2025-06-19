@@ -1,3 +1,6 @@
+## [0.3.75] - 2025-06-19
+### Fixed
+- Robust address parsing in Node prevents crashes on malformed Replicate/Receive commands.
 ## [0.3.74] - 2025-06-19
 ### Fixed
 - `Message::Deserialize` again accepts truncated messages and populates missing
