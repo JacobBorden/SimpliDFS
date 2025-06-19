@@ -58,7 +58,7 @@ private:
           req._Path = f;
           try {
             Networking::Client mc(metaAddr.c_str(), metaPort);
-            mc.Send(Message::Serialize(req).c_str());
+            mc.Send(Message::Serialize(req));
             std::vector<char> respVec = mc.Receive();
             mc.Disconnect();
             if (!respVec.empty()) {
@@ -78,7 +78,7 @@ private:
                   Message rm;
                   rm._Type = MessageType::ReadFile;
                   rm._Filename = f;
-                  sc.Send(Message::Serialize(rm).c_str());
+                  sc.Send(Message::Serialize(rm));
                   std::vector<char> fileVec = sc.Receive();
                   sc.Disconnect();
                   if (!fileVec.empty()) {
@@ -393,7 +393,7 @@ public:
             w._Type = MessageType::WriteFile;
             w._Filename = filenameToReplicate;
             w._Content = data;
-            c.Send(Message::Serialize(w).c_str());
+            c.Send(Message::Serialize(w));
             (void)c.Receive();
             c.Disconnect();
           } catch (...) {
@@ -421,7 +421,7 @@ public:
           Message r;
           r._Type = MessageType::ReadFile;
           r._Filename = filenameToReceive;
-          sc.Send(Message::Serialize(r).c_str());
+          sc.Send(Message::Serialize(r));
           std::vector<char> vec = sc.Receive();
           sc.Disconnect();
           if (!vec.empty()) {
@@ -525,7 +525,7 @@ public:
       Networking::Client client(metadataManagerAddress.c_str(),
                                 metadataManagerPort);
       std::string serializedMessage = Message::Serialize(message);
-      client.Send(serializedMessage.c_str());
+      client.Send(serializedMessage);
       std::vector<char> response_vector = client.Receive();
       client.Disconnect();
       if (response_vector.empty()) {

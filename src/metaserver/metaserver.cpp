@@ -108,7 +108,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
 
         try {
             Networking::Client client(ip.c_str(), port);
-            client.Send(Message::Serialize(createMsg).c_str());
+            client.Send(Message::Serialize(createMsg));
             (void)client.Receive();
             client.Disconnect();
             healthTracker_.recordSuccess(nodeID);
@@ -137,7 +137,7 @@ int MetadataManager::addFile(const std::string& filename, const std::vector<std:
             int port = std::stoi(addr.substr(addr.find(':') + 1));
             try {
                 Networking::Client client(ip.c_str(), port);
-                client.Send(Message::Serialize(delMsg).c_str());
+                client.Send(Message::Serialize(delMsg));
                 (void)client.Receive();
                 client.Disconnect();
                 healthTracker_.recordSuccess(nodeID);
@@ -218,7 +218,7 @@ bool MetadataManager::removeFile(const std::string& filename) {
 
         try {
             Networking::Client client(ip.c_str(), port);
-            client.Send(Message::Serialize(delMsg).c_str());
+            client.Send(Message::Serialize(delMsg));
             (void)client.Receive();
             client.Disconnect();
             healthTracker_.recordSuccess(nodeID);
@@ -363,7 +363,7 @@ int MetadataManager::readFileData(const std::string& filename,
             readMsg._Filename = filename;
 
             Networking::Client client(ip.c_str(), port);
-            client.Send(Message::Serialize(readMsg).c_str());
+            client.Send(Message::Serialize(readMsg));
             std::vector<char> vec = client.Receive();
             client.Disconnect();
 
@@ -467,7 +467,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 
             try {
                 Networking::Client client(ip.c_str(), port);
-                client.Send(Message::Serialize(writeMsg).c_str());
+                client.Send(Message::Serialize(writeMsg));
                 (void)client.Receive();
                 client.Disconnect();
                 healthTracker_.recordSuccess(primaryID);
@@ -499,7 +499,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 
                 try {
                     Networking::Client clientPrimary(ip.c_str(), port);
-                    clientPrimary.Send(Message::Serialize(replicateMsg).c_str());
+                    clientPrimary.Send(Message::Serialize(replicateMsg));
                     (void)clientPrimary.Receive();
                     clientPrimary.Disconnect();
                     healthTracker_.recordSuccess(primaryID);
@@ -512,7 +512,7 @@ int MetadataManager::writeFileData(const std::string& filename, int64_t offset, 
 
                 try {
                     Networking::Client clientReplica(replicaIp.c_str(), replicaPort);
-                    clientReplica.Send(Message::Serialize(receiveMsg).c_str());
+                    clientReplica.Send(Message::Serialize(receiveMsg));
                     (void)clientReplica.Receive();
                     clientReplica.Disconnect();
                     healthTracker_.recordSuccess(replicaID);
@@ -688,7 +688,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = metadataManager.getFileAttributes(norm_path, res_msg._Mode, res_msg._Uid, res_msg._Gid, res_msg._Size);
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case GetAttr, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::Readdir:
@@ -709,7 +709,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = ENOTDIR;
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Readdir, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::Access:
@@ -726,7 +726,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = metadataManager.checkAccess(norm_path, static_cast<uint32_t>(request._Mode));
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Access, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::Open:
@@ -746,7 +746,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._ErrorCode = metadataManager.openFile(norm_path, static_cast<uint32_t>(request._Mode));
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Open, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::CreateFile:
@@ -769,7 +769,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     }
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case CreateFile, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::ReadFile:
@@ -783,7 +783,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 res_msg._ErrorCode = metadataManager.readFileData(norm_path_filename, request._Offset, request._Size, res_msg._Data, res_msg._Size);
                 // readFileData sets res_msg._Size to actual bytes read/to be sent
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case ReadFile, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::WriteFile:
@@ -803,7 +803,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     res_msg._Size = 0; // Ensure size is 0 on error
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case WriteFile, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::TruncateFile:
@@ -815,7 +815,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 std::string norm_path = normalize_path_to_filename(request._Path);
                 res_msg._ErrorCode = metadataManager.truncateFile(norm_path, request._Size);
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case TruncateFile, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 if(res_msg._ErrorCode == 0) shouldSave = true;
                 break;
             }
@@ -838,7 +838,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     }
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Unlink, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::Rename:
@@ -862,7 +862,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                      }
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Rename, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             // Node Management Cases (existing)
@@ -875,7 +875,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 reg_res._Type = MessageType::RegisterNode;
                 reg_res._ErrorCode = 0;
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case RegisterNode, node '" << request._Filename << "'" << std::endl;
-                server_instance.Send(Message::Serialize(reg_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(reg_res), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "Sent registration confirmation to node " + request._Filename);
                 break;
             }
@@ -933,7 +933,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     }
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case GetFileNodeLocationsRequest, path '" << request._Path << "'" << std::endl;
-                server_instance.Send(Message::Serialize(res_msg).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res_msg), _pClient);
                 break;
             }
             case MessageType::Heartbeat:
@@ -952,7 +952,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 res._Type = MessageType::SnapshotDelta;
                 res._ErrorCode = 0;
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case SnapshotDelta" << std::endl;
-                server_instance.Send(Message::Serialize(res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(res), _pClient);
                 if (changed) shouldSave = true;
                 break;
             }
@@ -972,7 +972,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                     del_res._ErrorCode = ENOENT;
                 }
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case DeleteFile, path '" << request._Filename << "'" << std::endl;
-                server_instance.Send(Message::Serialize(del_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(del_res), _pClient);
                 Logger::getInstance().log(LogLevel::INFO, "[Metaserver] Sent DeleteFile processing result for " + file_to_delete);
                 break;
             }
@@ -993,7 +993,7 @@ void HandleClientConnection(Networking::Server& server_instance, Networking::Cli
                 err_res._Type = request._Type;
                 err_res._ErrorCode = ENOSYS;
                 std::cerr << "DIAGNOSTIC: HandleClientConnection: About to send response for case Default (Unknown Type)" << std::endl;
-                server_instance.Send(Message::Serialize(err_res).c_str(), _pClient);
+                server_instance.Send(Message::Serialize(err_res), _pClient);
                 break;
         }
 

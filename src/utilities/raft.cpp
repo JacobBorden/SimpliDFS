@@ -40,7 +40,7 @@ void RaftNode::sendMessage(const std::string& peer, const Message& m) {
         std::string ip = peer.substr(0, peer.find(':'));
         int port = std::stoi(peer.substr(peer.find(':') + 1));
         Networking::Client client(ip.c_str(), port);
-        client.Send(Message::Serialize(m).c_str());
+        client.Send(Message::Serialize(m));
         client.Disconnect();
     } catch (const std::exception& e) {
         Logger::getInstance().log(LogLevel::ERROR,

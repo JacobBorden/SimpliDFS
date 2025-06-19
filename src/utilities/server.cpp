@@ -530,6 +530,37 @@ int Networking::Server::Send(PCSTR _pSendBuffer, Networking::ClientConnection _p
     }
 }
 
+int Networking::Server::Send(const std::string &data, Networking::ClientConnection client) {
+    size_t payloadLength = data.size();
+    uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[Server::Send(string) to " + GetClientIPAddress(client) +
+        "] Sending header: payloadLength = " + std::to_string(payloadLength));
+
+    try {
+        send_all_server(client.clientSocket,
+                        reinterpret_cast<const char*>(&netPayloadLength),
+                        sizeof(netPayloadLength), useTLS, client.ssl,
+                        this, client);
+        if (payloadLength > 0) {
+            send_all_server(client.clientSocket, data.data(), payloadLength,
+                            useTLS, client.ssl, this, client);
+        }
+        Logger::getInstance().log(LogLevel::DEBUG,
+            "[Server::Send(string) to " + GetClientIPAddress(client) +
+            "] Payload sent successfully.");
+        return static_cast<int>(payloadLength);
+    } catch (const Networking::NetworkException &ex) {
+        Logger::getInstance().log(LogLevel::ERROR,
+            "Server::Send(string) failed for client " + GetClientIPAddress(client) +
+            " (socket " + std::to_string(client.clientSocket) + "): " +
+            std::string(ex.what()));
+        DisconnectClient(client);
+        Networking::ThrowSendException(client.clientSocket, ex.GetErrorCode());
+        return -1;
+    }
+}
+
 // Send data to a specified address and port
 int Networking::Server::SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort)
 {

@@ -1,3 +1,6 @@
+## [0.3.69] - 2025-06-18
+### Fixed
+- Network Send now uses exact string length, preserving embedded nulls.
 ## [0.3.68] - 2025-06-18
 ### Fixed
 - Negative offsets from FUSE are now clamped to zero, preventing invalid writes during stress tests.

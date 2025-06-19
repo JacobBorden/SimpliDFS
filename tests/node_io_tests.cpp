@@ -48,7 +48,7 @@ TEST(NodeIOTests, WriteThenReadHelloWorld) {
         createMsg._Type = MessageType::WriteFile;
         createMsg._Filename = filename;
         createMsg._Content = "";
-        client.Send(Message::Serialize(createMsg).c_str());
+        client.Send(Message::Serialize(createMsg));
         std::vector<char> resp = client.Receive();
         client.Disconnect();
         ASSERT_FALSE(resp.empty()); // Expect some confirmation text
@@ -63,7 +63,7 @@ TEST(NodeIOTests, WriteThenReadHelloWorld) {
         writeMsg._Type = MessageType::WriteFile;
         writeMsg._Filename = filename;
         writeMsg._Content = fileContent;
-        client.Send(Message::Serialize(writeMsg).c_str());
+        client.Send(Message::Serialize(writeMsg));
         std::vector<char> resp = client.Receive();
         client.Disconnect();
         ASSERT_FALSE(resp.empty());
@@ -77,7 +77,7 @@ TEST(NodeIOTests, WriteThenReadHelloWorld) {
         Message readMsg;
         readMsg._Type = MessageType::ReadFile;
         readMsg._Filename = filename;
-        client.Send(Message::Serialize(readMsg).c_str());
+        client.Send(Message::Serialize(readMsg));
         std::vector<char> resp = client.Receive();
         client.Disconnect();
         std::string data(resp.begin(), resp.end());

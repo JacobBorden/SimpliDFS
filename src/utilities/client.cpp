@@ -365,7 +365,44 @@ int Networking::Client::Send(PCSTR _pSendBuffer)
         }
     }
     Logger::getInstance().log(LogLevel::DEBUG, "[Client::Send] Payload sent successfully.");
-	return static_cast<int>(payloadLength); // Return payload length, consistent with original "bytesSent" intent
+        return static_cast<int>(payloadLength); // Return payload length, consistent with original "bytesSent" intent
+}
+
+int Networking::Client::Send(const std::string &data) {
+    if (!clientIsConnected || INVALIDSOCKET(connectionSocket)) {
+        Logger::getInstance().log(LogLevel::ERROR,
+            "Client::Send(string): Attempting to send when not connected.");
+        return -1;
+    }
+
+    uint32_t netPayloadLength = htonl(static_cast<uint32_t>(data.size()));
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[Client::Send(string)] Sending header: payloadLength = " +
+        std::to_string(data.size()));
+
+    try {
+        send_all(connectionSocket,
+                 reinterpret_cast<const char*>(&netPayloadLength),
+                 sizeof(netPayloadLength), useTLS, ssl, this->clientIsConnected);
+    } catch (const Networking::NetworkException& e) {
+        Logger::getInstance().log(LogLevel::ERROR,
+            "Client::Send(string): Failed to send header: " + std::string(e.what()));
+        throw;
+    }
+
+    if (!data.empty()) {
+        try {
+            send_all(connectionSocket, data.data(), data.size(),
+                     useTLS, ssl, this->clientIsConnected);
+        } catch (const Networking::NetworkException& e) {
+            Logger::getInstance().log(LogLevel::ERROR,
+                "Client::Send(string): Failed to send payload: " + std::string(e.what()));
+            throw;
+        }
+    }
+    Logger::getInstance().log(LogLevel::DEBUG,
+        "[Client::Send(string)] Payload sent successfully.");
+    return static_cast<int>(data.size());
 }
 
 // Send data to a specified address and port

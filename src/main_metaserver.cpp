@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
             std::string ip = addr.substr(0, addr.find(':'));
             int port = std::stoi(addr.substr(addr.find(':') + 1));
             Networking::Client c(ip.c_str(), port);
-            c.Send(Message::Serialize(m).c_str());
+            c.Send(Message::Serialize(m));
             c.Disconnect();
         } catch(const std::exception& e) {
             Logger::getInstance().log(LogLevel::ERROR, std::string("[RaftSend] ")+e.what());

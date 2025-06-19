@@ -121,7 +121,7 @@ TEST_F(IntegrationTest, DISABLED_EndToEndFileCreation) {
                     Message ackMsg;
                     ackMsg._Type = MessageType::RegisterNode;
                     ackMsg._ErrorCode = 0;
-                    metaserverListener.Send(Message::Serialize(ackMsg).c_str(), conn);
+                    metaserverListener.Send(Message::Serialize(ackMsg), conn);
                     {
                         std::lock_guard<std::mutex> lg(mtx);
                         nodesRegistered++;
@@ -157,7 +157,7 @@ TEST_F(IntegrationTest, DISABLED_EndToEndFileCreation) {
                         fuseRespMsg._ErrorCode = addFileRes;
                     }
                     std::cout << "[INTEGRATION TEST LOG " << getIntegrationTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MetaserverThread: Sending response to FUSE client. ErrorCode: " << fuseRespMsg._ErrorCode << std::endl;
-                    metaserverListener.Send(Message::Serialize(fuseRespMsg).c_str(), conn);
+                    metaserverListener.Send(Message::Serialize(fuseRespMsg), conn);
                     {
                         std::lock_guard<std::mutex> lg(mtx);
                         fuseRequestProcessed = true;
@@ -228,7 +228,7 @@ TEST_F(IntegrationTest, DISABLED_EndToEndFileCreation) {
         createFileMsg._Mode = testMode;
 
         std::cout << "[INTEGRATION TEST LOG " << getIntegrationTestTimestamp() << " TID: " << std::this_thread::get_id() << "] EndToEndFileCreation: FUSE Client sending CreateFile to Metaserver." << std::endl;
-        fuseClient.Send(Message::Serialize(createFileMsg).c_str());
+        fuseClient.Send(Message::Serialize(createFileMsg));
         std::vector<char> respData = fuseClient.Receive();
         ASSERT_FALSE(respData.empty());
         fuseResponse = Message::Deserialize(std::string(respData.begin(), respData.end()));
