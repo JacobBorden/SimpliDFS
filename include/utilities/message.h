@@ -7,6 +7,7 @@
 #include <stdexcept> // For std::runtime_error, std::invalid_argument, std::out_of_range
 #include <string>
 #include <vector> // Not strictly needed for these specific implementations, but good for general message handling
+#include <openssl/evp.h>
 
 /**
  * @brief Defines the types of messages that can be exchanged within the
@@ -149,6 +150,49 @@ struct Message {
 
 public:
   /**
+   * @brief Encode binary data using URL-safe base64 without padding.
+   */
+  static std::string b64Encode(const std::string &in) {
+    if (in.empty()) return "";
+    std::string out(((in.size() + 2) / 3) * 4, '\0');
+    int len = EVP_EncodeBlock(reinterpret_cast<unsigned char *>(&out[0]),
+                              reinterpret_cast<const unsigned char *>(in.data()),
+                              in.size());
+    out.resize(len);
+    for (char &c : out) {
+      if (c == '+') c = '-';
+      else if (c == '/') c = '_';
+    }
+    while (!out.empty() && out.back() == '=') out.pop_back();
+    return out;
+  }
+
+  /**
+   * @brief Decode URL-safe base64 without padding.
+   */
+  static std::string b64Decode(const std::string &in) {
+    if (in.empty()) return "";
+    std::string tmp = in;
+    for (char &c : tmp) {
+      if (c == '-') c = '+';
+      else if (c == '_') c = '/';
+    }
+    int added = (4 - tmp.size() % 4) % 4;
+    tmp.append(added, '=');
+    int pad = 0;
+    if (!tmp.empty() && tmp.back() == '=') pad++;
+    if (tmp.size() > 1 && tmp[tmp.size() - 2] == '=') pad++;
+    std::string out((tmp.size() / 4) * 3, '\0');
+    int len = EVP_DecodeBlock(reinterpret_cast<unsigned char *>(&out[0]),
+                              reinterpret_cast<const unsigned char *>(tmp.data()),
+                              tmp.size());
+    if (len < 0) return "";
+    len -= pad;
+    if (len < 0) len = 0;
+    out.resize(len);
+    return out;
+  }
+  /**
    * @brief Serializes a Message object into a string representation.
    * The format is:
    * Type|Filename|Content|NodeAddress|NodePort|_ErrorCode|_Mode|_Uid|_Gid|_Offset|_Size|_Data|_Path|_NewPath
@@ -159,11 +203,11 @@ public:
    */
   inline static std::string Serialize(const Message &msg) {
     std::ostringstream oss;
-    oss << static_cast<int>(msg._Type) << '|' << msg._Filename << '|'
-        << msg._Content << '|' << msg._NodeAddress << '|' << msg._NodePort
-        << '|' << msg._ErrorCode << '|' << msg._Mode << '|' << msg._Uid << '|'
-        << msg._Gid << '|' << msg._Offset << '|' << msg._Size << '|'
-        << msg._Data << '|' << msg._Path << '|' << msg._NewPath;
+    oss << static_cast<int>(msg._Type) << '|' << msg._Filename << '|' <<
+        b64Encode(msg._Content) << '|' << msg._NodeAddress << '|' << msg._NodePort
+        << '|' << msg._ErrorCode << '|' << msg._Mode << '|' << msg._Uid << '|' << msg._Gid
+        << '|' << msg._Offset << '|' << msg._Size << '|' <<
+        b64Encode(msg._Data) << '|' << msg._Path << '|' << msg._NewPath;
     return oss.str();
   }
 
@@ -217,7 +261,10 @@ public:
     }
 
     msg._Filename = next("Filename");
-    msg._Content = next("Content");
+    {
+      std::string enc = next("Content");
+      msg._Content = enc.empty() ? std::string() : b64Decode(enc);
+    }
     msg._NodeAddress = next("NodeAddress");
 
     token = next("NodePort");
@@ -241,7 +288,10 @@ public:
     token = next("Size");
     if (!token.empty()) msg._Size = std::stoull(token);
 
-    msg._Data = next("Data");
+    {
+      std::string enc = next("Data");
+      msg._Data = enc.empty() ? std::string() : b64Decode(enc);
+    }
     msg._Path = next("Path");
     msg._NewPath = next("NewPath");
 

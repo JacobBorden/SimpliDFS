@@ -11,14 +11,14 @@ TEST(MessageTests, SerializeMessage) {
   std::string result = Message::Serialize(msg);
   // Expected format:
   // Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
-  std::string expected = "0|Test|TestContent|127.0.0.1|8080|0|0|0|0|0|0|||";
+  std::string expected = "0|Test|VGVzdENvbnRlbnQ|127.0.0.1|8080|0|0|0|0|0|0|||";
   ASSERT_EQ(result, expected);
 }
 
 TEST(MessageTests, DeserializeMessage) {
   // Format:
   // Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
-  std::string serialized = "0|File|Content|192.168.0.1|9090|0|0|0|0|0|0|||";
+  std::string serialized = "0|File|Q29udGVudA|192.168.0.1|9090|0|0|0|0|0|0|||";
   Message msg = Message::Deserialize(serialized);
 
   ASSERT_EQ(msg._Type, MessageType::CreateFile);
@@ -38,7 +38,7 @@ TEST(MessageTests, DeserializeMessage) {
 }
 
 TEST(MessageTests, DeserializePartialMessage) {
-  std::string serialized = "1|test.txt|data"; // Old-style short format
+  std::string serialized = "1|test.txt|ZGF0YQ"; // Old-style short format with base64
   Message msg = Message::Deserialize(serialized);
   EXPECT_EQ(msg._Type, MessageType::WriteFile);
   EXPECT_EQ(msg._Filename, "test.txt");
@@ -46,4 +46,15 @@ TEST(MessageTests, DeserializePartialMessage) {
   EXPECT_EQ(msg._NodeAddress, "");
   EXPECT_EQ(msg._NodePort, 0);
   EXPECT_EQ(msg._Offset, 0);
+}
+
+TEST(MessageTests, RoundTripBinary) {
+  Message msg;
+  msg._Type = MessageType::WriteFile;
+  msg._Filename = "bin";
+  std::string data("\0a|b\0", 4);
+  msg._Content = data;
+  std::string ser = Message::Serialize(msg);
+  Message des = Message::Deserialize(ser);
+  EXPECT_EQ(des._Content, data);
 }

@@ -1,3 +1,7 @@
+## [0.3.76] - 2025-06-19
+### Fixed
+- Message serialization now base64-encodes binary fields, preventing truncation during replication.
+
 ## [0.3.75] - 2025-06-19
 ### Fixed
 - Robust address parsing in Node prevents crashes on malformed Replicate/Receive commands.
