@@ -1,3 +1,8 @@
+## [0.3.70] - 2025-06-19
+### Fixed
+- `Message::Deserialize` again accepts short legacy messages, restoring
+  FuseConcurrencyTest compatibility.
+
 ## [0.3.69] - 2025-06-18
 ### Fixed
 - Network Send now uses exact string length, preserving embedded nulls.
