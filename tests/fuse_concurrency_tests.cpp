@@ -199,36 +199,21 @@ void writer_thread_func(int thread_id) {
     }
   }
 
-  std::fstream outfile; // File stream object for this thread.
-
-  // Log intention to open the file. This helps trace file access patterns.
+  // --- Open the target file using low level POSIX calls ---
+  // Using open/pwrite avoids potential buffering issues observed with
+  // std::fstream during stress testing.
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] Thread "
             << thread_id << ": Intending to open file " << FULL_TEST_FILE_PATH
             << std::endl;
 
-  // Open the test file for writing and reading in binary mode.
-  // - std::ios::out: Allows writing to the file.
-  // - std::ios::in: Allows reading from the file. This might seem
-  // counter-intuitive for a write test,
-  //   but fstream often requires it for certain operations like seekp to
-  //   arbitrary locations if the file is not truncated, or for checking stream
-  //   states reliably. It ensures the stream is fully functional for read/write
-  //   operations if needed.
-  // - std::ios::binary: Ensures data is written/read without CRLF translation
-  // or other text-mode processing.
-  outfile.open(FULL_TEST_FILE_PATH,
-               std::ios::out | std::ios::in | std::ios::binary);
-
-  // Log success or failure of the open operation. This is critical for
-  // diagnosing issues related to file access permissions or mount point
-  // problems.
-  if (!outfile.is_open()) {
+  int fd = ::open(FULL_TEST_FILE_PATH.c_str(), O_RDWR);
+  if (fd < 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
               << thread_id << ": Failed to open file " << FULL_TEST_FILE_PATH
-              << ". Stream state: " << outfile.rdstate() << std::endl;
-    return; // Exit thread if file cannot be opened.
+              << ": " << strerror(errno) << std::endl;
+    return;
   }
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] Thread "
@@ -262,70 +247,29 @@ void writer_thread_func(int thread_id) {
     // should be written.
     off_t offset = thread_block_start_offset + line_offset_in_block;
 
-    // Log the target offset before attempting to seek. This helps verify offset
-    // calculations.
+    // Log the target offset prior to performing the pwrite().
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Line " << i << ", intending to seek to offset "
-              << offset << std::endl;
-
-    // Position the file pointer (put pointer) to the calculated offset.
-    // This is key to the "random write" nature of the test, ensuring threads
-    // write to their designated, non-overlapping areas, even if the file was
-    // pre-allocated.
-    outfile.seekp(offset);
-
-    // Log success or failure of seekp, including stream state and current
-    // position. This helps debug issues if seek operations are not behaving as
-    // expected.
-    if (outfile.fail()) {
-      std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-                << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Seekp to " << offset
-                << " failed. Stream state: " << outfile.rdstate()
-                << ", current position: " << outfile.tellp() << std::endl;
-      // Depending on strictness, one might choose to break or return here.
-    } else {
-      std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-                << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Seekp to " << offset
-                << " succeeded. Current position: " << outfile.tellp()
-                << std::endl;
-    }
-
-    // Log before writing: content snippet (or length), intended offset, and
-    // number of bytes. This provides context for the write operation.
-    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-              << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Line " << i << ", intending to write "
-              << line_to_write.length() << " bytes at offset "
-              << outfile.tellp()
+              << thread_id << ": Line " << i
+              << ", intending to write " << line_to_write.length()
+              << " bytes at offset " << offset
               << ". Content snippet: " << line_to_write.substr(0, 10) << "..."
               << std::endl;
 
-    std::streampos pos_before_write =
-        outfile.tellp(); // Current position before writing.
-    // Perform the actual write operation.
-    outfile.write(line_to_write.c_str(), line_to_write.length());
-
-    // Log after write: success/failure, stream state, and bytes written.
-    // This confirms the outcome of the write and checks for partial writes or
-    // errors.
-    if (outfile.fail()) {
+    ssize_t written = ::pwrite(fd, line_to_write.c_str(),
+                               static_cast<size_t>(line_to_write.size()),
+                               offset);
+    if (written != static_cast<ssize_t>(line_to_write.size())) {
       std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Write failed at offset " << pos_before_write
-                << ". Stream state: " << outfile.rdstate()
-                << ", current position: " << outfile.tellp() << std::endl;
-      // Depending on strictness, one might choose to break or return here.
+                << thread_id << ": pwrite failed at offset " << offset
+                << " expected " << line_to_write.size() << " wrote "
+                << written << " error: " << strerror(errno) << std::endl;
     } else {
-      std::streampos pos_after_write = outfile.tellp();
       std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Write at offset " << pos_before_write
-                << " succeeded. Bytes written: "
-                << (pos_after_write - pos_before_write)
-                << ". Stream good: " << outfile.good() << std::endl;
+                << thread_id << ": pwrite succeeded for " << written
+                << " bytes." << std::endl;
     }
   }
 
@@ -334,24 +278,17 @@ void writer_thread_func(int thread_id) {
             << " TID: " << std::this_thread::get_id() << "] Thread "
             << thread_id << ": Intending to close file " << FULL_TEST_FILE_PATH
             << std::endl;
-  // Close the file stream for this thread.
-  outfile.close();
 
-  // Log whether the close operation appeared successful by checking stream
-  // state. Errors during close can indicate issues with flushing buffers or
-  // releasing resources.
-  if (outfile.fail()) { // Check rdstate for errors after close
+  if (::close(fd) != 0) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
-              << thread_id << ": Close operation on file "
-              << FULL_TEST_FILE_PATH
-              << " may have failed. Stream state: " << outfile.rdstate()
-              << std::endl;
+              << thread_id << ": Failed to close file " << FULL_TEST_FILE_PATH
+              << ": " << strerror(errno) << std::endl;
   } else {
     std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id() << "] Thread "
               << thread_id << ": File " << FULL_TEST_FILE_PATH
-              << " closed. Stream state good." << std::endl;
+              << " closed successfully." << std::endl;
   }
 
   // Log thread completion.
