@@ -1,8 +1,8 @@
+## [0.3.64] - 2025-06-19
+### Fixed
+- Added retry logic for seeking in FUSE concurrency tests to avoid transient failures under heavy load.
+
 ## [0.3.63] - 2025-06-18
-### Added
-- CI pipeline now executes FUSE stress tests on every run.
-### Changed
-- Stress tests cover overlapping writes and fsync batching behavior.
 
 ## [0.3.61] - 2025-06-17
 ### Added

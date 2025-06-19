@@ -273,25 +273,19 @@ void writer_thread_func(int thread_id) {
     // This is key to the "random write" nature of the test, ensuring threads
     // write to their designated, non-overlapping areas, even if the file was
     // pre-allocated.
-    outfile.seekp(offset);
-
-    // Log success or failure of seekp, including stream state and current
-    // position. This helps debug issues if seek operations are not behaving as
-    // expected.
-    if (outfile.fail()) {
+    if (!seekpWithRetry(outfile, offset)) {
       std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
                 << thread_id << ": Seekp to " << offset
-                << " failed. Stream state: " << outfile.rdstate()
-                << ", current position: " << outfile.tellp() << std::endl;
-      // Depending on strictness, one might choose to break or return here.
-    } else {
-      std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
-                << " TID: " << std::this_thread::get_id() << "] Thread "
-                << thread_id << ": Seekp to " << offset
-                << " succeeded. Current position: " << outfile.tellp()
+                << " failed after retries. Stream state: " << outfile.rdstate()
                 << std::endl;
+      return; // Abort this thread to avoid cascading errors
     }
+    std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
+              << " TID: " << std::this_thread::get_id() << "] Thread "
+              << thread_id << ": Seekp to " << offset
+              << " succeeded. Current position: " << outfile.tellp()
+              << std::endl;
 
     // Log before writing: content snippet (or length), intended offset, and
     // number of bytes. This provides context for the write operation.

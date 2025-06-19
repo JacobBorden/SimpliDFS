@@ -193,4 +193,32 @@ inline bool openFileWithRetry(const std::string& path, std::ifstream& stream,
     return false;
 }
 
+/**
+ * @brief Attempt to seek a file stream to a position with retries.
+ *
+ * This helper mirrors openFileWithRetry but for seek operations. It is used
+ * by the FUSE concurrency tests to mitigate occasional transient seek failures
+ * observed under heavy load. The function clears any existing error state on
+ * the stream and repeatedly calls `seekp()` until it succeeds or the retry
+ * count is exhausted.
+ *
+ * @param stream    Stream to reposition.
+ * @param pos       Target offset for the put pointer.
+ * @param retries   Number of additional attempts after the first try.
+ * @param delay_ms  Delay in milliseconds between attempts.
+ * @return true if the seek eventually succeeded, false otherwise.
+ */
+inline bool seekpWithRetry(std::fstream& stream, std::streampos pos,
+                           int retries = 3, int delay_ms = 10) {
+    for (int attempt = 0; attempt <= retries; ++attempt) {
+        stream.clear();
+        stream.seekp(pos);
+        if (!stream.fail()) {
+            return true;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+    return false;
+}
+
 #endif // SIMPLIDFS_FUSE_CONCURRENCY_TEST_UTILS_HPP
