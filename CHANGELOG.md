@@ -1,16 +1,21 @@
-## [0.3.71] - 2025-06-19
+## [0.3.74] - 2025-06-19
 ### Fixed
-- Restored strict deserialization; concurrent random writes succeed again.
+- `Message::Deserialize` again accepts truncated messages and populates missing
+  fields with defaults, resolving `FuseRandomWriteTest` failures.
+
+## [0.3.73] - 2025-06-19
+### Fixed
+- Reinstated strict parsing in `Message::Deserialize` to avoid corrupted writes
+  during `FuseRandomWriteTest`.
 
 ## [0.3.72] - 2025-06-19
 ### Fixed
 - `Message::Deserialize` once more tolerates truncated messages so
   `FuseRandomWriteTest` passes in CI.
 
-## [0.3.73] - 2025-06-19
+## [0.3.71] - 2025-06-19
 ### Fixed
-- Reinstated strict parsing in `Message::Deserialize` to avoid corrupted writes
-  during `FuseRandomWriteTest`.
+- Restored strict deserialization; concurrent random writes succeed again.
 
 ## [0.3.70] - 2025-06-19
 ### Fixed

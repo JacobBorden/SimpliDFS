@@ -180,71 +180,70 @@ public:
    * if empty for strings or zero for numeric types.
    */
   inline static Message Deserialize(const std::string &data) {
-    std::istringstream iss(data);
+    std::vector<std::string> tokens;
     std::string token;
-    Message msg{};
+    std::istringstream iss(data);
 
-    auto get_token = [&](const std::string &field) {
-      if (!std::getline(iss, token, '|')) {
-        throw std::runtime_error(
-            "Deserialize error: Stream ended prematurely or missing delimiter. Expected " +
-            field + ". Data: '" + data + "'");
+    // Split the serialized string on '|'. Include a final empty token when
+    // the data ends with a delimiter so trailing fields are preserved as
+    // empty strings.
+    while (std::getline(iss, token, '|')) {
+      tokens.push_back(token);
+    }
+    if (!data.empty() && data.back() == '|') {
+      tokens.emplace_back("");
+    }
+
+    if (tokens.empty()) {
+      throw std::runtime_error(
+          "Deserialize error: Missing MessageType. Data: '" + data + "'");
+    }
+
+    Message msg{};
+    size_t idx = 0;
+    auto next = [&tokens, &idx](const std::string &field) -> std::string {
+      if (idx < tokens.size()) {
+        return tokens[idx++];
       }
+      // Missing trailing fields are interpreted as empty strings so
+      // older message formats remain compatible.
+      return "";
     };
 
-    get_token("MessageType");
     try {
-      msg._Type = static_cast<MessageType>(std::stoi(token));
+      msg._Type = static_cast<MessageType>(std::stoi(next("MessageType")));
     } catch (const std::exception &e) {
       throw std::runtime_error(std::string("Deserialize error: ") + e.what());
     }
 
-    get_token("Filename");
-    msg._Filename = token;
+    msg._Filename = next("Filename");
+    msg._Content = next("Content");
+    msg._NodeAddress = next("NodeAddress");
 
-    get_token("Content");
-    msg._Content = token;
-
-    get_token("NodeAddress");
-    msg._NodeAddress = token;
-
-    get_token("NodePort");
+    token = next("NodePort");
     if (!token.empty()) msg._NodePort = std::stoi(token);
 
-    get_token("ErrorCode");
+    token = next("ErrorCode");
     if (!token.empty()) msg._ErrorCode = std::stoi(token);
 
-    get_token("Mode");
+    token = next("Mode");
     if (!token.empty()) msg._Mode = static_cast<uint32_t>(std::stoul(token));
 
-    get_token("Uid");
+    token = next("Uid");
     if (!token.empty()) msg._Uid = static_cast<uint32_t>(std::stoul(token));
 
-    get_token("Gid");
+    token = next("Gid");
     if (!token.empty()) msg._Gid = static_cast<uint32_t>(std::stoul(token));
 
-    get_token("Offset");
+    token = next("Offset");
     if (!token.empty()) msg._Offset = std::stoll(token);
 
-    get_token("Size");
+    token = next("Size");
     if (!token.empty()) msg._Size = std::stoull(token);
 
-    get_token("Data");
-    msg._Data = token;
-
-    get_token("Path");
-    msg._Path = token;
-
-    if (!std::getline(iss, token)) {
-      if (iss.eof() && !data.empty() && data.back() == '|') {
-        token.clear();
-      } else {
-        throw std::runtime_error(
-            "Deserialize error: Stream ended prematurely or missing delimiter. Expected NewPath. Data: '" +
-            data + "'");
-      }
-    }
-    msg._NewPath = token;
+    msg._Data = next("Data");
+    msg._Path = next("Path");
+    msg._NewPath = next("NewPath");
 
     return msg;
   }
