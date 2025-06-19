@@ -182,109 +182,53 @@ public:
   inline static Message Deserialize(const std::string &data) {
     std::istringstream iss(data);
     std::string token;
-    std::vector<std::string> fields;
-    while (std::getline(iss, token, '|')) {
-      fields.push_back(token);
-    }
-    if (!data.empty() && data.back() == '|') {
-      fields.push_back("");
-    }
 
-    if (fields.empty()) {
-      throw std::runtime_error(
-          "Deserialize error: Missing MessageType. Data: '" + data + "'");
-    }
+    auto get_token = [&](const char *field) -> std::string {
+      if (!std::getline(iss, token, '|')) {
+        throw std::runtime_error(
+            std::string("Deserialize error: Stream ended prematurely or missing delimiter. Expected ") +
+            field + ". Data: '" + data + "'");
+      }
+      return token;
+    };
 
     Message msg{};
     try {
-      msg._Type = static_cast<MessageType>(std::stoi(fields[0]));
+      msg._Type = static_cast<MessageType>(std::stoi(get_token("MessageType")));
+      msg._Filename = get_token("Filename");
+      msg._Content = get_token("Content");
+      msg._NodeAddress = get_token("NodeAddress");
+
+      token = get_token("NodePort");
+      msg._NodePort = token.empty() ? 0 : std::stoi(token);
+
+      token = get_token("ErrorCode");
+      msg._ErrorCode = token.empty() ? 0 : std::stoi(token);
+
+      token = get_token("Mode");
+      msg._Mode = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
+
+      token = get_token("Uid");
+      msg._Uid = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
+
+      token = get_token("Gid");
+      msg._Gid = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
+
+      token = get_token("Offset");
+      msg._Offset = token.empty() ? 0 : std::stoll(token);
+
+      token = get_token("Size");
+      msg._Size = token.empty() ? 0 : std::stoull(token);
+
+      msg._Data = get_token("Data");
+      msg._Path = get_token("Path");
+
+      // _NewPath is the final field; read the rest of the stream without
+      // expecting a trailing delimiter.
+      std::getline(iss, msg._NewPath);
     } catch (const std::exception &e) {
-      throw std::runtime_error("Deserialize error: Invalid MessageType '" +
-                               fields[0] + "'. " + e.what());
+      throw std::runtime_error(std::string("Deserialize error: ") + e.what());
     }
-
-    auto get_field = [&](size_t idx) -> const std::string & {
-      static const std::string empty;
-      return idx < fields.size() ? fields[idx] : empty;
-    };
-
-    msg._Filename = get_field(1);
-    msg._Content = get_field(2);
-    msg._NodeAddress = get_field(3);
-
-    token = get_field(4);
-    if (!token.empty()) {
-      try {
-        msg._NodePort = std::stoi(token);
-      } catch (...) {
-        throw std::runtime_error(
-            "Deserialize error: Invalid NodePort format '" + token + "'");
-      }
-    }
-
-    token = get_field(5);
-    if (!token.empty()) {
-      try {
-        msg._ErrorCode = std::stoi(token);
-      } catch (...) {
-        throw std::runtime_error(
-            "Deserialize error: Invalid ErrorCode format '" + token + "'");
-      }
-    }
-
-    token = get_field(6);
-    if (!token.empty()) {
-      try {
-        msg._Mode = static_cast<uint32_t>(std::stoul(token));
-      } catch (...) {
-        throw std::runtime_error(
-            "Deserialize error: Invalid Mode format '" + token + "'");
-      }
-    }
-
-    token = get_field(7);
-    if (!token.empty()) {
-      try {
-        msg._Uid = static_cast<uint32_t>(std::stoul(token));
-      } catch (...) {
-        throw std::runtime_error("Deserialize error: Invalid Uid format '" +
-                                 token + "'");
-      }
-    }
-
-    token = get_field(8);
-    if (!token.empty()) {
-      try {
-        msg._Gid = static_cast<uint32_t>(std::stoul(token));
-      } catch (...) {
-        throw std::runtime_error("Deserialize error: Invalid Gid format '" +
-                                 token + "'");
-      }
-    }
-
-    token = get_field(9);
-    if (!token.empty()) {
-      try {
-        msg._Offset = std::stoll(token);
-      } catch (...) {
-        throw std::runtime_error(
-            "Deserialize error: Invalid Offset format '" + token + "'");
-      }
-    }
-
-    token = get_field(10);
-    if (!token.empty()) {
-      try {
-        msg._Size = std::stoull(token);
-      } catch (...) {
-        throw std::runtime_error(
-            "Deserialize error: Invalid Size format '" + token + "'");
-      }
-    }
-
-    msg._Data = get_field(11);
-    msg._Path = get_field(12);
-    msg._NewPath = get_field(13);
 
     return msg;
   }

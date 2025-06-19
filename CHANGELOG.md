@@ -1,3 +1,7 @@
+## [0.3.71] - 2025-06-19
+### Fixed
+- Restored strict deserialization; concurrent random writes succeed again.
+
 ## [0.3.70] - 2025-06-19
 ### Fixed
 - `Message::Deserialize` again accepts short legacy messages, restoring
