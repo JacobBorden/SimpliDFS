@@ -181,54 +181,56 @@ public:
    */
   inline static Message Deserialize(const std::string &data) {
     std::istringstream iss(data);
+    std::vector<std::string> tokens;
     std::string token;
+    while (std::getline(iss, token, '|')) {
+      tokens.push_back(token);
+    }
 
-    auto get_token = [&](const char *field) -> std::string {
-      if (!std::getline(iss, token, '|')) {
-        throw std::runtime_error(
-            std::string("Deserialize error: Stream ended prematurely or missing delimiter. Expected ") +
-            field + ". Data: '" + data + "'");
-      }
-      return token;
+    if (tokens.empty()) {
+      throw std::runtime_error("Deserialize error: Missing MessageType. Data: '" +
+                               data + "'");
+    }
+
+    auto get_token = [&](size_t index) -> std::string {
+      return index < tokens.size() ? tokens[index] : std::string();
     };
 
     Message msg{};
     try {
-      msg._Type = static_cast<MessageType>(std::stoi(get_token("MessageType")));
-      msg._Filename = get_token("Filename");
-      msg._Content = get_token("Content");
-      msg._NodeAddress = get_token("NodeAddress");
-
-      token = get_token("NodePort");
-      msg._NodePort = token.empty() ? 0 : std::stoi(token);
-
-      token = get_token("ErrorCode");
-      msg._ErrorCode = token.empty() ? 0 : std::stoi(token);
-
-      token = get_token("Mode");
-      msg._Mode = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
-
-      token = get_token("Uid");
-      msg._Uid = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
-
-      token = get_token("Gid");
-      msg._Gid = token.empty() ? 0 : static_cast<uint32_t>(std::stoul(token));
-
-      token = get_token("Offset");
-      msg._Offset = token.empty() ? 0 : std::stoll(token);
-
-      token = get_token("Size");
-      msg._Size = token.empty() ? 0 : std::stoull(token);
-
-      msg._Data = get_token("Data");
-      msg._Path = get_token("Path");
-
-      // _NewPath is the final field; read the rest of the stream without
-      // expecting a trailing delimiter.
-      std::getline(iss, msg._NewPath);
+      msg._Type = static_cast<MessageType>(std::stoi(get_token(0)));
     } catch (const std::exception &e) {
       throw std::runtime_error(std::string("Deserialize error: ") + e.what());
     }
+
+    msg._Filename = get_token(1);
+    msg._Content = get_token(2);
+    msg._NodeAddress = get_token(3);
+
+    token = get_token(4);
+    if (!token.empty()) msg._NodePort = std::stoi(token);
+
+    token = get_token(5);
+    if (!token.empty()) msg._ErrorCode = std::stoi(token);
+
+    token = get_token(6);
+    if (!token.empty()) msg._Mode = static_cast<uint32_t>(std::stoul(token));
+
+    token = get_token(7);
+    if (!token.empty()) msg._Uid = static_cast<uint32_t>(std::stoul(token));
+
+    token = get_token(8);
+    if (!token.empty()) msg._Gid = static_cast<uint32_t>(std::stoul(token));
+
+    token = get_token(9);
+    if (!token.empty()) msg._Offset = std::stoll(token);
+
+    token = get_token(10);
+    if (!token.empty()) msg._Size = std::stoull(token);
+
+    msg._Data = get_token(11);
+    msg._Path = get_token(12);
+    msg._NewPath = get_token(13);
 
     return msg;
   }

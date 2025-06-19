@@ -2,6 +2,11 @@
 ### Fixed
 - Restored strict deserialization; concurrent random writes succeed again.
 
+## [0.3.72] - 2025-06-19
+### Fixed
+- `Message::Deserialize` once more tolerates truncated messages so
+  `FuseRandomWriteTest` passes in CI.
+
 ## [0.3.70] - 2025-06-19
 ### Fixed
 - `Message::Deserialize` again accepts short legacy messages, restoring

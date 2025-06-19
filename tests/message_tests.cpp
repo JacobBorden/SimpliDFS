@@ -39,5 +39,8 @@ TEST(MessageTests, DeserializeMessage) {
 
 TEST(MessageTests, DeserializePartialMessage) {
   std::string serialized = "1|test.txt|data"; // Old-style short format
-  EXPECT_THROW({ Message::Deserialize(serialized); }, std::runtime_error);
+  Message msg = Message::Deserialize(serialized);
+  EXPECT_EQ(msg._Type, MessageType::WriteFile);
+  EXPECT_EQ(msg._Filename, "test.txt");
+  EXPECT_EQ(msg._Content, "data");
 }
