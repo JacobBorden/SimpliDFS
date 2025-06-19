@@ -262,7 +262,7 @@ public:
                     int srcPort = std::stoi(srcAddr.substr(srcAddr.find(':') + 1));
                     try {
                         Networking::Client c(srcIp.c_str(), srcPort);
-                        c.Send(Message::Serialize(replicateMsg));
+                        c.Send(Message::Serialize(replicateMsg).c_str());
                         (void)c.Receive();
                         c.Disconnect();
                         healthCache_.recordSuccess(sourceNodeID);
@@ -281,7 +281,7 @@ public:
                     int newPort = std::stoi(registeredNodes[newNodeID].nodeAddress.substr(registeredNodes[newNodeID].nodeAddress.find(':') + 1));
                     try {
                         Networking::Client c(newIp.c_str(), newPort);
-                        c.Send(Message::Serialize(receiveMsg));
+                        c.Send(Message::Serialize(receiveMsg).c_str());
                         (void)c.Receive();
                         c.Disconnect();
                         healthCache_.recordSuccess(newNodeID);

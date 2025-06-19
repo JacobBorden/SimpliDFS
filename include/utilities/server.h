@@ -116,15 +116,6 @@ void SetProtocol(int _pProtocol);
 // Sends data to a specific client
 int Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient);
 
-/**
- * @brief Send a string to a client without assuming null termination.
- *
- * @param data   Bytes to send.
- * @param client Destination client connection.
- * @return Number of bytes sent on success.
- */
-int Send(const std::string &data, Networking::ClientConnection client);
-
 // Sends data to a specific address and port
 int SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort);
 

@@ -1,60 +1,48 @@
-#include "utilities/message.h"
 #include <gtest/gtest.h>
+#include "utilities/message.h"
 
-TEST(MessageTests, SerializeMessage) {
-  Message msg;
-  msg._Type = MessageType::CreateFile;
-  msg._Filename = "Test";
-  msg._Content = "TestContent";
-  msg._NodeAddress = "127.0.0.1";
-  msg._NodePort = 8080;
-  std::string result = Message::Serialize(msg);
-  // Expected format:
-  // Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
-  std::string expected = "0|Test|VGVzdENvbnRlbnQ|127.0.0.1|8080|0|0|0|0|0|0|||";
-  ASSERT_EQ(result, expected);
+TEST(MessageTests, SerializeMessage)
+{
+	Message msg;
+	msg._Type = MessageType::CreateFile;
+	msg._Filename = "Test";
+	msg._Content = "TestContent";
+    msg._NodeAddress = "127.0.0.1";
+    msg._NodePort = 8080;
+	std::string result = Message::Serialize(msg);
+	// Expected format: Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
+	std::string expected = "0|Test|TestContent|127.0.0.1|8080|0|0|0|0|0|0|||";
+	ASSERT_EQ(result, expected);
 }
 
-TEST(MessageTests, DeserializeMessage) {
-  // Format:
-  // Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
-  std::string serialized = "0|File|Q29udGVudA|192.168.0.1|9090|0|0|0|0|0|0|||";
-  Message msg = Message::Deserialize(serialized);
+TEST(MessageTests, DeserializeMessage)
+{
+    // Format: Type|Filename|Content|NodeAddress|NodePort|ErrorCode|Mode|Uid|Gid|Offset|Size|Data|Path|NewPath
+	std::string serialized = "0|File|Content|192.168.0.1|9090|0|0|0|0|0|0|||";
+	Message msg = Message::Deserialize(serialized);
 
-  ASSERT_EQ(msg._Type, MessageType::CreateFile);
-  ASSERT_EQ(msg._Filename, "File");
-  ASSERT_EQ(msg._Content, "Content");
-  ASSERT_EQ(msg._NodeAddress, "192.168.0.1");
-  ASSERT_EQ(msg._NodePort, 9090);
-  ASSERT_EQ(msg._ErrorCode, 0);
-  ASSERT_EQ(msg._Mode, 0u); // u suffix for unsigned
-  ASSERT_EQ(msg._Uid, 0u);
-  ASSERT_EQ(msg._Gid, 0u);
-  ASSERT_EQ(msg._Offset, 0);
-  ASSERT_EQ(msg._Size, 0ULL); // ULL for unsigned long long
-  ASSERT_EQ(msg._Data, "");
-  ASSERT_EQ(msg._Path, "");
-  ASSERT_EQ(msg._NewPath, "");
+	ASSERT_EQ(msg._Type, MessageType::CreateFile);
+	ASSERT_EQ(msg._Filename, "File");
+	ASSERT_EQ(msg._Content, "Content");
+    ASSERT_EQ(msg._NodeAddress, "192.168.0.1");
+    ASSERT_EQ(msg._NodePort, 9090);
+    ASSERT_EQ(msg._ErrorCode, 0);
+    ASSERT_EQ(msg._Mode, 0u); // u suffix for unsigned
+    ASSERT_EQ(msg._Uid, 0u);
+    ASSERT_EQ(msg._Gid, 0u);
+    ASSERT_EQ(msg._Offset, 0);
+    ASSERT_EQ(msg._Size, 0ULL); // ULL for unsigned long long
+    ASSERT_EQ(msg._Data, "");
+    ASSERT_EQ(msg._Path, "");
+    ASSERT_EQ(msg._NewPath, "");
 }
 
-TEST(MessageTests, DeserializePartialMessage) {
-  std::string serialized = "1|test.txt|ZGF0YQ"; // Old-style short format with base64
-  Message msg = Message::Deserialize(serialized);
-  EXPECT_EQ(msg._Type, MessageType::WriteFile);
-  EXPECT_EQ(msg._Filename, "test.txt");
-  EXPECT_EQ(msg._Content, "data");
-  EXPECT_EQ(msg._NodeAddress, "");
-  EXPECT_EQ(msg._NodePort, 0);
-  EXPECT_EQ(msg._Offset, 0);
-}
-
-TEST(MessageTests, RoundTripBinary) {
-  Message msg;
-  msg._Type = MessageType::WriteFile;
-  msg._Filename = "bin";
-  std::string data("\0a|b\0", 4);
-  msg._Content = data;
-  std::string ser = Message::Serialize(msg);
-  Message des = Message::Deserialize(ser);
-  EXPECT_EQ(des._Content, data);
+TEST(MessageTests, DeserializeTruncated) {
+    std::string serialized = "1|foo|data";
+    Message msg = Message::Deserialize(serialized);
+    EXPECT_EQ(msg._Type, MessageType::WriteFile);
+    EXPECT_EQ(msg._Filename, "foo");
+    EXPECT_EQ(msg._Content, "data");
+    EXPECT_EQ(msg._NodeAddress, "");
+    EXPECT_EQ(msg._NodePort, 0);
 }

@@ -251,7 +251,7 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
                     }
                 }
                 std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] MkdirServerThread: Processed Mkdir for " << reqMsg._Path << ", ErrorCode: " << respMsg._ErrorCode << ". Sending response." << std::endl;
-                server->Send(Message::Serialize(respMsg), conn);
+                server->Send(Message::Serialize(respMsg).c_str(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -274,7 +274,7 @@ TEST_F(NetworkingTest, FuseMkdirSimulation) {
         mkdirReq._Path = path;
         mkdirReq._Mode = mode;
 
-        client.Send(Message::Serialize(mkdirReq));
+        client.Send(Message::Serialize(mkdirReq).c_str());
         std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] run_client_for_mkdir_scenario: Sent Mkdir for " << path << ". Awaiting response." << std::endl;
         
         std::vector<char> rawResp = client.Receive();
@@ -687,7 +687,7 @@ TEST_F(NetworkingTest, FuseRmdirSimulation) {
                     Logger::getInstance().log(LogLevel::DEBUG, "S_RMDIR: Removed " + reqMsg._Path);
                 }
                 
-                server->Send(Message::Serialize(respMsg), conn);
+                server->Send(Message::Serialize(respMsg).c_str(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -707,7 +707,7 @@ TEST_F(NetworkingTest, FuseRmdirSimulation) {
         rmdirReq._Type = MessageType::Rmdir;
         rmdirReq._Path = path;
 
-        client.Send(Message::Serialize(rmdirReq));
+        client.Send(Message::Serialize(rmdirReq).c_str());
         
         std::vector<char> rawResp = client.Receive();
         EXPECT_FALSE(rawResp.empty());
@@ -843,7 +843,7 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
                 
                 respMsg._Size = sizeToWrite; // Bytes written
 
-                server->Send(Message::Serialize(respMsg), conn);
+                server->Send(Message::Serialize(respMsg).c_str(), conn);
                 server->DisconnectClient(conn);
             } catch (const Networking::NetworkException& e) {
                 ADD_FAILURE() << "Server thread NetworkException: " << e.what();
@@ -867,7 +867,7 @@ TEST_F(NetworkingTest, FuseWriteSimulation) {
         writeReq._Data = data;
         writeReq._Size = data.length(); // Client sets _Size to actual data length
 
-        client.Send(Message::Serialize(writeReq));
+        client.Send(Message::Serialize(writeReq).c_str());
         
         std::vector<char> rawResp = client.Receive();
         EXPECT_FALSE(rawResp.empty());
@@ -1036,7 +1036,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
                 }
             }
             std::cout << "[FRS_SVR] Sending response..." << std::endl;
-            server.Send(Message::Serialize(respMsg), conn);
+            server.Send(Message::Serialize(respMsg).c_str(), conn);
             std::cout << "[FRS_SVR] Response sent." << std::endl;
 
             std::cout << "[FRS_SVR] Disconnecting client..." << std::endl;
@@ -1069,7 +1069,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
         readReq._Size = fileContent.length();
         
         std::cout << "[FRS_CLI_S1] Sending request..." << std::endl;
-        client.Send(Message::Serialize(readReq));
+        client.Send(Message::Serialize(readReq).c_str());
         std::cout << "[FRS_CLI_S1] Request sent." << std::endl;
 
         std::cout << "[FRS_CLI_S1] Attempting to receive response..." << std::endl;
@@ -1094,7 +1094,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     //     readReq._Size = 10;  // "Fuse World"
     //     std::string expectedPartialContent = fileContent.substr(6, 10);
 
-    //     client.Send(Message::Serialize(readReq));
+    //     client.Send(Message::Serialize(readReq).c_str());
     //     Message readResp = Message::Deserialize(std::string(client.Receive().begin(), client.Receive().end()));
         
     //     ASSERT_EQ(readResp._Type, MessageType::ReadResponse);
@@ -1113,7 +1113,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     //     readReq._Offset = fileContent.length() + 5;
     //     readReq._Size = 10;
 
-    //     client.Send(Message::Serialize(readReq));
+    //     client.Send(Message::Serialize(readReq).c_str());
     //     Message readResp = Message::Deserialize(std::string(client.Receive().begin(), client.Receive().end()));
 
     //     ASSERT_EQ(readResp._Type, MessageType::ReadResponse);
@@ -1133,7 +1133,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     //     readReq._Size = 20; // Request more than available
     //     std::string expectedPartialContentEOF = fileContent.substr(fileContent.length() - 5);
 
-    //     client.Send(Message::Serialize(readReq));
+    //     client.Send(Message::Serialize(readReq).c_str());
     //     Message readResp = Message::Deserialize(std::string(client.Receive().begin(), client.Receive().end()));
         
     //     ASSERT_EQ(readResp._Type, MessageType::ReadResponse);
@@ -1153,7 +1153,7 @@ TEST_F(NetworkingTest, FuseReadSimulation) {
     //     readReq._Offset = 0;
     //     readReq._Size = 10;
 
-    //     client.Send(Message::Serialize(readReq));
+    //     client.Send(Message::Serialize(readReq).c_str());
     //     Message readResp = Message::Deserialize(std::string(client.Receive().begin(), client.Receive().end()));
 
     //     ASSERT_EQ(readResp._Type, MessageType::ReadResponse);
@@ -2052,7 +2052,7 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
                     respMsg._Size = size;
                 }
 
-                metaserverNetworkListener.Send(Message::Serialize(respMsg), fuseAdapterConnection);
+                metaserverNetworkListener.Send(Message::Serialize(respMsg).c_str(), fuseAdapterConnection);
                 requestProcessed = true;
             } else {
                 Logger::getInstance().log(LogLevel::ERROR, "FUSE GetAttr listener received unexpected message type.");
@@ -2081,7 +2081,7 @@ TEST_F(NetworkingTest, FuseGetattrSimulation) {
         getattrReqMsg._Type = MessageType::GetAttr;
         getattrReqMsg._Path = testFilePath; // Using _Path as per message.h for new FUSE types
 
-        fuseClient.Send(Message::Serialize(getattrReqMsg));
+        fuseClient.Send(Message::Serialize(getattrReqMsg).c_str());
 
         std::vector<char> responseData = fuseClient.Receive();
         ASSERT_FALSE(responseData.empty());

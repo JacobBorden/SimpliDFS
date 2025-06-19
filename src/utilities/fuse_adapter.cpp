@@ -86,17 +86,6 @@ static bool parse_ip_port(const std::string &addr_str, std::string &out_ip,
   return false;
 }
 
-/**
- * @brief Clamp negative offsets to zero.
- *
- * A negative offset may be provided if the stream state is invalid. The
- * metaserver and storage nodes expect non-negative offsets, so this helper
- * normalizes the value before requests are serialized.
- *
- * @param offset The raw offset from FUSE.
- * @return Zero when @p offset is negative, otherwise the original value.
- */
-
 struct FuseLatency {
   std::string op;
   std::chrono::steady_clock::time_point start{std::chrono::steady_clock::now()};
@@ -222,7 +211,7 @@ static void flush_append_buffer(const std::string &path) {
   attr_req_len._Type = MessageType::GetAttr;
   attr_req_len._Path = path;
   std::string ser_attr_req_len = Message::Serialize(attr_req_len);
-  if (g_global_fuse_data->metadata_client->Send(ser_attr_req_len)) {
+  if (g_global_fuse_data->metadata_client->Send(ser_attr_req_len.c_str())) {
     std::vector<char> len_vec = g_global_fuse_data->metadata_client->Receive();
     if (!len_vec.empty()) {
       Message len_res =
@@ -241,7 +230,7 @@ static void flush_append_buffer(const std::string &path) {
   req_msg._Data = data;
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    g_global_fuse_data->metadata_client->Send(serialized_req);
+    g_global_fuse_data->metadata_client->Send(serialized_req.c_str());
     (void)g_global_fuse_data->metadata_client->Receive();
   } catch (...) {
     // Errors are logged in the write path; ignore here for brevity
@@ -674,7 +663,7 @@ int simpli_getattr(const char *path, struct stat *stbuf,
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_getattr: Failed to "
@@ -816,7 +805,7 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_readdir: Failed to "
@@ -848,8 +837,8 @@ int simpli_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
     std::istringstream name_stream(res_msg._Data);
     std::string name_token;
-    // Iterate over newline-delimited file names in the response.
-    while (std::getline(name_stream, name_token, '\n')) {
+    while (std::getline(name_stream, name_token,
+                        ' ')) { // Corrected: char literal ' '
       if (!name_token.empty()) {
         filler(buf, name_token.c_str(), NULL, 0, (enum fuse_fill_dir_flags)0);
       }
@@ -912,7 +901,7 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(
           LogLevel::ERROR,
           getCurrentTimestamp() +
@@ -957,7 +946,7 @@ int simpli_open(const char *path, struct fuse_file_info *fi) {
     loc_req_msg._Path = path_str;
 
     std::string serialized_loc_req = Message::Serialize(loc_req_msg);
-    if (!data->metadata_client->Send(serialized_loc_req)) {
+    if (!data->metadata_client->Send(serialized_loc_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_open: Failed to "
@@ -1107,12 +1096,12 @@ int simpli_read(const char *path, char *buf, size_t size, off_t offset,
   // implementation. MessageType::Read is not handled server-side yet.
   req_msg._Type = MessageType::ReadFile;
   req_msg._Path = path_str;
-  req_msg._Offset = static_cast<int64_t>(sanitize_offset(offset));
+  req_msg._Offset = static_cast<int64_t>(offset);
   req_msg._Size = static_cast<uint64_t>(size);
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(
           LogLevel::ERROR,
           getCurrentTimestamp() +
@@ -1189,7 +1178,7 @@ int simpli_access(const char *path, int mask) {
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_access: Failed to "
@@ -1264,7 +1253,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_create: Failed to "
@@ -1307,7 +1296,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     loc_req_msg._Path = path_str;
 
     std::string serialized_loc_req = Message::Serialize(loc_req_msg);
-    if (!data->metadata_client->Send(serialized_loc_req)) {
+    if (!data->metadata_client->Send(serialized_loc_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_create: Failed to "
@@ -1319,7 +1308,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -EIO;
     }
 
@@ -1334,7 +1323,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -EIO;
     }
     std::string serialized_loc_res(loc_received_vector.begin(),
@@ -1352,7 +1341,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -loc_res_msg._ErrorCode;
     }
 
@@ -1366,7 +1355,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -ENOENT;
     }
 
@@ -1384,7 +1373,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -EIO;
     }
 
@@ -1400,7 +1389,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -EIO;
     }
 
@@ -1426,7 +1415,7 @@ int simpli_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
       unlink_req_msg._Type = MessageType::Unlink;
       unlink_req_msg._Path = path_str;
       data->metadata_client->Send(
-          Message::Serialize(unlink_req_msg)); // Best effort unlink
+          Message::Serialize(unlink_req_msg).c_str()); // Best effort unlink
       return -EHOSTUNREACH;
     }
 
@@ -1506,7 +1495,7 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset,
     attr_req_len._Type = MessageType::GetAttr;
     attr_req_len._Path = path_str;
     std::string ser_attr_req_len = Message::Serialize(attr_req_len);
-    if (data->metadata_client->Send(ser_attr_req_len)) {
+    if (data->metadata_client->Send(ser_attr_req_len.c_str())) {
       std::vector<char> len_vec = data->metadata_client->Receive();
       if (!len_vec.empty()) {
         Message len_res =
@@ -1521,7 +1510,7 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset,
                 path_str.c_str(), size, static_cast<intmax_t>(offset),
                 fi ? fi->flags : 0, old_len);
 
-  off_t effective_offset = sanitize_offset(offset);
+  off_t effective_offset = offset;
   if (fi && (fi->flags & O_APPEND)) {
     // Queue append data for periodic flush instead of immediate write
     {
@@ -1545,7 +1534,7 @@ int simpli_write(const char *path, const char *buf, size_t size, off_t offset,
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_write: Failed to "
@@ -1626,7 +1615,7 @@ int simpli_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(
           LogLevel::ERROR,
           getCurrentTimestamp() +
@@ -1697,7 +1686,7 @@ int simpli_unlink(const char *path) {
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(LogLevel::ERROR,
                                 getCurrentTimestamp() +
                                     " [FUSE_ADAPTER] simpli_unlink: Failed to "
@@ -1783,7 +1772,7 @@ int simpli_rename(const char *from_path, const char *to_path,
 
   try {
     std::string serialized_req = Message::Serialize(req_msg);
-    if (!data->metadata_client->Send(serialized_req)) {
+    if (!data->metadata_client->Send(serialized_req.c_str())) {
       Logger::getInstance().log(
           LogLevel::ERROR,
           getCurrentTimestamp() +

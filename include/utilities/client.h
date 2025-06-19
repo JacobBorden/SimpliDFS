@@ -85,17 +85,6 @@ void SetFamily(int _pFamily);
 // Sends the specified data buffer to the connected host.
 int Send(PCSTR _pSendBuffer);
 
-/**
- * @brief Send a string containing arbitrary bytes.
- *
- * This overload avoids strlen-based truncation by using the
- * string's length directly, allowing embedded null bytes.
- *
- * @param data String to send.
- * @return Number of bytes sent on success.
- */
-int Send(const std::string &data);
-
 // Send data to a specified address and port
 int SendTo(PCSTR pBuffer, PCSTR pAddress, int pPort);
 

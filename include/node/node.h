@@ -58,7 +58,7 @@ private:
           req._Path = f;
           try {
             Networking::Client mc(metaAddr.c_str(), metaPort);
-            mc.Send(Message::Serialize(req));
+            mc.Send(Message::Serialize(req).c_str());
             std::vector<char> respVec = mc.Receive();
             mc.Disconnect();
             if (!respVec.empty()) {
@@ -71,17 +71,14 @@ private:
                   continue;
                 if (addr == "127.0.0.1:" + std::to_string(server.GetPort()))
                   continue;
-                std::string ip;
-                int port = 0;
-                if (!parseAddressPort(addr, ip, port)) {
-                  continue;
-                }
+                std::string ip = addr.substr(0, addr.find(':'));
+                int port = std::stoi(addr.substr(addr.find(':') + 1));
                 try {
                   Networking::Client sc(ip.c_str(), port);
                   Message rm;
                   rm._Type = MessageType::ReadFile;
                   rm._Filename = f;
-                  sc.Send(Message::Serialize(rm));
+                  sc.Send(Message::Serialize(rm).c_str());
                   std::vector<char> fileVec = sc.Receive();
                   sc.Disconnect();
                   if (!fileVec.empty()) {
@@ -386,21 +383,17 @@ public:
                   << std::endl;
         std::string data = fileSystem.readFile(filenameToReplicate);
         if (!data.empty()) {
-        std::string ip;
-        int port = 0;
-        if (!parseAddressPort(targetNodeAddress, ip, port)) {
-          std::cerr << "[NODE " << nodeName
-                    << "] Invalid replicate target address: "
-                    << targetNodeAddress << std::endl;
-          break;
-        }
+          std::string ip =
+              targetNodeAddress.substr(0, targetNodeAddress.find(':'));
+          int port = std::stoi(
+              targetNodeAddress.substr(targetNodeAddress.find(':') + 1));
           try {
             Networking::Client c(ip.c_str(), port);
             Message w;
             w._Type = MessageType::WriteFile;
             w._Filename = filenameToReplicate;
             w._Content = data;
-            c.Send(Message::Serialize(w));
+            c.Send(Message::Serialize(w).c_str());
             (void)c.Receive();
             c.Disconnect();
           } catch (...) {
@@ -419,20 +412,16 @@ public:
                 ._Content; // Original target node ID for logging/confirmation
         std::cout << "[NODE " << nodeName << "] Receiving " << filenameToReceive
                   << " from " << sourceNodeAddress << std::endl;
-        std::string ip;
-        int port = 0;
-        if (!parseAddressPort(sourceNodeAddress, ip, port)) {
-          std::cerr << "[NODE " << nodeName
-                    << "] Invalid source node address: " << sourceNodeAddress
-                    << std::endl;
-          break;
-        }
+        std::string ip =
+            sourceNodeAddress.substr(0, sourceNodeAddress.find(':'));
+        int port = std::stoi(
+            sourceNodeAddress.substr(sourceNodeAddress.find(':') + 1));
         try {
           Networking::Client sc(ip.c_str(), port);
           Message r;
           r._Type = MessageType::ReadFile;
           r._Filename = filenameToReceive;
-          sc.Send(Message::Serialize(r));
+          sc.Send(Message::Serialize(r).c_str());
           std::vector<char> vec = sc.Receive();
           sc.Disconnect();
           if (!vec.empty()) {
@@ -536,7 +525,7 @@ public:
       Networking::Client client(metadataManagerAddress.c_str(),
                                 metadataManagerPort);
       std::string serializedMessage = Message::Serialize(message);
-      client.Send(serializedMessage);
+      client.Send(serializedMessage.c_str());
       std::vector<char> response_vector = client.Receive();
       client.Disconnect();
       if (response_vector.empty()) {
@@ -562,37 +551,6 @@ public:
                 << std::endl;
     }
     return false;
-  }
-
-  /**
-   * @brief Parse an address string of the form "ip:port".
-   *
-   * This helper splits a combined address into separate IP and port
-   * components. It validates the basic format to avoid exceptions when
-   * converting the port.
-   *
-   * @param address The input string containing "ip:port".
-   * @param ip Receives the parsed IP portion on success.
-   * @param port Receives the parsed port number on success.
-   * @return True if parsing succeeded, false otherwise.
-   */
-  static bool parseAddressPort(const std::string &address, std::string &ip,
-                               int &port) {
-    if (address.empty()) {
-      return false;
-    }
-    size_t pos = address.find(':');
-    if (pos == std::string::npos) {
-      return false;
-    }
-    ip = address.substr(0, pos);
-    std::string portStr = address.substr(pos + 1);
-    try {
-      port = std::stoi(portStr);
-    } catch (...) {
-      return false;
-    }
-    return !ip.empty();
   }
 
 private:

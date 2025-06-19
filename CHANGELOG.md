@@ -1,54 +1,6 @@
-## [0.3.76] - 2025-06-19
+## [0.3.64] - 2025-06-19
 ### Fixed
-- Message serialization now base64-encodes binary fields, preventing truncation during replication.
-
-## [0.3.75] - 2025-06-19
-### Fixed
-- Robust address parsing in Node prevents crashes on malformed Replicate/Receive commands.
-## [0.3.74] - 2025-06-19
-### Fixed
-- `Message::Deserialize` again accepts truncated messages and populates missing
-  fields with defaults, resolving `FuseRandomWriteTest` failures.
-
-## [0.3.73] - 2025-06-19
-### Fixed
-- Reinstated strict parsing in `Message::Deserialize` to avoid corrupted writes
-  during `FuseRandomWriteTest`.
-
-## [0.3.72] - 2025-06-19
-### Fixed
-- `Message::Deserialize` once more tolerates truncated messages so
-  `FuseRandomWriteTest` passes in CI.
-
-## [0.3.71] - 2025-06-19
-### Fixed
-- Restored strict deserialization; concurrent random writes succeed again.
-
-## [0.3.70] - 2025-06-19
-### Fixed
-- `Message::Deserialize` again accepts short legacy messages, restoring
-  FuseConcurrencyTest compatibility.
-
-## [0.3.69] - 2025-06-18
-### Fixed
-- Network Send now uses exact string length, preserving embedded nulls.
-## [0.3.68] - 2025-06-18
-### Fixed
-- Negative offsets from FUSE are now clamped to zero, preventing invalid writes during stress tests.
-
-## [0.3.67] - 2025-06-18
-### Fixed
-- Reinstate strict `Message::Deserialize` parsing to resolve FUSE RandomWriteTest failures.
-
-## [0.3.65] - 2025-06-18
-### Fixed
-- Reverted lenient Message deserialization which caused corruption in concurrent
-  random write tests.
-
-## [0.3.66] - 2025-06-18
-### Fixed
-- Restored compatibility with nodes sending short WriteFile messages while still
-  parsing extended fields when present.
+- Deserialization now tolerates missing trailing fields.
 
 ## [0.3.63] - 2025-06-18
 ### Added
