@@ -193,4 +193,31 @@ inline bool openFileWithRetry(const std::string& path, std::ifstream& stream,
     return false;
 }
 
+/**
+ * @brief Seek the put pointer of an fstream with retry logic.
+ *
+ * Certain FUSE implementations occasionally return transient errors when
+ * repositioning a stream immediately after a write. This helper retries the
+ * seek several times, clearing error flags between attempts.
+ *
+ * @param stream    fstream whose put pointer should be moved.
+ * @param offset    Absolute offset from the beginning of the file.
+ * @param retries   Number of additional attempts after the first try.
+ * @param delay_ms  Delay in milliseconds between attempts.
+ * @return true if the seek succeeds, false otherwise.
+ */
+inline bool seekpWithRetry(std::fstream& stream, std::streamoff offset,
+                           int retries = 2, int delay_ms = 50) {
+    for (int attempt = 0; attempt <= retries; ++attempt) {
+        stream.clear();
+        stream.seekp(offset, std::ios::beg);
+        if (!stream.fail()) {
+            return true;
+        }
+        stream.clear();
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+    }
+    return false;
+}
+
 #endif // SIMPLIDFS_FUSE_CONCURRENCY_TEST_UTILS_HPP
