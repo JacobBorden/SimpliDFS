@@ -19,6 +19,7 @@
 #include "utilities/networkexception.h"
 #include "utilities/server.h"
 #include "utilities/rbac.h"
+#include "utilities/address_utils.h"
 #include <chrono> // Required for std::chrono
 #include <iostream>
 #include <sstream>
@@ -71,8 +72,13 @@ private:
                   continue;
                 if (addr == "127.0.0.1:" + std::to_string(server.GetPort()))
                   continue;
-                std::string ip = addr.substr(0, addr.find(':'));
-                int port = std::stoi(addr.substr(addr.find(':') + 1));
+                std::string ip;
+                int port = 0;
+                if (!parseAddressPort(addr, ip, port)) {
+                  std::cerr << "[NODE " << nodeName
+                            << "] Invalid address " << addr << std::endl;
+                  continue;
+                }
                 try {
                   Networking::Client sc(ip.c_str(), port);
                   Message rm;
@@ -383,10 +389,13 @@ public:
                   << std::endl;
         std::string data = fileSystem.readFile(filenameToReplicate);
         if (!data.empty()) {
-          std::string ip =
-              targetNodeAddress.substr(0, targetNodeAddress.find(':'));
-          int port = std::stoi(
-              targetNodeAddress.substr(targetNodeAddress.find(':') + 1));
+          std::string ip;
+          int port = 0;
+          if (!parseAddressPort(targetNodeAddress, ip, port)) {
+            std::cerr << "[NODE " << nodeName << "] Invalid target address "
+                      << targetNodeAddress << std::endl;
+            break;
+          }
           try {
             Networking::Client c(ip.c_str(), port);
             Message w;
@@ -412,10 +421,13 @@ public:
                 ._Content; // Original target node ID for logging/confirmation
         std::cout << "[NODE " << nodeName << "] Receiving " << filenameToReceive
                   << " from " << sourceNodeAddress << std::endl;
-        std::string ip =
-            sourceNodeAddress.substr(0, sourceNodeAddress.find(':'));
-        int port = std::stoi(
-            sourceNodeAddress.substr(sourceNodeAddress.find(':') + 1));
+        std::string ip;
+        int port = 0;
+        if (!parseAddressPort(sourceNodeAddress, ip, port)) {
+          std::cerr << "[NODE " << nodeName << "] Invalid source address "
+                    << sourceNodeAddress << std::endl;
+          break;
+        }
         try {
           Networking::Client sc(ip.c_str(), port);
           Message r;

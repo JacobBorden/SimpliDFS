@@ -1,3 +1,7 @@
+## [0.3.65] - 2025-06-19
+### Fixed
+- Prevent crashes when parsing invalid node addresses.
+
 ## [0.3.64] - 2025-06-19
 ### Fixed
 - Deserialization now tolerates missing trailing fields.

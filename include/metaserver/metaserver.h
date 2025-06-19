@@ -11,6 +11,7 @@
 #include "metaserver/node_health_tracker.h"
 #include "cluster/NodeHealthCache.h"
 #include "utilities/raft.h"
+#include "utilities/address_utils.h"
 #include <vector>
 #include <string>
 #include <iostream>
@@ -258,8 +259,12 @@ public:
                     replicateMsg._Content = sourceNodeID;
 
                     std::string srcAddr = registeredNodes[sourceNodeID].nodeAddress;
-                    std::string srcIp = srcAddr.substr(0, srcAddr.find(':'));
-                    int srcPort = std::stoi(srcAddr.substr(srcAddr.find(':') + 1));
+                    std::string srcIp;
+                    int srcPort = 0;
+                    if (!parseAddressPort(srcAddr, srcIp, srcPort)) {
+                        std::cerr << "[MetadataManager] Invalid address " << srcAddr << std::endl;
+                        break;
+                    }
                     try {
                         Networking::Client c(srcIp.c_str(), srcPort);
                         c.Send(Message::Serialize(replicateMsg).c_str());
@@ -277,8 +282,12 @@ public:
                     receiveMsg._NodeAddress = srcAddr; // Source of replica
                     receiveMsg._Content = newNodeID;
 
-                    std::string newIp = registeredNodes[newNodeID].nodeAddress.substr(0, registeredNodes[newNodeID].nodeAddress.find(':'));
-                    int newPort = std::stoi(registeredNodes[newNodeID].nodeAddress.substr(registeredNodes[newNodeID].nodeAddress.find(':') + 1));
+                    std::string newIp;
+                    int newPort = 0;
+                    if (!parseAddressPort(registeredNodes[newNodeID].nodeAddress, newIp, newPort)) {
+                        std::cerr << "[MetadataManager] Invalid address " << registeredNodes[newNodeID].nodeAddress << std::endl;
+                        break;
+                    }
                     try {
                         Networking::Client c(newIp.c_str(), newPort);
                         c.Send(Message::Serialize(receiveMsg).c_str());
