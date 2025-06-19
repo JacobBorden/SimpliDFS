@@ -273,6 +273,11 @@ void writer_thread_func(int thread_id) {
     // This is key to the "random write" nature of the test, ensuring threads
     // write to their designated, non-overlapping areas, even if the file was
     // pre-allocated.
+    // Clear any existing stream errors before seeking. During stress
+    // testing the underlying FUSE implementation may temporarily return
+    // errors which leave the fstream in a bad state. Clearing the flags
+    // ensures seekp() can attempt the operation again.
+    outfile.clear();
     outfile.seekp(offset);
 
     // Log success or failure of seekp, including stream state and current
@@ -305,6 +310,10 @@ void writer_thread_func(int thread_id) {
 
     std::streampos pos_before_write =
         outfile.tellp(); // Current position before writing.
+    // Clear any previous errors before the write to avoid cascading failures
+    // from earlier operations. This is especially important under stress when
+    // transient network issues may set fail bits.
+    outfile.clear();
     // Perform the actual write operation.
     outfile.write(line_to_write.c_str(), line_to_write.length());
 
@@ -459,6 +468,9 @@ void appender_thread_func(int thread_id) {
 
     std::streampos pos_before_write =
         outfile.tellp(); // Position before append (for logging).
+    // Clear any previous stream errors before appending to guard against
+    // intermittent issues during stress runs.
+    outfile.clear();
     // Perform the append operation. Due to std::ios::app, the system should
     // ensure this write occurs at the current end-of-file, even with concurrent
     // appends.

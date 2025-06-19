@@ -4,6 +4,11 @@
 ### Changed
 - Stress tests cover overlapping writes and fsync batching behavior.
 
+## [0.3.64] - 2025-06-18
+### Fixed
+- Cleared fstream error flags between seek and write operations in FUSE
+  concurrency tests to reduce intermittent failures during stress runs.
+
 ## [0.3.61] - 2025-06-17
 ### Added
 - Extent-level locking and append batching in FUSE adapter to prevent race corruption.
