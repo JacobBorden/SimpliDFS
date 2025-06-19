@@ -7,6 +7,11 @@
 - `Message::Deserialize` once more tolerates truncated messages so
   `FuseRandomWriteTest` passes in CI.
 
+## [0.3.73] - 2025-06-19
+### Fixed
+- Reinstated strict parsing in `Message::Deserialize` to avoid corrupted writes
+  during `FuseRandomWriteTest`.
+
 ## [0.3.70] - 2025-06-19
 ### Fixed
 - `Message::Deserialize` again accepts short legacy messages, restoring
