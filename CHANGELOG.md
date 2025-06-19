@@ -1,3 +1,8 @@
+## [0.3.66] - 2025-06-19
+### Fixed
+- Overlapping extent check in the FUSE concurrency tests no longer throws
+  `std::out_of_range` when the data file is unexpectedly short.
+
 ## [0.3.65] - 2025-06-19
 ### Fixed
 - Prevent crashes when parsing invalid node addresses.

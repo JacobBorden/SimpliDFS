@@ -1350,7 +1350,13 @@ bool run_random_write_test() {
   bool overlap_ok = true;
   for (int i = 0; i < NUM_THREADS; ++i) {
     std::string expected = "block" + std::to_string(i);
-    if (contents.substr(i * 8, expected.size()) != expected) {
+    // Guard against corrupt or truncated files. If the contents string is
+    // shorter than the position we are about to inspect, attempting to take a
+    // substring would throw std::out_of_range and abort the test suite. Check
+    // the bounds explicitly so the test can fail gracefully and report the
+    // mismatch instead of crashing.
+    if (i * 8 + expected.size() > contents.size() ||
+        contents.substr(i * 8, expected.size()) != expected) {
       overlap_ok = false;
       break;
     }
