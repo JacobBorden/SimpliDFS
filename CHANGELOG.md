@@ -4,6 +4,11 @@
 ### Changed
 - Random write test uses seekpWithRetry and new unit tests verify it.
 
+## [0.3.65] - 2025-06-20
+### Added
+- TPM quote produced by `generate_node_cert.sh` and sent during node registration.
+- Metaserver verifies `EXPECTED_PCR7_QUOTE` before accepting a node.
+
 ## [0.3.63] - 2025-06-18
 ### Added
 - CI pipeline now executes FUSE stress tests on every run.

@@ -21,3 +21,7 @@ from playbooks or inventory.
 ```
 
 The node service depends on the metadata follower and automatically starts after it.
+
+Generated certificates and TPM quotes are stored in `/etc/simplidfs/certs`. The
+node service sets `SIMPLIDFS_QUOTE_FILE` so the node can transmit the quote to
+the metaserver during registration.

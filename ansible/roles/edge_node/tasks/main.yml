@@ -12,6 +12,7 @@
       - libudev-dev
       - pkg-config
       - curl
+      - tpm2-tools
     state: present
     update_cache: yes
 
@@ -32,6 +33,7 @@
     - /opt/simplidfs
     - /opt/simplidfs/cache
     - /opt/simplidfs/metadata
+    - /etc/simplidfs/certs
 
 - name: Clone SimpliDFS repository
   git:
@@ -61,6 +63,13 @@
   loop:
     - simpli_metaserver
     - node
+
+- name: Generate node certificate and quote
+  command: ./scripts/generate_node_cert.sh {{ node_name }} /etc/simplidfs/certs
+  args:
+    chdir: /opt/simplidfs/src
+  become: yes
+  become_user: root
 
 - name: Create systemd unit for edge node metaserver follower
   copy:
@@ -96,6 +105,7 @@
       Group=simplidfs
       ExecStart=/usr/local/bin/node {{ node_name }} {{ node_port }} 127.0.0.1 50505
       WorkingDirectory=/opt/simplidfs/cache
+      Environment=SIMPLIDFS_QUOTE_FILE=/etc/simplidfs/certs/{{ node_name }}.quote
       Restart=on-failure
 
       [Install]

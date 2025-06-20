@@ -17,8 +17,8 @@
 #include "utilities/filesystem.h"
 #include "utilities/message.h"
 #include "utilities/networkexception.h"
-#include "utilities/server.h"
 #include "utilities/rbac.h"
+#include "utilities/server.h"
 #include <chrono> // Required for std::chrono
 #include <iostream>
 #include <sstream>
@@ -40,7 +40,7 @@ private:
   Networking::Server server; ///< Server instance from NetworkingLibrary to
                              ///< listen for incoming connections.
   FileSystem fileSystem;     ///< Local file system manager for this node.
-  SimpliDFS::RBACPolicy rbacPolicy;     ///< Access control policy loaded from YAML.
+  SimpliDFS::RBACPolicy rbacPolicy; ///< Access control policy loaded from YAML.
   bool hotCacheMode{false};
   std::string hotCacheSnapshotName;
   std::vector<std::string> hotCacheDeltas;
@@ -109,7 +109,8 @@ private:
       fileSystem.snapshotCreate(hotCacheSnapshotName);
       hotCacheDeltas.clear();
       hotCacheMode = true;
-      std::cout << "[NODE " << nodeName << "] Hot cache mode enabled." << std::endl;
+      std::cout << "[NODE " << nodeName << "] Hot cache mode enabled."
+                << std::endl;
     }
   }
 
@@ -123,7 +124,8 @@ private:
         combined += d + "\n";
       }
       hotCacheDeltas.push_back(combined);
-      hotCacheSnapshotName = "hotcache_" + std::to_string(hotCacheDeltas.size());
+      hotCacheSnapshotName =
+          "hotcache_" + std::to_string(hotCacheDeltas.size());
       fileSystem.snapshotCreate(hotCacheSnapshotName);
     }
   }
@@ -137,7 +139,8 @@ private:
       sendMessageToMetadataManager(addr, port, m);
     }
     if (!hotCacheDeltas.empty()) {
-      std::cout << "[NODE " << nodeName << "] Snapshot deltas forwarded." << std::endl;
+      std::cout << "[NODE " << nodeName << "] Snapshot deltas forwarded."
+                << std::endl;
     }
     hotCacheDeltas.clear();
   }
@@ -237,6 +240,23 @@ public:
     msg._NodeAddress = "127.0.0.1"; // Placeholder for node's actual address
     msg._NodePort = this->server.GetPort(); // Node's listening port
 
+    // Include TPM PCR7 quote if present. The path can be overridden with
+    // the SIMPLIDFS_QUOTE_FILE environment variable. If not set, the code
+    // looks for <nodeName>.quote in the current directory.
+    std::string quotePath;
+    const char *qpEnv = std::getenv("SIMPLIDFS_QUOTE_FILE");
+    if (qpEnv) {
+      quotePath = qpEnv;
+    } else {
+      quotePath = this->nodeName + ".quote";
+    }
+    std::ifstream qf(quotePath, std::ios::binary);
+    if (qf) {
+      std::stringstream buffer;
+      buffer << qf.rdbuf();
+      msg._Data = buffer.str();
+    }
+
     // This function would make a network call to the MetadataManager
     sendMessageToMetadataManager(metadataManagerAddress, metadataManagerPort,
                                  msg);
@@ -290,7 +310,8 @@ public:
 
       switch (message._Type) {
       case MessageType::WriteFile: {
-        if (!allowed("write")) break;
+        if (!allowed("write"))
+          break;
         bool success = false;
         if (message._Content
                 .empty()) { // Treat empty content write as create file
@@ -356,7 +377,8 @@ public:
         break;
       }
       case MessageType::ReadFile: {
-        if (!allowed("read")) break;
+        if (!allowed("read"))
+          break;
         std::string content = fileSystem.readFile(message._Filename);
         if (!content.empty()) {
           server.Send(content.c_str(), client);
@@ -436,7 +458,8 @@ public:
         break;
       }
       case MessageType::DeleteFile: {
-        if (!allowed("delete")) break;
+        if (!allowed("delete"))
+          break;
         std::cout << "[NODE " << nodeName << "] Received DeleteFile for "
                   << message._Filename << std::endl;
         bool success = fileSystem.deleteFile(message._Filename);
@@ -571,7 +594,7 @@ private:
           this->nodeName; // Using _Filename to carry the node identifier
 
       bool success = sendMessageToMetadataManager(metadataManagerAddress,
-                                   metadataManagerPort, msg);
+                                                  metadataManagerPort, msg);
       if (!success && lastHeartbeatSuccess) {
         enterHotCacheMode();
       } else if (success && !lastHeartbeatSuccess) {
