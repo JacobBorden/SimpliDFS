@@ -1,3 +1,8 @@
+## [0.4.0] - 2025-06-21
+### Added
+- TPM attestation on node join using PCR 7 quotes.
+- Edge node role generates quotes and passes them to the metaserver.
+
 ## [0.3.64] - 2025-06-20
 ### Added
 - seekpWithRetry helper improves FUSE concurrency tests.
@@ -14,8 +19,7 @@
 ### Added
 - Extent-level locking and append batching in FUSE adapter to prevent race corruption.
 
-
-# Changelog
+#Changelog
 ## [0.3.60] - 2025-06-16
 ### Changed
 - Data pipeline now compresses before encryption then hashes, reducing chunk store size.
