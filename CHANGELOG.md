@@ -1,3 +1,9 @@
+## [0.3.64] - 2025-06-20
+### Added
+- seekpWithRetry helper improves FUSE concurrency tests.
+### Changed
+- Random write test uses seekpWithRetry and new unit tests verify it.
+
 ## [0.3.63] - 2025-06-18
 ### Added
 - CI pipeline now executes FUSE stress tests on every run.
