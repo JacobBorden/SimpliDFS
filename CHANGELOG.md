@@ -1,3 +1,7 @@
+## [0.3.64] - 2025-06-20
+### Added
+- seekpWithRetry helper improves FUSE test stability.
+
 ## [0.3.63] - 2025-06-18
 ### Added
 - CI pipeline now executes FUSE stress tests on every run.
