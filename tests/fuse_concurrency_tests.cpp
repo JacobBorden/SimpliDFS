@@ -273,12 +273,12 @@ void writer_thread_func(int thread_id) {
     // This is key to the "random write" nature of the test, ensuring threads
     // write to their designated, non-overlapping areas, even if the file was
     // pre-allocated.
-    outfile.seekp(offset);
+    bool seek_ok = seekpWithRetry(outfile, offset);
 
-    // Log success or failure of seekp, including stream state and current
+    // Log success or failure of seek, including stream state and current
     // position. This helps debug issues if seek operations are not behaving as
     // expected.
-    if (outfile.fail()) {
+    if (!seek_ok) {
       std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
                 << " TID: " << std::this_thread::get_id() << "] Thread "
                 << thread_id << ": Seekp to " << offset
@@ -307,6 +307,8 @@ void writer_thread_func(int thread_id) {
         outfile.tellp(); // Current position before writing.
     // Perform the actual write operation.
     outfile.write(line_to_write.c_str(), line_to_write.length());
+    // Ensure data is pushed through FUSE before the next seek.
+    outfile.flush();
 
     // Log after write: success/failure, stream state, and bytes written.
     // This confirms the outcome of the write and checks for partial writes or
@@ -463,6 +465,8 @@ void appender_thread_func(int thread_id) {
     // ensure this write occurs at the current end-of-file, even with concurrent
     // appends.
     outfile.write(line_to_write.c_str(), line_to_write.length());
+    // Flush after each append to reduce FUSE buffering issues.
+    outfile.flush();
 
     // Log after append: success/failure, stream state, and positions.
     if (outfile.fail()) {
