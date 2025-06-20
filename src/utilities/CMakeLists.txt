@@ -30,6 +30,7 @@ target_include_directories(SimpliDFS_Utils
         ${cppcodec_SOURCE_DIR} # For cppcodec
         ${SODIUM_INCLUDE_DIRS} # For libsodium
         ${OPENSSL_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/blake3
 )
 
 # Add ZSTD include directories for SimpliDFS_Utils
@@ -46,6 +47,7 @@ endif()
 target_link_libraries(SimpliDFS_Utils
     PUBLIC
         cppcodec
+        blake3
         ${SODIUM_LIBRARIES}
         OpenSSL::SSL
         OpenSSL::Crypto

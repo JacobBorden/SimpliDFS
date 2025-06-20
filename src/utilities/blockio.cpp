@@ -1,12 +1,16 @@
 #include "utilities/blockio.hpp"
 #include "utilities/cid_utils.hpp" // Added for digest_to_cid
 
+#include "blake3.h"
+#include "utilities/digest.hpp"
 #include <algorithm> // For std::copy
 #include <stdexcept> // For std::runtime_error
 
 // Constructor
-BlockIO::BlockIO(int compression_level, CipherAlgorithm cipher_algo)
-    : compression_level_(compression_level), cipher_algo_(cipher_algo) {
+BlockIO::BlockIO(int compression_level, CipherAlgorithm cipher_algo,
+                 HashAlgorithm hash_algo)
+    : compression_level_(compression_level), cipher_algo_(cipher_algo),
+      hash_algo_(hash_algo) {
   if (sodium_init() < 0) {
     // sodium_init() returns -1 on error, 0 on success, 1 if already initialized
     // We can choose to throw an exception or handle it differently.
@@ -14,16 +18,11 @@ BlockIO::BlockIO(int compression_level, CipherAlgorithm cipher_algo)
     throw std::runtime_error("Failed to initialize libsodium");
   }
 
-  // Explicitly zero-initialize hash_state_ before libsodium init.
-  // This is speculative and typically should not be needed.
-  // Using unsigned char* for byte-wise manipulation.
-  unsigned char *const p_state_bytes =
-      reinterpret_cast<unsigned char *>(&hash_state_);
-  for (size_t i = 0; i < sizeof(crypto_hash_sha256_state); ++i) {
-    p_state_bytes[i] = 0U;
+  if (hash_algo_ == HashAlgorithm::SHA256) {
+    crypto_hash_sha256_init(&sha_state_);
+  } else {
+    blake3_hasher_init(&blake3_state_);
   }
-
-  crypto_hash_sha256_init(&hash_state_);
   finalized_ = false; // Initialize finalized_ flag
 }
 
@@ -45,9 +44,13 @@ void BlockIO::ingest(const std::byte *data, size_t size) {
   }
   if (data && size > 0) { // Check for null data pointer and non-zero size
     buffer_.insert(buffer_.end(), data, data + size);
-    // Update SHA-256 hash state
-    crypto_hash_sha256_update(
-        &hash_state_, reinterpret_cast<const unsigned char *>(data), size);
+    if (hash_algo_ == HashAlgorithm::SHA256) {
+      crypto_hash_sha256_update(
+          &sha_state_, reinterpret_cast<const unsigned char *>(data), size);
+    } else {
+      blake3_hasher_update(&blake3_state_,
+                           reinterpret_cast<const uint8_t *>(data), size);
+    }
   }
 }
 
@@ -69,11 +72,16 @@ DigestResult BlockIO::finalize_hashed() {
   }
 
   DigestResult result;
-  crypto_hash_sha256_final(&hash_state_, result.digest.data());
+  if (hash_algo_ == HashAlgorithm::SHA256) {
+    crypto_hash_sha256_final(&sha_state_, result.digest.data());
+  } else {
+    blake3_hasher_finalize(&blake3_state_, result.digest.data(),
+                           sgns::utils::DIGEST_SIZE);
+  }
   result.raw = buffer_; // Copy the raw data
 
   // Convert digest to CID
-  result.cid = sgns::utils::digest_to_cid(result.digest);
+  result.cid = sgns::utils::digest_to_cid(result.digest, hash_algo_);
 
   finalized_ = true; // Mark as finalized
 
@@ -275,10 +283,19 @@ BlockIO::PipelineResult BlockIO::finalize_pipeline(
   }
 
   if (hashing_enabled_) {
-    crypto_hash_sha256(result.digest.data(),
-                       reinterpret_cast<const unsigned char *>(data.data()),
-                       data.size());
-    result.cid = sgns::utils::digest_to_cid(result.digest);
+    if (hash_algo_ == HashAlgorithm::SHA256) {
+      crypto_hash_sha256(result.digest.data(),
+                         reinterpret_cast<const unsigned char *>(data.data()),
+                         data.size());
+    } else {
+      blake3_hasher hasher;
+      blake3_hasher_init(&hasher);
+      blake3_hasher_update(
+          &hasher, reinterpret_cast<const uint8_t *>(data.data()), data.size());
+      blake3_hasher_finalize(&hasher, result.digest.data(),
+                             sgns::utils::DIGEST_SIZE);
+    }
+    result.cid = sgns::utils::digest_to_cid(result.digest, hash_algo_);
   }
 
   result.data = data;

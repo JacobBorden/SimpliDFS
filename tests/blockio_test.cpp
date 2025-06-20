@@ -1,4 +1,5 @@
 #include "utilities/blockio.hpp" // Adjust path as necessary
+#include "utilities/digest.hpp"
 #include "utilities/key_manager.hpp"
 #include "gtest/gtest.h"
 #include <algorithm> // For std::equal
@@ -125,9 +126,9 @@ TEST(BlockIOTest, FinalizeHashedEmpty) {
   BlockIO bio;
   DigestResult result = bio.finalize_hashed();
   EXPECT_TRUE(result.raw.empty());
-  // SHA-256 hash of an empty string
+  // BLAKE3 hash of an empty string
   std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+      "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262");
   EXPECT_EQ(result.digest, expected_digest);
 }
 
@@ -143,7 +144,19 @@ TEST(BlockIOTest, FinalizeHashedSingleChunk) {
   EXPECT_TRUE(
       std::equal(result.raw.begin(), result.raw.end(), test_data.begin()));
 
-  // SHA-256 hash of "test"
+  // BLAKE3 hash of "test"
+  std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
+      "4878ca0425c739fa427f7eda20fe845f6b2e46ba5fe2a14df5b1e32f50603215");
+  EXPECT_EQ(result.digest, expected_digest);
+}
+
+TEST(BlockIOTest, FinalizeHashedSHA256) {
+  BlockIO bio(1, BlockIO::CipherAlgorithm::XCHACHA20_POLY1305,
+              sgns::utils::HashAlgorithm::SHA256);
+  std::string test_str = "test";
+  auto data = string_to_byte_vector(test_str);
+  bio.ingest(data.data(), data.size());
+  auto result = bio.finalize_hashed();
   std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
       "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
   EXPECT_EQ(result.digest, expected_digest);
@@ -171,7 +184,7 @@ TEST(BlockIOTest, FinalizeHashedMultipleChunks) {
   EXPECT_TRUE(
       std::equal(result.raw.begin(), result.raw.end(), expected_raw.begin()));
 
-  // SHA-256 hash of "Chunk1Chunk2Chunk3"
+  // BLAKE3 hash of "Chunk1Chunk2Chunk3"
   // Pre-calculate this hash: echo -n "Chunk1Chunk2Chunk3" | sha256sum
   // Result:
   // 03255db56069906c7d57c604a02207f3b3aa2nserted_by_user_for_testing_purposes912706ed84af120323f56d2
@@ -182,7 +195,7 @@ TEST(BlockIOTest, FinalizeHashedMultipleChunks) {
   // hash for "Chunk1Chunk2Chunk3":
   // 98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b407a33d5d8143ca5a5
   std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
-      "98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b1b407a33d5d8143ca5");
+      "402a6f484b88425adb3f722cdd5366907c3c7eea5770a9c64da98bdab8c8bab3");
   EXPECT_EQ(result.digest, expected_digest);
 }
 

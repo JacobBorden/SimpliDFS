@@ -3,6 +3,7 @@
 // blocks, replication, and file locations.
 
 #include "metaserver/metaserver.h"
+#include "blake3.h"
 #include "utilities/blockio.hpp"
 #include "utilities/client.h"
 #include "utilities/filesystem.h" // For FileSystem, though not directly used by MM itself for FUSE ops
@@ -37,10 +38,12 @@ static bool verify_quote(const std::string &quote) {
   const char *expected = std::getenv("SIMPLIDFS_EXPECTED_PCR7");
   if (!expected || !*expected)
     return true; // no policy
-  unsigned char digest[crypto_hash_sha256_BYTES];
-  crypto_hash_sha256(digest,
-                     reinterpret_cast<const unsigned char *>(quote.data()),
-                     quote.size());
+  unsigned char digest[BLAKE3_OUT_LEN];
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  blake3_hasher_update(&hasher, reinterpret_cast<const uint8_t *>(quote.data()),
+                       quote.size());
+  blake3_hasher_finalize(&hasher, digest, BLAKE3_OUT_LEN);
   std::ostringstream hex;
   for (size_t i = 0; i < sizeof(digest); ++i) {
     hex << std::hex << std::setw(2) << std::setfill('0')
