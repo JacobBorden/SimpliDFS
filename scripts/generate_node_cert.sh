@@ -14,4 +14,13 @@ openssl req -new -key "$OUT_DIR/${NODE_NAME}.key" -subj "/CN=${NODE_NAME}" -out 
 openssl x509 -req -in "$OUT_DIR/${NODE_NAME}.csr" -CA "$OUT_DIR/ca.crt" -CAkey "$OUT_DIR/ca.key" -CAcreateserial -out "$OUT_DIR/${NODE_NAME}.crt" -days 365
 
 rm "$OUT_DIR/${NODE_NAME}.csr"
+QUOTE_FILE="$OUT_DIR/${NODE_NAME}.quote"
+if command -v tpm2_getquote >/dev/null 2>&1; then
+  tpm2_getquote --quiet --pcr-list 7 --hash sha256 -m "$QUOTE_FILE" || echo "Warning: tpm2_getquote failed" >&2
+elif command -v swtpm >/dev/null 2>&1; then
+  echo "dev-quote" > "$QUOTE_FILE"
+else
+  echo "Warning: TPM tools not found, writing placeholder quote" >&2
+  echo "placeholder" > "$QUOTE_FILE"
+fi
 echo "Certificates for $NODE_NAME written to $OUT_DIR"

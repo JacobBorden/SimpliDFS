@@ -52,6 +52,12 @@
     chdir: /opt/simplidfs/src
   become_user: simplidfs
 
+- name: Generate node certificate and quote
+  command: bash -c "./scripts/generate_node_cert.sh {{ node_name }} /opt/simplidfs/certs"
+  args:
+    chdir: /opt/simplidfs/src
+  become_user: simplidfs
+
 - name: Install binaries
   copy:
     remote_src: yes
@@ -75,6 +81,7 @@
       Group=simplidfs
       Environment=RAFT_ID={{ raft_id }}
       Environment=RAFT_PEERS={{ raft_peers }}
+      Environment=SIMPLIDFS_EXPECTED_PCR7={{ expected_pcr7 }}
       ExecStart=/usr/local/bin/simpli_metaserver 0
       WorkingDirectory=/opt/simplidfs/metadata
       Restart=on-failure
@@ -94,7 +101,7 @@
       [Service]
       User=simplidfs
       Group=simplidfs
-      ExecStart=/usr/local/bin/node {{ node_name }} {{ node_port }} 127.0.0.1 50505
+      ExecStart=/usr/local/bin/node {{ node_name }} {{ node_port }} 127.0.0.1 50505 --quote /opt/simplidfs/certs/{{ node_name }}.quote
       WorkingDirectory=/opt/simplidfs/cache
       Restart=on-failure
 

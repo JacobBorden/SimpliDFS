@@ -5,4 +5,5 @@ raft_id: follower1
 raft_peers: 127.0.0.1:50505
 node_name: edge1
 node_port: 60010
+expected_pcr7: ""
 ...
