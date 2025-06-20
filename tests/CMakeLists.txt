@@ -27,6 +27,7 @@ add_executable(SimpliDFSTests
     metrics_registry_tests.cpp
     merkle_tree_tests.cpp
     open_file_with_retry_tests.cpp
+    seekp_with_retry_tests.cpp
     node_io_tests.cpp
     # Removed direct compilation of utility sources:
     # ../../src/utilities/filesystem.cpp
