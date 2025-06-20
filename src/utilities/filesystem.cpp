@@ -1,11 +1,11 @@
 #include "utilities/filesystem.h"
+#include "utilities/audit_log.hpp"
 #include "utilities/blockio.hpp" // Already in .h, but good for explicitness or if .h changes
 #include "utilities/chunk_store.hpp"
 #include "utilities/cid_utils.hpp" // For digest_to_cid, though BlockIO handles it internally
+#include "utilities/key_manager.hpp"
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/merkle_tree.hpp"
-#include "utilities/audit_log.hpp"
-#include "utilities/key_manager.hpp"
 #include "utilities/metrics.h"
 
 #include <algorithm> // For std::copy, std::transform
@@ -33,8 +33,8 @@ inline std::string bytes_to_string(const std::vector<std::byte> &bytes) {
   return str;
 }
 
-FileSystem::FileSystem(int compression_level, BlockIO::CipherAlgorithm cipher_algo,
-                       std::string tier)
+FileSystem::FileSystem(int compression_level,
+                       BlockIO::CipherAlgorithm cipher_algo, std::string tier)
     : compression_level_(compression_level), cipher_algo_(cipher_algo),
       tier_(std::move(tier)) {
   updateStorageMetric();
@@ -85,7 +85,7 @@ bool FileSystem::writeFile(const std::string &_pFilename,
     std::string cid = hashResult.cid;
 
     // 3. Retrieve the cluster encryption key
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+    std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
     simplidfs::KeyManager::getInstance().getClusterKey(key);
 
     // 4. Encrypt the raw data
@@ -188,7 +188,7 @@ std::string FileSystem::readFile(const std::string &_pFilename) {
                                         // encrypted data size)
 
     // 2. Retrieve the cluster encryption key
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+    std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
     simplidfs::KeyManager::getInstance().getClusterKey(key);
 
     BlockIO localBlockIO(compression_level_, cipher_algo_);
@@ -363,7 +363,7 @@ bool FileSystem::verifyFileIntegrity(const std::string &filename) const {
   }
 
   std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
-  std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+  std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
   simplidfs::KeyManager::getInstance().getClusterKey(key);
   BlockIO bio(compression_level_, cipher_algo_);
   std::vector<std::byte> decrypted = bio.decrypt_data(
@@ -497,7 +497,7 @@ write_car_file(const std::map<std::string, std::vector<std::byte>> &chunks,
 }
 
 bool FileSystem::snapshotExportCar(const std::string &name,
-                         const std::string &carPath) const {
+                                   const std::string &carPath) const {
   std::lock_guard<std::mutex> lock(_Mutex);
   auto snapIt = _Snapshots.find(name);
   if (snapIt == _Snapshots.end())
@@ -527,7 +527,7 @@ bool FileSystem::snapshotExportCar(const std::string &name,
     size_t enc_size = std::stoul(encIt->second);
 
     std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
+    std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
     simplidfs::KeyManager::getInstance().getClusterKey(key);
     BlockIO local(compression_level_, cipher_algo_);
     std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
@@ -557,6 +557,6 @@ void FileSystem::updateStorageMetric() {
   for (const auto &kv : _Files) {
     total += kv.second.size();
   }
-  MetricsRegistry::instance().setGauge("simplidfs_tier_bytes", static_cast<double>(total),
-                                       {{"tier", tier_}});
+  MetricsRegistry::instance().setGauge(
+      "simplidfs_tier_bytes", static_cast<double>(total), {{"tier", tier_}});
 }

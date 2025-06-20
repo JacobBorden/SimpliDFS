@@ -2,14 +2,14 @@
 #ifndef _SIMPLIDFS_FILESYSTEM_H
 #define _SIMPLIDFS_FILESYSTEM_H
 
-#include <cstddef> // Required for std::byte
-#include <mutex>   // Required for std::mutex and std::unique_lock
+#include "utilities/audit_log.hpp"
+#include "utilities/blockio.hpp" // For CipherAlgorithm
+#include <cstddef>               // Required for std::byte
+#include <mutex>                 // Required for std::mutex and std::unique_lock
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector> // Required for std::vector
-#include "utilities/audit_log.hpp"
-#include "utilities/blockio.hpp" // For CipherAlgorithm
 
 /**
  * @brief Manages an in-memory file system for storing file content.
@@ -27,7 +27,7 @@ public:
    */
   explicit FileSystem(int compression_level = 1,
                       BlockIO::CipherAlgorithm cipher_algo =
-                          BlockIO::CipherAlgorithm::AES_256_GCM,
+                          BlockIO::CipherAlgorithm::XCHACHA20_POLY1305,
                       std::string tier = "orbit");
 
   /**
@@ -187,7 +187,8 @@ private:
   mutable std::mutex _Mutex;
 
   int compression_level_{1};
-  BlockIO::CipherAlgorithm cipher_algo_{BlockIO::CipherAlgorithm::AES_256_GCM};
+  BlockIO::CipherAlgorithm cipher_algo_{
+      BlockIO::CipherAlgorithm::XCHACHA20_POLY1305};
   std::string tier_{"orbit"};
 
   /** Update Prometheus gauge for this tier's storage usage. */

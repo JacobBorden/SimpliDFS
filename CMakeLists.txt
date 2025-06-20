@@ -34,20 +34,17 @@ pkg_check_modules(FUSE REQUIRED fuse3) # For FUSE 3.x
 
 include(FetchContent)
 
-# Add libsodium using FetchContent - Now handled by system install and find_package
-# FetchContent_Declare(
-#     libsodium
-#     GIT_REPOSITORY https://github.com/jedisct1/libsodium.git
-#     GIT_TAG 1.0.18 # Stable tag
-# )
-# FetchContent_MakeAvailable(libsodium)
+# Fetch libsodium at a pinned version to avoid system dependency variation
+FetchContent_Declare(
+  libsodium
+  GIT_REPOSITORY https://github.com/jedisct1/libsodium.git
+  GIT_TAG 1.0.19 # Stable tag
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(libsodium)
 
-# Find system-installed libsodium
-# find_package(Sodium REQUIRED) # Replaced by PkgConfig method
-
-# Use PkgConfig to find libsodium
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SODIUM REQUIRED libsodium)
+set(SODIUM_INCLUDE_DIRS ${libsodium_SOURCE_DIR}/src/libsodium/include)
+set(SODIUM_LIBRARIES sodium)
 
 # Find Boost for the REST server
 find_package(Boost REQUIRED COMPONENTS system)

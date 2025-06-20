@@ -1,206 +1,225 @@
-#include "gtest/gtest.h"
 #include "utilities/blockio.hpp" // Adjust path as necessary
 #include "utilities/key_manager.hpp"
-#include <vector>
-#include <cstddef> // For std::byte
-#include <numeric> // For std::iota
+#include "gtest/gtest.h"
 #include <algorithm> // For std::equal
-#include <string>    // For std::string and std::stoul
 #include <array>     // For std::array
+#include <cstddef>   // For std::byte
+#include <numeric>   // For std::iota
 #include <stdexcept> // For std::logic_error, std::invalid_argument
+#include <string>    // For std::string and std::stoul
+#include <vector>
 
 // Helper function to convert hex string to std::array<uint8_t, 32>
-// Throws std::invalid_argument if conversion fails or string length is incorrect.
-std::array<uint8_t, 32> hex_string_to_digest(const std::string& hex_str) {
-    if (hex_str.length() != 64) {
-        throw std::invalid_argument("Hex string must be 64 characters long. Provided: " + hex_str);
+// Throws std::invalid_argument if conversion fails or string length is
+// incorrect.
+std::array<uint8_t, 32> hex_string_to_digest(const std::string &hex_str) {
+  if (hex_str.length() != 64) {
+    throw std::invalid_argument(
+        "Hex string must be 64 characters long. Provided: " + hex_str);
+  }
+  std::array<uint8_t, 32> digest;
+  for (size_t i = 0; i < 32; ++i) {
+    try {
+      std::string byte_str = hex_str.substr(i * 2, 2);
+      unsigned long byte_val = std::stoul(byte_str, nullptr, 16);
+      digest[i] = static_cast<uint8_t>(byte_val);
+    } catch (const std::out_of_range &oor) {
+      throw std::invalid_argument("Hex string byte value out of range: " +
+                                  hex_str.substr(i * 2, 2));
+    } catch (const std::invalid_argument &ia) {
+      throw std::invalid_argument("Hex string invalid argument for byte: " +
+                                  hex_str.substr(i * 2, 2));
     }
-    std::array<uint8_t, 32> digest;
-    for (size_t i = 0; i < 32; ++i) {
-        try {
-            std::string byte_str = hex_str.substr(i * 2, 2);
-            unsigned long byte_val = std::stoul(byte_str, nullptr, 16);
-            digest[i] = static_cast<uint8_t>(byte_val);
-        } catch (const std::out_of_range& oor) {
-            throw std::invalid_argument("Hex string byte value out of range: " + hex_str.substr(i * 2, 2));
-        } catch (const std::invalid_argument& ia) {
-            throw std::invalid_argument("Hex string invalid argument for byte: " + hex_str.substr(i * 2, 2));
-        }
-    }
-    return digest;
+  }
+  return digest;
 }
 
 // Helper function to create a vector of bytes from a string literal
-std::vector<std::byte> string_to_byte_vector(const std::string& str) {
-    std::vector<std::byte> vec(str.length());
-    std::transform(str.begin(), str.end(), vec.begin(), [](char c) {
-        return std::byte(c);
-    });
-    return vec;
+std::vector<std::byte> string_to_byte_vector(const std::string &str) {
+  std::vector<std::byte> vec(str.length());
+  std::transform(str.begin(), str.end(), vec.begin(),
+                 [](char c) { return std::byte(c); });
+  return vec;
 }
 
 // Helper function to create a vector of bytes with sequential values
 std::vector<std::byte> create_byte_vector(size_t size) {
-    std::vector<std::byte> vec(size);
-    // Initialize with distinct values for better testing
-    for (size_t i = 0; i < size; ++i) {
-        vec[i] = std::byte(i % 256); 
-    }
-    return vec;
+  std::vector<std::byte> vec(size);
+  // Initialize with distinct values for better testing
+  for (size_t i = 0; i < size; ++i) {
+    vec[i] = std::byte(i % 256);
+  }
+  return vec;
 }
 
 TEST(BlockIOTest, IngestEmpty) {
-    BlockIO bio;
-    std::vector<std::byte> empty_data;
-    bio.ingest(empty_data.data(), empty_data.size());
-    std::vector<std::byte> result = bio.finalize_raw();
-    EXPECT_TRUE(result.empty());
+  BlockIO bio;
+  std::vector<std::byte> empty_data;
+  bio.ingest(empty_data.data(), empty_data.size());
+  std::vector<std::byte> result = bio.finalize_raw();
+  EXPECT_TRUE(result.empty());
 }
 
 TEST(BlockIOTest, IngestSingleByte) {
-    BlockIO bio;
-    std::vector<std::byte> single_byte_data = {std::byte{77}};
-    bio.ingest(single_byte_data.data(), single_byte_data.size());
-    std::vector<std::byte> result = bio.finalize_raw();
-    ASSERT_EQ(result.size(), 1);
-    EXPECT_EQ(result[0], std::byte{77});
+  BlockIO bio;
+  std::vector<std::byte> single_byte_data = {std::byte{77}};
+  bio.ingest(single_byte_data.data(), single_byte_data.size());
+  std::vector<std::byte> result = bio.finalize_raw();
+  ASSERT_EQ(result.size(), 1);
+  EXPECT_EQ(result[0], std::byte{77});
 }
 
 TEST(BlockIOTest, Ingest64KiB) {
-    BlockIO bio;
-    const size_t data_size = 64 * 1024; // 64 KiB
-    std::vector<std::byte> data = create_byte_vector(data_size);
-    bio.ingest(data.data(), data.size());
-    std::vector<std::byte> result = bio.finalize_raw();
-    ASSERT_EQ(result.size(), data_size);
-    EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
+  BlockIO bio;
+  const size_t data_size = 64 * 1024; // 64 KiB
+  std::vector<std::byte> data = create_byte_vector(data_size);
+  bio.ingest(data.data(), data.size());
+  std::vector<std::byte> result = bio.finalize_raw();
+  ASSERT_EQ(result.size(), data_size);
+  EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
 }
 
 TEST(BlockIOTest, Ingest4MiB) {
-    BlockIO bio;
-    const size_t data_size = 4 * 1024 * 1024; // 4 MiB
-    std::vector<std::byte> data = create_byte_vector(data_size);
-    bio.ingest(data.data(), data.size());
-    std::vector<std::byte> result = bio.finalize_raw();
-    ASSERT_EQ(result.size(), data_size);
-    EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
+  BlockIO bio;
+  const size_t data_size = 4 * 1024 * 1024; // 4 MiB
+  std::vector<std::byte> data = create_byte_vector(data_size);
+  bio.ingest(data.data(), data.size());
+  std::vector<std::byte> result = bio.finalize_raw();
+  ASSERT_EQ(result.size(), data_size);
+  EXPECT_TRUE(std::equal(result.begin(), result.end(), data.begin()));
 }
 
 TEST(BlockIOTest, IngestMultipleChunks) {
-    BlockIO bio;
-    std::vector<std::byte> full_expected_data;
+  BlockIO bio;
+  std::vector<std::byte> full_expected_data;
 
-    // Chunk 1: 10 bytes
-    std::vector<std::byte> chunk1(10);
-    for(size_t i=0; i<10; ++i) chunk1[i] = std::byte(i);
-    bio.ingest(chunk1.data(), chunk1.size());
-    full_expected_data.insert(full_expected_data.end(), chunk1.begin(), chunk1.end());
+  // Chunk 1: 10 bytes
+  std::vector<std::byte> chunk1(10);
+  for (size_t i = 0; i < 10; ++i)
+    chunk1[i] = std::byte(i);
+  bio.ingest(chunk1.data(), chunk1.size());
+  full_expected_data.insert(full_expected_data.end(), chunk1.begin(),
+                            chunk1.end());
 
-    // Chunk 2: Empty
-    std::vector<std::byte> chunk2;
-    bio.ingest(chunk2.data(), chunk2.size());
-    // No change to full_expected_data needed
+  // Chunk 2: Empty
+  std::vector<std::byte> chunk2;
+  bio.ingest(chunk2.data(), chunk2.size());
+  // No change to full_expected_data needed
 
-    // Chunk 3: 20 bytes
-    std::vector<std::byte> chunk3(20);
-    for(size_t i=0; i<20; ++i) chunk3[i] = std::byte(10 + i); // Continue sequence
-    bio.ingest(chunk3.data(), chunk3.size());
-    full_expected_data.insert(full_expected_data.end(), chunk3.begin(), chunk3.end());
+  // Chunk 3: 20 bytes
+  std::vector<std::byte> chunk3(20);
+  for (size_t i = 0; i < 20; ++i)
+    chunk3[i] = std::byte(10 + i); // Continue sequence
+  bio.ingest(chunk3.data(), chunk3.size());
+  full_expected_data.insert(full_expected_data.end(), chunk3.begin(),
+                            chunk3.end());
 
-    std::vector<std::byte> result_bio = bio.finalize_raw();
-    
-    ASSERT_EQ(result_bio.size(), full_expected_data.size());
-    EXPECT_TRUE(std::equal(result_bio.begin(), result_bio.end(), full_expected_data.begin()));
+  std::vector<std::byte> result_bio = bio.finalize_raw();
+
+  ASSERT_EQ(result_bio.size(), full_expected_data.size());
+  EXPECT_TRUE(std::equal(result_bio.begin(), result_bio.end(),
+                         full_expected_data.begin()));
 }
 
 TEST(BlockIOTest, FinalizeHashedEmpty) {
-    BlockIO bio;
-    DigestResult result = bio.finalize_hashed();
-    EXPECT_TRUE(result.raw.empty());
-    // SHA-256 hash of an empty string
-    std::array<uint8_t, 32> expected_digest = hex_string_to_digest("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
-    EXPECT_EQ(result.digest, expected_digest);
+  BlockIO bio;
+  DigestResult result = bio.finalize_hashed();
+  EXPECT_TRUE(result.raw.empty());
+  // SHA-256 hash of an empty string
+  std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
+      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  EXPECT_EQ(result.digest, expected_digest);
 }
 
 TEST(BlockIOTest, FinalizeHashedSingleChunk) {
-    BlockIO bio;
-    std::string test_str = "test";
-    std::vector<std::byte> test_data = string_to_byte_vector(test_str);
-    bio.ingest(test_data.data(), test_data.size());
-    
-    DigestResult result = bio.finalize_hashed();
-    
-    EXPECT_EQ(result.raw.size(), test_data.size());
-    EXPECT_TRUE(std::equal(result.raw.begin(), result.raw.end(), test_data.begin()));
-    
-    // SHA-256 hash of "test"
-    std::array<uint8_t, 32> expected_digest = hex_string_to_digest("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
-    EXPECT_EQ(result.digest, expected_digest);
+  BlockIO bio;
+  std::string test_str = "test";
+  std::vector<std::byte> test_data = string_to_byte_vector(test_str);
+  bio.ingest(test_data.data(), test_data.size());
+
+  DigestResult result = bio.finalize_hashed();
+
+  EXPECT_EQ(result.raw.size(), test_data.size());
+  EXPECT_TRUE(
+      std::equal(result.raw.begin(), result.raw.end(), test_data.begin()));
+
+  // SHA-256 hash of "test"
+  std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
+      "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
+  EXPECT_EQ(result.digest, expected_digest);
 }
 
 TEST(BlockIOTest, FinalizeHashedMultipleChunks) {
-    BlockIO bio;
-    std::string str1 = "Chunk1";
-    std::string str2 = "Chunk2";
-    std::string str3 = "Chunk3";
-    std::string combined_str = str1 + str2 + str3;
-    
-    std::vector<std::byte> data1 = string_to_byte_vector(str1);
-    std::vector<std::byte> data2 = string_to_byte_vector(str2);
-    std::vector<std::byte> data3 = string_to_byte_vector(str3);
-    std::vector<std::byte> expected_raw = string_to_byte_vector(combined_str);
-    
-    bio.ingest(data1.data(), data1.size());
-    bio.ingest(data2.data(), data2.size());
-    bio.ingest(data3.data(), data3.size());
-    
-    DigestResult result = bio.finalize_hashed();
-    
-    EXPECT_EQ(result.raw.size(), expected_raw.size());
-    EXPECT_TRUE(std::equal(result.raw.begin(), result.raw.end(), expected_raw.begin()));
-    
-    // SHA-256 hash of "Chunk1Chunk2Chunk3"
-    // Pre-calculate this hash: echo -n "Chunk1Chunk2Chunk3" | sha256sum
-    // Result: 03255db56069906c7d57c604a02207f3b3aa2nserted_by_user_for_testing_purposes912706ed84af120323f56d2
-    // Online tool gives: 03255db56069906c7d57c604a02207f3b3aa2a5912706ed84af120323f56d2
-    // Let's use a more reliable method, or a simpler string if this is problematic during testing.
-    // For now, I'll use a placeholder and then confirm it.
-    // Confirmed hash for "Chunk1Chunk2Chunk3": 98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b407a33d5d8143ca5a5
-    std::array<uint8_t, 32> expected_digest = hex_string_to_digest("98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b1b407a33d5d8143ca5");
-    EXPECT_EQ(result.digest, expected_digest);
+  BlockIO bio;
+  std::string str1 = "Chunk1";
+  std::string str2 = "Chunk2";
+  std::string str3 = "Chunk3";
+  std::string combined_str = str1 + str2 + str3;
+
+  std::vector<std::byte> data1 = string_to_byte_vector(str1);
+  std::vector<std::byte> data2 = string_to_byte_vector(str2);
+  std::vector<std::byte> data3 = string_to_byte_vector(str3);
+  std::vector<std::byte> expected_raw = string_to_byte_vector(combined_str);
+
+  bio.ingest(data1.data(), data1.size());
+  bio.ingest(data2.data(), data2.size());
+  bio.ingest(data3.data(), data3.size());
+
+  DigestResult result = bio.finalize_hashed();
+
+  EXPECT_EQ(result.raw.size(), expected_raw.size());
+  EXPECT_TRUE(
+      std::equal(result.raw.begin(), result.raw.end(), expected_raw.begin()));
+
+  // SHA-256 hash of "Chunk1Chunk2Chunk3"
+  // Pre-calculate this hash: echo -n "Chunk1Chunk2Chunk3" | sha256sum
+  // Result:
+  // 03255db56069906c7d57c604a02207f3b3aa2nserted_by_user_for_testing_purposes912706ed84af120323f56d2
+  // Online tool gives:
+  // 03255db56069906c7d57c604a02207f3b3aa2a5912706ed84af120323f56d2 Let's use a
+  // more reliable method, or a simpler string if this is problematic during
+  // testing. For now, I'll use a placeholder and then confirm it. Confirmed
+  // hash for "Chunk1Chunk2Chunk3":
+  // 98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b407a33d5d8143ca5a5
+  std::array<uint8_t, 32> expected_digest = hex_string_to_digest(
+      "98794e6a0ceb6a747426ac1186cc54d79024b90aa7633b1b407a33d5d8143ca5");
+  EXPECT_EQ(result.digest, expected_digest);
 }
 
 TEST(BlockIOTest, FinalizeHashedStateManagement) {
-    BlockIO bio;
-    std::string test_str = "initial data";
-    std::vector<std::byte> test_data = string_to_byte_vector(test_str);
-    bio.ingest(test_data.data(), test_data.size());
-    
-    DigestResult first_result = bio.finalize_hashed(); // First call is fine
-    
-    // Subsequent calls should throw
-    std::string more_data_str = "more data";
-    std::vector<std::byte> more_data = string_to_byte_vector(more_data_str);
-    ASSERT_THROW(bio.ingest(more_data.data(), more_data.size()), std::logic_error);
-    ASSERT_THROW(bio.finalize_hashed(), std::logic_error);
+  BlockIO bio;
+  std::string test_str = "initial data";
+  std::vector<std::byte> test_data = string_to_byte_vector(test_str);
+  bio.ingest(test_data.data(), test_data.size());
+
+  DigestResult first_result = bio.finalize_hashed(); // First call is fine
+
+  // Subsequent calls should throw
+  std::string more_data_str = "more data";
+  std::vector<std::byte> more_data = string_to_byte_vector(more_data_str);
+  ASSERT_THROW(bio.ingest(more_data.data(), more_data.size()),
+               std::logic_error);
+  ASSERT_THROW(bio.finalize_hashed(), std::logic_error);
 }
 
 TEST(BlockIOTest, FinalizeRawAfterFinalizeHashed) {
-    BlockIO bio;
-    std::string test_str = "TestData";
-    std::vector<std::byte> test_data = string_to_byte_vector(test_str);
-    bio.ingest(test_data.data(), test_data.size());
+  BlockIO bio;
+  std::string test_str = "TestData";
+  std::vector<std::byte> test_data = string_to_byte_vector(test_str);
+  bio.ingest(test_data.data(), test_data.size());
 
-    DigestResult hashed_result = bio.finalize_hashed();
-    std::vector<std::byte> raw_from_hash = hashed_result.raw;
+  DigestResult hashed_result = bio.finalize_hashed();
+  std::vector<std::byte> raw_from_hash = hashed_result.raw;
 
-    std::vector<std::byte> raw_from_finalize_raw = bio.finalize_raw();
+  std::vector<std::byte> raw_from_finalize_raw = bio.finalize_raw();
 
-    EXPECT_EQ(raw_from_finalize_raw.size(), test_data.size());
-    EXPECT_TRUE(std::equal(raw_from_finalize_raw.begin(), raw_from_finalize_raw.end(), test_data.begin()));
-    
-    EXPECT_EQ(raw_from_hash.size(), test_data.size());
-    EXPECT_TRUE(std::equal(raw_from_hash.begin(), raw_from_hash.end(), test_data.begin()));
+  EXPECT_EQ(raw_from_finalize_raw.size(), test_data.size());
+  EXPECT_TRUE(std::equal(raw_from_finalize_raw.begin(),
+                         raw_from_finalize_raw.end(), test_data.begin()));
+
+  EXPECT_EQ(raw_from_hash.size(), test_data.size());
+  EXPECT_TRUE(std::equal(raw_from_hash.begin(), raw_from_hash.end(),
+                         test_data.begin()));
 }
 
 // Assuming tests/tests_main.cpp already includes main for Google Test.
@@ -213,194 +232,260 @@ TEST(BlockIOTest, FinalizeRawAfterFinalizeHashed) {
 // --- New Tests for Compression and Encryption ---
 
 // Define a fixed key for encryption tests for reproducibility
-const std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> FIXED_TEST_KEY = []{
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-    for(size_t i = 0; i < crypto_aead_aes256gcm_KEYBYTES; ++i) key[i] = static_cast<unsigned char>(i);
-    return key;
-}();
-
+const std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES>
+    FIXED_TEST_KEY = [] {
+      std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES>
+          key;
+      for (size_t i = 0; i < crypto_aead_xchacha20poly1305_ietf_KEYBYTES; ++i)
+        key[i] = static_cast<unsigned char>(i);
+      return key;
+    }();
 
 TEST(BlockIOTest, CompressionDecompressionRoundTrip) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("This is some test data for compression. This string is repeated multiple times to ensure it's compressible. This is some test data for compression. This string is repeated multiple times to ensure it's compressible. This is some test data for compression. This string is repeated multiple times to ensure it's compressible.");
+  BlockIO bio;
+  std::vector<std::byte> original_data = string_to_byte_vector(
+      "This is some test data for compression. This string is repeated "
+      "multiple times to ensure it's compressible. This is some test data for "
+      "compression. This string is repeated multiple times to ensure it's "
+      "compressible. This is some test data for compression. This string is "
+      "repeated multiple times to ensure it's compressible.");
 
-    std::vector<std::byte> compressed = bio.compress_data(original_data);
-    ASSERT_FALSE(compressed.empty());
-    // Typically, compressed size should be less than original for compressible data
-    // For very short strings, it might be larger due to zstd overhead.
-    if (original_data.size() > 50) { // Heuristic for when to expect compression
-         EXPECT_LT(compressed.size(), original_data.size());
-    }
+  std::vector<std::byte> compressed = bio.compress_data(original_data);
+  ASSERT_FALSE(compressed.empty());
+  // Typically, compressed size should be less than original for compressible
+  // data For very short strings, it might be larger due to zstd overhead.
+  if (original_data.size() > 50) { // Heuristic for when to expect compression
+    EXPECT_LT(compressed.size(), original_data.size());
+  }
 
-    std::vector<std::byte> decompressed = bio.decompress_data(compressed, original_data.size());
-    ASSERT_EQ(decompressed.size(), original_data.size());
-    EXPECT_EQ(decompressed, original_data);
+  std::vector<std::byte> decompressed =
+      bio.decompress_data(compressed, original_data.size());
+  ASSERT_EQ(decompressed.size(), original_data.size());
+  EXPECT_EQ(decompressed, original_data);
 }
 
 TEST(BlockIOTest, CompressEmptyData) {
-    BlockIO bio;
-    std::vector<std::byte> empty_data;
-    std::vector<std::byte> compressed = bio.compress_data(empty_data);
-    EXPECT_TRUE(compressed.empty());
-    std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
-    EXPECT_TRUE(decompressed.empty());
+  BlockIO bio;
+  std::vector<std::byte> empty_data;
+  std::vector<std::byte> compressed = bio.compress_data(empty_data);
+  EXPECT_TRUE(compressed.empty());
+  std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
+  EXPECT_TRUE(decompressed.empty());
 }
 
 TEST(BlockIOTest, CompressIncompressibleData) {
-    BlockIO bio;
-    // Create data that is hard to compress (e.g., already compressed or random)
-    // For simplicity, using a short, somewhat random-looking string
-    std::vector<std::byte> incompressible_data = create_byte_vector(100); // pseudo-random bytes
+  BlockIO bio;
+  // Create data that is hard to compress (e.g., already compressed or random)
+  // For simplicity, using a short, somewhat random-looking string
+  std::vector<std::byte> incompressible_data =
+      create_byte_vector(100); // pseudo-random bytes
 
-    std::vector<std::byte> compressed = bio.compress_data(incompressible_data);
-    // Size might be slightly larger due to zstd overhead for incompressible data
-    // EXPECT_GE(compressed.size(), incompressible_data.size() - 5); // Allow small variation
+  std::vector<std::byte> compressed = bio.compress_data(incompressible_data);
+  // Size might be slightly larger due to zstd overhead for incompressible data
+  // EXPECT_GE(compressed.size(), incompressible_data.size() - 5); // Allow
+  // small variation
 
-    std::vector<std::byte> decompressed = bio.decompress_data(compressed, incompressible_data.size());
-    ASSERT_EQ(decompressed.size(), incompressible_data.size());
-    EXPECT_EQ(decompressed, incompressible_data);
+  std::vector<std::byte> decompressed =
+      bio.decompress_data(compressed, incompressible_data.size());
+  ASSERT_EQ(decompressed.size(), incompressible_data.size());
+  EXPECT_EQ(decompressed, incompressible_data);
 }
 
 TEST(BlockIOTest, DecompressWithZeroOriginalSizeKnownFromFrame) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("Test data for frame size detection.");
-    std::vector<std::byte> compressed = bio.compress_data(original_data);
-    ASSERT_FALSE(compressed.empty());
+  BlockIO bio;
+  std::vector<std::byte> original_data =
+      string_to_byte_vector("Test data for frame size detection.");
+  std::vector<std::byte> compressed = bio.compress_data(original_data);
+  ASSERT_FALSE(compressed.empty());
 
-    // Pass 0 for original_size, relying on ZSTD_getFrameContentSize
-    std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
-    ASSERT_EQ(decompressed.size(), original_data.size());
-    EXPECT_EQ(decompressed, original_data);
+  // Pass 0 for original_size, relying on ZSTD_getFrameContentSize
+  std::vector<std::byte> decompressed = bio.decompress_data(compressed, 0);
+  ASSERT_EQ(decompressed.size(), original_data.size());
+  EXPECT_EQ(decompressed, original_data);
 }
 
-
 TEST(BlockIOTest, EncryptionDecryptionRoundTrip) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("Secret message for encryption!");
-    std::vector<unsigned char> nonce;
+  BlockIO bio;
+  std::vector<std::byte> original_data =
+      string_to_byte_vector("Secret message for encryption!");
+  std::vector<unsigned char> nonce;
 
-    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
-    ASSERT_FALSE(encrypted.empty());
-    ASSERT_NE(encrypted, original_data);
-    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+  ASSERT_FALSE(encrypted.empty());
+  ASSERT_NE(encrypted, original_data);
+  ASSERT_EQ(nonce.size(), crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
 
-    std::vector<std::byte> decrypted = bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
-    ASSERT_EQ(decrypted.size(), original_data.size());
-    EXPECT_EQ(decrypted, original_data);
+  std::vector<std::byte> decrypted =
+      bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
+  ASSERT_EQ(decrypted.size(), original_data.size());
+  EXPECT_EQ(decrypted, original_data);
+}
+
+TEST(BlockIOTest, AESRoundTripWhenAvailable) {
+  if (!crypto_aead_aes256gcm_is_available()) {
+    GTEST_SKIP() << "AES-256-GCM not available";
+  }
+  BlockIO bio(1, BlockIO::CipherAlgorithm::AES_256_GCM);
+  std::vector<std::byte> original = string_to_byte_vector("AES path");
+  std::vector<unsigned char> nonce;
+  auto enc = bio.encrypt_data(original, FIXED_TEST_KEY, nonce);
+  ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+  auto dec = bio.decrypt_data(enc, FIXED_TEST_KEY, nonce);
+  EXPECT_EQ(dec, original);
+}
+
+TEST(BlockIOTest, CiphertextSizeSameAcrossModes) {
+  if (!crypto_aead_aes256gcm_is_available()) {
+    GTEST_SKIP() << "AES-256-GCM not available";
+  }
+  BlockIO xchacha(1, BlockIO::CipherAlgorithm::XCHACHA20_POLY1305);
+  BlockIO aes(1, BlockIO::CipherAlgorithm::AES_256_GCM);
+  std::vector<std::byte> data = string_to_byte_vector("size check");
+  std::vector<unsigned char> n1, n2;
+  auto c1 = xchacha.encrypt_data(data, FIXED_TEST_KEY, n1);
+  auto c2 = aes.encrypt_data(data, FIXED_TEST_KEY, n2);
+  EXPECT_EQ(c1.size(), c2.size());
 }
 
 TEST(BlockIOTest, EncryptEmptyData) {
-    BlockIO bio;
-    std::vector<std::byte> empty_data;
-    std::vector<unsigned char> nonce;
+  BlockIO bio;
+  std::vector<std::byte> empty_data;
+  std::vector<unsigned char> nonce;
 
-    std::vector<std::byte> encrypted = bio.encrypt_data(empty_data, FIXED_TEST_KEY, nonce);
-    // Encrypted data will not be empty due to AEAD tag
-    ASSERT_EQ(encrypted.size(), crypto_aead_aes256gcm_ABYTES);
-    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(empty_data, FIXED_TEST_KEY, nonce);
+  // Encrypted data will not be empty due to AEAD tag
+  ASSERT_EQ(encrypted.size(), crypto_aead_xchacha20poly1305_ietf_ABYTES);
+  ASSERT_EQ(nonce.size(), crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
 
-    std::vector<std::byte> decrypted = bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
-    EXPECT_TRUE(decrypted.empty());
+  std::vector<std::byte> decrypted =
+      bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce);
+  EXPECT_TRUE(decrypted.empty());
 }
 
 TEST(BlockIOTest, DecryptWithWrongKey) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> wrong_key = FIXED_TEST_KEY;
-    wrong_key[0]++; // Modify the key slightly
-    std::vector<unsigned char> nonce;
+  BlockIO bio;
+  std::vector<std::byte> original_data =
+      string_to_byte_vector("Secret message");
+  std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES>
+      wrong_key = FIXED_TEST_KEY;
+  wrong_key[0]++; // Modify the key slightly
+  std::vector<unsigned char> nonce;
 
-    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
 
-    EXPECT_THROW(bio.decrypt_data(encrypted, wrong_key, nonce), std::runtime_error);
+  EXPECT_THROW(bio.decrypt_data(encrypted, wrong_key, nonce),
+               std::runtime_error);
 }
 
 TEST(BlockIOTest, DecryptWithWrongNonce) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
-    std::vector<unsigned char> nonce;
-    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+  BlockIO bio;
+  std::vector<std::byte> original_data =
+      string_to_byte_vector("Secret message");
+  std::vector<unsigned char> nonce;
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
 
-    std::vector<unsigned char> wrong_nonce = nonce;
-    wrong_nonce[0]++; // Modify the nonce slightly
+  std::vector<unsigned char> wrong_nonce = nonce;
+  wrong_nonce[0]++; // Modify the nonce slightly
 
-    EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, wrong_nonce), std::runtime_error);
+  EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, wrong_nonce),
+               std::runtime_error);
 }
 
 TEST(BlockIOTest, DecryptWithTamperedCiphertext) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("Secret message");
-    std::vector<unsigned char> nonce;
-    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+  BlockIO bio;
+  std::vector<std::byte> original_data =
+      string_to_byte_vector("Secret message");
+  std::vector<unsigned char> nonce;
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
 
-    if (!encrypted.empty()) {
-        encrypted[0] = std::byte(static_cast<unsigned char>(encrypted[0]) + 1); // Tamper with ciphertext
-    } else {
-        // This case should ideally not happen for non-empty original_data due to AEAD tag
-        FAIL() << "Ciphertext is empty, cannot tamper for this test.";
-    }
+  if (!encrypted.empty()) {
+    encrypted[0] = std::byte(static_cast<unsigned char>(encrypted[0]) +
+                             1); // Tamper with ciphertext
+  } else {
+    // This case should ideally not happen for non-empty original_data due to
+    // AEAD tag
+    FAIL() << "Ciphertext is empty, cannot tamper for this test.";
+  }
 
-    EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce), std::runtime_error);
+  EXPECT_THROW(bio.decrypt_data(encrypted, FIXED_TEST_KEY, nonce),
+               std::runtime_error);
 }
 
-
 TEST(BlockIOTest, CombinedOperations) {
-    BlockIO bio;
-    std::vector<std::byte> original_data = string_to_byte_vector("This is a super secret message that will be encrypted and then compressed. It needs to be long enough to benefit from compression after encryption, though encryption often makes data look random and less compressible. This is a super secret message that will be encrypted and then compressed. It needs to be long enough to benefit from compression after encryption, though encryption often makes data look random and less compressible.");
-    std::vector<unsigned char> nonce;
+  BlockIO bio;
+  std::vector<std::byte> original_data = string_to_byte_vector(
+      "This is a super secret message that will be encrypted and then "
+      "compressed. It needs to be long enough to benefit from compression "
+      "after encryption, though encryption often makes data look random and "
+      "less compressible. This is a super secret message that will be "
+      "encrypted and then compressed. It needs to be long enough to benefit "
+      "from compression after encryption, though encryption often makes data "
+      "look random and less compressible.");
+  std::vector<unsigned char> nonce;
 
-    // 1. Encrypt
-    std::vector<std::byte> encrypted = bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
-    ASSERT_FALSE(encrypted.empty());
-    ASSERT_NE(encrypted, original_data);
-    ASSERT_EQ(nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+  // 1. Encrypt
+  std::vector<std::byte> encrypted =
+      bio.encrypt_data(original_data, FIXED_TEST_KEY, nonce);
+  ASSERT_FALSE(encrypted.empty());
+  ASSERT_NE(encrypted, original_data);
+  ASSERT_EQ(nonce.size(), crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
 
-    // 2. Compress
-    size_t encrypted_size = encrypted.size();
-    std::vector<std::byte> compressed_encrypted = bio.compress_data(encrypted);
-    // Encrypted data might not compress well.
-    // EXPECT_LT(compressed_encrypted.size(), encrypted.size()); // This might fail
+  // 2. Compress
+  size_t encrypted_size = encrypted.size();
+  std::vector<std::byte> compressed_encrypted = bio.compress_data(encrypted);
+  // Encrypted data might not compress well.
+  // EXPECT_LT(compressed_encrypted.size(), encrypted.size()); // This might
+  // fail
 
-    // 3. Decompress
-    std::vector<std::byte> decompressed_encrypted = bio.decompress_data(compressed_encrypted, encrypted_size);
-    ASSERT_EQ(decompressed_encrypted.size(), encrypted_size);
-    EXPECT_EQ(decompressed_encrypted, encrypted);
+  // 3. Decompress
+  std::vector<std::byte> decompressed_encrypted =
+      bio.decompress_data(compressed_encrypted, encrypted_size);
+  ASSERT_EQ(decompressed_encrypted.size(), encrypted_size);
+  EXPECT_EQ(decompressed_encrypted, encrypted);
 
-    // 4. Decrypt
-    std::vector<std::byte> decrypted = bio.decrypt_data(decompressed_encrypted, FIXED_TEST_KEY, nonce);
-    ASSERT_EQ(decrypted.size(), original_data.size());
-    EXPECT_EQ(decrypted, original_data);
+  // 4. Decrypt
+  std::vector<std::byte> decrypted =
+      bio.decrypt_data(decompressed_encrypted, FIXED_TEST_KEY, nonce);
+  ASSERT_EQ(decrypted.size(), original_data.size());
+  EXPECT_EQ(decrypted, original_data);
 }
 
 TEST(BlockIOTest, EncryptDecryptWithClusterKey) {
-    simplidfs::KeyManager& km = simplidfs::KeyManager::getInstance();
-    km.initialize();
-    std::array<unsigned char, crypto_aead_aes256gcm_KEYBYTES> key;
-    km.getClusterKey(key);
+  simplidfs::KeyManager &km = simplidfs::KeyManager::getInstance();
+  km.initialize();
+  std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
+  km.getClusterKey(key);
 
-    BlockIO bio;
-    std::vector<std::byte> data = string_to_byte_vector("cluster secret");
-    std::vector<unsigned char> nonce;
-    std::vector<std::byte> enc = bio.encrypt_data(data, key, nonce);
-    ASSERT_FALSE(enc.empty());
-    std::vector<std::byte> dec = bio.decrypt_data(enc, key, nonce);
-    EXPECT_EQ(dec, data);
+  BlockIO bio;
+  std::vector<std::byte> data = string_to_byte_vector("cluster secret");
+  std::vector<unsigned char> nonce;
+  std::vector<std::byte> enc = bio.encrypt_data(data, key, nonce);
+  ASSERT_FALSE(enc.empty());
+  std::vector<std::byte> dec = bio.decrypt_data(enc, key, nonce);
+  EXPECT_EQ(dec, data);
 }
 
 TEST(BlockIOTest, PipelineCompressionEncryption) {
-    BlockIO bio;
-    bio.enable_compression(true);
-    bio.enable_encryption(true);
+  BlockIO bio;
+  bio.enable_compression(true);
+  bio.enable_encryption(true);
 
-    std::vector<std::byte> data = string_to_byte_vector("pipeline secret");
-    bio.ingest(data.data(), data.size());
+  std::vector<std::byte> data = string_to_byte_vector("pipeline secret");
+  bio.ingest(data.data(), data.size());
 
-    BlockIO::PipelineResult result = bio.finalize_pipeline(&FIXED_TEST_KEY);
-    ASSERT_FALSE(result.data.empty());
-    ASSERT_EQ(result.nonce.size(), crypto_aead_aes256gcm_NPUBBYTES);
+  BlockIO::PipelineResult result = bio.finalize_pipeline(&FIXED_TEST_KEY);
+  ASSERT_FALSE(result.data.empty());
+  ASSERT_EQ(result.nonce.size(), crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
 
-    BlockIO verify;
-    std::vector<std::byte> decrypted = verify.decrypt_data(result.data, FIXED_TEST_KEY, result.nonce);
-    std::vector<std::byte> decompressed = verify.decompress_data(decrypted, data.size());
-    EXPECT_EQ(decompressed, data);
+  BlockIO verify;
+  std::vector<std::byte> decrypted =
+      verify.decrypt_data(result.data, FIXED_TEST_KEY, result.nonce);
+  std::vector<std::byte> decompressed =
+      verify.decompress_data(decrypted, data.size());
+  EXPECT_EQ(decompressed, data);
 }
