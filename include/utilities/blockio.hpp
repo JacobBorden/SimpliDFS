@@ -1,9 +1,11 @@
 #ifndef BLOCKIO_HPP
 #define BLOCKIO_HPP
 
+#include "blake3.h"
+#include "digest.hpp"
 #include <array>    // For std::array
 #include <cstddef>  // For std::byte
-#include <sodium.h> // For libsodium
+#include <sodium.h> // For libsodium encryption
 #include <span>
 #include <string> // For std::string
 #include <vector>
@@ -11,8 +13,8 @@
 
 // Define DigestResult struct
 struct DigestResult {
-  std::array<uint8_t, crypto_hash_sha256_BYTES> digest; // 32 bytes for SHA-256
-  std::string cid; // Content Identifier (CID) of the hashed data
+  sgns::utils::DigestArray digest; // Hash digest
+  std::string cid;                 // Content Identifier (CID)
   std::vector<std::byte> raw;
 };
 
@@ -27,13 +29,17 @@ public:
    */
   enum class CipherAlgorithm { XCHACHA20_POLY1305, AES_256_GCM };
 
+  /// Supported hash algorithms (default BLAKE3).
+  using HashAlgorithm = sgns::utils::HashAlgorithm;
+
   /**
    * @brief Construct a new BlockIO processor.
    * @param compression_level Zstd compression level to use.
    * @param cipher_algo Encryption algorithm for encrypt/decrypt operations.
    */
   BlockIO(int compression_level = 1,
-          CipherAlgorithm cipher_algo = CipherAlgorithm::XCHACHA20_POLY1305);
+          CipherAlgorithm cipher_algo = CipherAlgorithm::XCHACHA20_POLY1305,
+          HashAlgorithm hash_algo = HashAlgorithm::BLAKE3);
 
   /** Enable or disable hashing stage. */
   void enable_hashing(bool enable);
@@ -55,10 +61,10 @@ public:
 
   /** Result returned by finalize_pipeline(). */
   struct PipelineResult {
-    std::vector<std::byte> data;      ///< Processed output data
-    std::vector<unsigned char> nonce; ///< Nonce used for encryption
-    std::array<uint8_t, crypto_hash_sha256_BYTES> digest; ///< Hash digest
-    std::string cid; ///< CID derived from digest
+    std::vector<std::byte> data;                ///< Processed output data
+    std::vector<unsigned char> nonce;           ///< Nonce used for encryption
+    std::array<uint8_t, BLAKE3_OUT_LEN> digest; ///< Hash digest
+    std::string cid;                            ///< CID derived from digest
   };
 
   /**
@@ -102,11 +108,13 @@ public:
 
 private:
   std::vector<std::byte> buffer_;
-  crypto_hash_sha256_state hash_state_; // Libsodium SHA-256 state
-  bool finalized_ = false;    // Tracks if finalize_hashed() has been called
-  int compression_level_ = 1; ///< Zstd compression level
+  blake3_hasher blake3_state_;         ///< BLAKE3 state
+  crypto_hash_sha256_state sha_state_; ///< SHA-256 state
+  bool finalized_ = false;             ///< Tracks if finalize_hashed() called
+  int compression_level_ = 1;          ///< Zstd compression level
   CipherAlgorithm cipher_algo_ =
       CipherAlgorithm::XCHACHA20_POLY1305; ///< Selected encryption algorithm
+  HashAlgorithm hash_algo_ = HashAlgorithm::BLAKE3; ///< Selected hash algorithm
   bool hashing_enabled_ = false;
   bool compression_enabled_ = false;
   bool encryption_enabled_ = false;

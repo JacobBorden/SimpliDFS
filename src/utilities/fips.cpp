@@ -1,21 +1,22 @@
 #include "utilities/fips.h"
-#include <sodium.h>
+#include "blake3.h"
 #include <cstring>
+#include <sodium.h>
 
 bool fips_self_test() {
-    if (sodium_init() < 0) {
-        return false;
-    }
-    const char msg[] = "The quick brown fox jumps over the lazy dog";
-    unsigned char digest[crypto_hash_sha256_BYTES];
-    crypto_hash_sha256(digest,
-                       reinterpret_cast<const unsigned char*>(msg),
+  if (sodium_init() < 0) {
+    return false;
+  }
+  const char msg[] = "The quick brown fox jumps over the lazy dog";
+  unsigned char digest[BLAKE3_OUT_LEN];
+  blake3_hasher hasher;
+  blake3_hasher_init(&hasher);
+  blake3_hasher_update(&hasher, reinterpret_cast<const uint8_t *>(msg),
                        sizeof(msg) - 1);
-    const unsigned char expected[crypto_hash_sha256_BYTES] = {
-        0xd7,0xa8,0xfb,0xb3,0x07,0xd7,0x80,0x94,
-        0x69,0xca,0x9a,0xbc,0xb0,0x08,0x2e,0x4f,
-        0x8d,0x56,0x51,0xe4,0x6d,0x3c,0xdb,0x76,
-        0x2d,0x02,0xd0,0xbf,0x37,0xc9,0xe5,0x92
-    };
-    return std::memcmp(digest, expected, crypto_hash_sha256_BYTES) == 0;
+  blake3_hasher_finalize(&hasher, digest, BLAKE3_OUT_LEN);
+  const unsigned char expected[BLAKE3_OUT_LEN] = {
+      0x2f, 0x15, 0x14, 0x18, 0x1a, 0xad, 0xcc, 0xd9, 0x13, 0xab, 0xd9,
+      0x4c, 0xfa, 0x59, 0x27, 0x01, 0xa5, 0x68, 0x6a, 0xb2, 0x3f, 0x8d,
+      0xf1, 0xdf, 0xf1, 0xb7, 0x47, 0x10, 0xfe, 0xbc, 0x6d, 0x4a};
+  return std::memcmp(digest, expected, BLAKE3_OUT_LEN) == 0;
 }

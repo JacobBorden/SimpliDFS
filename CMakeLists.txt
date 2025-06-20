@@ -103,6 +103,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
+# Local third-party libraries
+add_subdirectory(third_party/blake3)
+
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEFINITIONS:_GLIBCXX_USE_CXX11_ABI>")
@@ -130,7 +133,7 @@ add_library(SimpliDFS_MetaServerLib
     src/repair/ReplicaVerifier.cpp)
 target_include_directories(SimpliDFS_MetaServerLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(SimpliDFS_MetaServerLib
-    PRIVATE # Should be PUBLIC if SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
+    PUBLIC # SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
             # or INTERFACE if SimpliDFS_Utils is header-only and its headers are included by SimpliDFS_MetaServerLib headers.
             # For now, PRIVATE if SimpliDFS_Utils is mostly .cpp linked into MetaServerLib.
             # If metaserver.h includes headers from SimpliDFS_Utils that then are needed by things linking to MetaServerLib,
