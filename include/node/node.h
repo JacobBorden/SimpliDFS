@@ -162,7 +162,7 @@ public:
    */
   Node(const std::string &name, int port, int compression_level = 1,
        BlockIO::CipherAlgorithm cipher_algo =
-           BlockIO::CipherAlgorithm::AES_256_GCM)
+           BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
         fileSystem(compression_level, cipher_algo) {
     rbacPolicy.loadFromFile("rbac_policy.yaml");

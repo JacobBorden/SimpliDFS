@@ -1,3 +1,7 @@
+## [0.5.0] - 2025-06-22
+### Changed
+- Default encryption uses XChaCha20-Poly1305 with AES-GCM fallback.
+
 ## [0.4.0] - 2025-06-21
 ### Added
 - TPM attestation on node join using PCR 7 quotes.

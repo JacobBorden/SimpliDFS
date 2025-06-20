@@ -11,7 +11,7 @@
 
 struct RuntimeOptions {
   int compressionLevel = 1;
-  std::string cipherAlgorithm = "AES-256-GCM";
+  std::string cipherAlgorithm = "XChaCha20-Poly1305";
 };
 
 static RuntimeOptions loadRuntimeOptions() {
@@ -83,11 +83,14 @@ int main(int argc, char *argv[]) {
                                                 std::to_string(port));
 
   RuntimeOptions opts = loadRuntimeOptions();
-  BlockIO::CipherAlgorithm algo = BlockIO::CipherAlgorithm::AES_256_GCM;
-  if (opts.cipherAlgorithm != "AES-256-GCM") {
+  BlockIO::CipherAlgorithm algo = BlockIO::CipherAlgorithm::XCHACHA20_POLY1305;
+  if (opts.cipherAlgorithm == "AES-256-GCM" &&
+      crypto_aead_aes256gcm_is_available()) {
+    algo = BlockIO::CipherAlgorithm::AES_256_GCM;
+  } else if (opts.cipherAlgorithm != "XChaCha20-Poly1305") {
     Logger::getInstance().log(
         LogLevel::WARN, "Unsupported cipher algorithm " + opts.cipherAlgorithm +
-                            ", defaulting to AES-256-GCM");
+                            ", defaulting to XChaCha20-Poly1305");
   }
 
   std::string metaserverAddress = argv[3];
