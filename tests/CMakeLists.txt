@@ -26,6 +26,7 @@ add_executable(SimpliDFSTests
     sha256_helper_tests.cpp
     metrics_registry_tests.cpp
     merkle_tree_tests.cpp
+    merkle_proof_tests.cpp
     open_file_with_retry_tests.cpp
     seekp_with_retry_tests.cpp
     node_io_tests.cpp
