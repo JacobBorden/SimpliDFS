@@ -1,3 +1,8 @@
+## [0.6.0] - 2025-06-23
+### Added
+- Merkle root committed to Raft after metadata updates.
+- Metrics expose current commit index and Merkle root.
+
 ## [0.5.0] - 2025-06-22
 ### Changed
 - Default encryption uses XChaCha20-Poly1305 with AES-GCM fallback.

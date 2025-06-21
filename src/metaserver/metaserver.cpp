@@ -9,6 +9,7 @@
 #include "utilities/filesystem.h" // For FileSystem, though not directly used by MM itself for FUSE ops
 #include "utilities/logger.h"  // Include the Logger header
 #include "utilities/message.h" // Including message for node communication
+#include "utilities/metrics.h"
 #include "utilities/networkexception.h"
 #include "utilities/raft.h"
 #include "utilities/server.h"
@@ -213,6 +214,7 @@ int MetadataManager::addFile(const std::string &filename,
     cmd << "ADD|" << filename << "|" << mode;
     raftNode_->appendCommand(cmd.str());
   }
+  updateMerkleRoot();
 
   return 0;
 }
@@ -280,6 +282,7 @@ bool MetadataManager::removeFile(const std::string &filename) {
   if (raftNode_) {
     raftNode_->appendCommand("DEL|" + filename);
   }
+  updateMerkleRoot();
   return true; // Success
 }
 
@@ -610,6 +613,7 @@ int MetadataManager::writeFileData(const std::string &filename, int64_t offset,
           std::to_string(out_size_written) + " bytes 'written' at offset " +
           std::to_string(offset) +
           ". New potential size: " + std::to_string(current_size));
+  updateMerkleRoot();
   return 0; // Success
 }
 
@@ -623,6 +627,7 @@ int MetadataManager::truncateFile(const std::string &filename, uint64_t size) {
                                                 filename + " truncated to " +
                                                 std::to_string(size));
   markDirty();
+  updateMerkleRoot();
   return 0;
 }
 
@@ -672,6 +677,7 @@ int MetadataManager::renameFileEntry(const std::string &old_filename,
   if (raftNode_) {
     raftNode_->appendCommand("REN|" + old_filename + "|" + new_filename);
   }
+  updateMerkleRoot();
   return 0; // Success
 }
 
@@ -1228,6 +1234,7 @@ void HandleClientConnection(Networking::Server &server_instance,
       case MessageType::RaftAppendEntriesResponse: {
         if (gRaftNode) {
           gRaftNode->handleMessage(request, request._NodeAddress);
+          metadataManager.applyRaftLog(gRaftNode->getLog());
         }
         break;
       }
@@ -1328,6 +1335,45 @@ std::vector<std::string> MetadataManager::pickLiveNodes(size_t count) {
     }
   }
   return result;
+}
+
+void MetadataManager::applyRaftLog(const std::vector<RaftLogEntry> &log) {
+  for (size_t i = commitIndex_; i < log.size(); ++i) {
+    const std::string &cmd = log[i].command;
+    if (cmd.rfind("ROOT|", 0) == 0) {
+      std::lock_guard<std::mutex> lock(metadataMutex);
+      currentRootCid_ = cmd.substr(5);
+    }
+    commitIndex_ = i + 1;
+  }
+  MetricsRegistry::instance().setGauge(
+      "simplidfs_raft_commit_index", static_cast<double>(commitIndex_.load()));
+  MetricsRegistry::instance().setGauge("simplidfs_merkle_root", 1,
+                                       {{"cid", currentRootCid_}});
+}
+
+void MetadataManager::updateMerkleRoot() {
+  std::vector<std::pair<std::string, std::string>> entries;
+  {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    for (const auto &kv : fileHashes) {
+      entries.emplace_back(kv.first, kv.second);
+    }
+  }
+  std::string rootCid = MerkleTree::hashDirectory(entries, namespaceStore_);
+  if (raftNode_) {
+    raftNode_->appendCommand("ROOT|" + rootCid);
+    applyRaftLog(raftNode_->getLog());
+  } else {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    currentRootCid_ = rootCid;
+    commitIndex_++;
+    MetricsRegistry::instance().setGauge(
+        "simplidfs_raft_commit_index",
+        static_cast<double>(commitIndex_.load()));
+    MetricsRegistry::instance().setGauge("simplidfs_merkle_root", 1,
+                                         {{"cid", currentRootCid_}});
+  }
 }
 
 // main() function has been moved to src/main_metaserver.cpp
