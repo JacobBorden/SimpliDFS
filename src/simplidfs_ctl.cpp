@@ -3,6 +3,8 @@
 #include <chrono>
 #include <string>
 #include "utilities/key_manager.hpp"
+#include "utilities/merkle_tree.hpp"
+#include "utilities/chunk_store.hpp"
 
 extern MetadataManager metadataManager;
 
@@ -15,8 +17,42 @@ static std::string stateToString(NodeState s) {
 }
 
 int main(int argc, char** argv) {
+    if (argc >= 3 && std::string(argv[1]) == "verify") {
+        std::string target = argv[2];
+        simplidfs::KeyManager::getInstance().initialize();
+        ChunkStore store;
+
+        std::vector<std::byte> a{std::byte{'a'}};
+        std::vector<std::byte> b{std::byte{'b'}};
+        std::vector<std::byte> c{std::byte{'c'}};
+        std::string cidA = store.addChunk(a);
+        std::string cidB = store.addChunk(b);
+        std::string cidC = store.addChunk(c);
+
+        std::string cidDir2 =
+            MerkleTree::hashDirectory({{"fileB", cidB}}, store);
+        std::string cidDir1 =
+            MerkleTree::hashDirectory({{"fileA", cidA}, {"dir2", cidDir2}},
+                                      store);
+        std::string rootCid =
+            MerkleTree::hashDirectory({{"dir1", cidDir1}, {"fileC", cidC}},
+                                      store);
+
+        if (!store.hasChunk(target)) {
+            std::cout << "CID not found" << std::endl;
+            return 1;
+        }
+        auto proof = MerkleTree::getProofPath(rootCid, target);
+        bool ok = !proof.empty() &&
+                  MerkleTree::verifyProof(rootCid, target, proof);
+        std::cout << (ok ? "Verification succeeded" : "Verification failed")
+                  << std::endl;
+        return ok ? 0 : 1;
+    }
+
     if (argc < 3 || std::string(argv[1]) != "ctl") {
-        std::cout << "Usage: simplidfs ctl [health|repair run-once|rotate-key <window>]\n";
+        std::cout << "Usage: simplidfs ctl [health|repair run-once|rotate-key <window>]" << std::endl;
+        std::cout << "       simplidfs verify <cid>" << std::endl;
         return 1;
     }
     std::string cmd = argv[2];
