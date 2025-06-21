@@ -1,3 +1,8 @@
+## [0.6.0] - 2025-06-23
+### Added
+- Namespace Merkle root recalculated after metadata operations and stored via Raft.
+- Metrics expose current Raft commit index and namespace root hash.
+
 ## [0.5.0] - 2025-06-22
 ### Changed
 - Default encryption uses XChaCha20-Poly1305 with AES-GCM fallback.

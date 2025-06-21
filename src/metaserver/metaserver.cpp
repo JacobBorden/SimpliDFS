@@ -5,10 +5,13 @@
 #include "metaserver/metaserver.h"
 #include "blake3.h"
 #include "utilities/blockio.hpp"
+#include "utilities/chunk_store.hpp"
 #include "utilities/client.h"
 #include "utilities/filesystem.h" // For FileSystem, though not directly used by MM itself for FUSE ops
-#include "utilities/logger.h"  // Include the Logger header
+#include "utilities/logger.h" // Include the Logger header
+#include "utilities/merkle_tree.hpp"
 #include "utilities/message.h" // Including message for node communication
+#include "utilities/metrics.h"
 #include "utilities/networkexception.h"
 #include "utilities/raft.h"
 #include "utilities/server.h"
@@ -212,6 +215,8 @@ int MetadataManager::addFile(const std::string &filename,
     std::ostringstream cmd;
     cmd << "ADD|" << filename << "|" << mode;
     raftNode_->appendCommand(cmd.str());
+    std::string rootCid = computeNamespaceRoot();
+    raftNode_->appendCommand("ROOT|" + rootCid);
   }
 
   return 0;
@@ -279,6 +284,8 @@ bool MetadataManager::removeFile(const std::string &filename) {
   }
   if (raftNode_) {
     raftNode_->appendCommand("DEL|" + filename);
+    std::string rootCid = computeNamespaceRoot();
+    raftNode_->appendCommand("ROOT|" + rootCid);
   }
   return true; // Success
 }
@@ -610,6 +617,10 @@ int MetadataManager::writeFileData(const std::string &filename, int64_t offset,
           std::to_string(out_size_written) + " bytes 'written' at offset " +
           std::to_string(offset) +
           ". New potential size: " + std::to_string(current_size));
+  if (raftNode_) {
+    std::string rootCid = computeNamespaceRoot();
+    raftNode_->appendCommand("ROOT|" + rootCid);
+  }
   return 0; // Success
 }
 
@@ -623,6 +634,10 @@ int MetadataManager::truncateFile(const std::string &filename, uint64_t size) {
                                                 filename + " truncated to " +
                                                 std::to_string(size));
   markDirty();
+  if (raftNode_) {
+    std::string rootCid = computeNamespaceRoot();
+    raftNode_->appendCommand("ROOT|" + rootCid);
+  }
   return 0;
 }
 
@@ -671,6 +686,8 @@ int MetadataManager::renameFileEntry(const std::string &old_filename,
                                                 new_filename);
   if (raftNode_) {
     raftNode_->appendCommand("REN|" + old_filename + "|" + new_filename);
+    std::string rootCid = computeNamespaceRoot();
+    raftNode_->appendCommand("ROOT|" + rootCid);
   }
   return 0; // Success
 }
@@ -1328,6 +1345,77 @@ std::vector<std::string> MetadataManager::pickLiveNodes(size_t count) {
     }
   }
   return result;
+}
+
+std::string MetadataManager::computeNamespaceRoot() {
+  ChunkStore store;
+  std::vector<std::pair<std::string, std::string>> entries;
+  {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    for (const auto &kv : fileHashes) {
+      entries.emplace_back(kv.first, kv.second);
+      std::vector<std::byte> b;
+      for (char c : kv.second)
+        b.push_back(std::byte(c));
+      store.addChunk(b);
+    }
+  }
+  std::string rootCid = MerkleTree::hashDirectory(entries, store);
+  {
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    namespaceRootCid_ = rootCid;
+  }
+  MetricsRegistry::instance().setGauge("simplidfs_namespace_root", 1.0,
+                                       {{"cid", rootCid}});
+  return rootCid;
+}
+
+void MetadataManager::applyRaftCommand(const std::string &cmd) {
+  if (cmd.rfind("ROOT|", 0) == 0) {
+    std::string cid = cmd.substr(5);
+    {
+      std::lock_guard<std::mutex> lock(metadataMutex);
+      namespaceRootCid_ = cid;
+    }
+    MetricsRegistry::instance().setGauge("simplidfs_namespace_root", 1.0,
+                                         {{"cid", cid}});
+  } else if (cmd.rfind("ADD|", 0) == 0) {
+    // no-op for followers: assume leader already handled
+  } else if (cmd.rfind("DEL|", 0) == 0) {
+    std::string file = cmd.substr(4);
+    std::lock_guard<std::mutex> lock(metadataMutex);
+    fileMetadata.erase(file);
+    fileModes.erase(file);
+    fileSizes.erase(file);
+    fileHashes.erase(file);
+  } else if (cmd.rfind("REN|", 0) == 0) {
+    size_t pos = cmd.find('|', 4);
+    if (pos != std::string::npos) {
+      std::string oldf = cmd.substr(4, pos - 4);
+      std::string newf = cmd.substr(pos + 1);
+      std::lock_guard<std::mutex> lock(metadataMutex);
+      auto md = fileMetadata.extract(oldf);
+      if (!md.empty()) {
+        md.key() = newf;
+        fileMetadata.insert(std::move(md));
+      }
+      auto mm = fileModes.extract(oldf);
+      if (!mm.empty()) {
+        mm.key() = newf;
+        fileModes.insert(std::move(mm));
+      }
+      auto ms = fileSizes.extract(oldf);
+      if (!ms.empty()) {
+        ms.key() = newf;
+        fileSizes.insert(std::move(ms));
+      }
+      auto mh = fileHashes.extract(oldf);
+      if (!mh.empty()) {
+        mh.key() = newf;
+        fileHashes.insert(std::move(mh));
+      }
+    }
+  }
 }
 
 // main() function has been moved to src/main_metaserver.cpp
