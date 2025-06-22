@@ -1,3 +1,8 @@
+## [0.6.0] - 2025-06-24
+### Added
+- MerkleTree now stores directory nodes and can produce membership proofs.
+- `simplidfs verify <cid>` command verifies chunks using stored proofs.
+
 ## [0.5.1] - 2025-06-23
 ### Added
 - Raft now commits Merkle root hashes for every metadata update and exposes
