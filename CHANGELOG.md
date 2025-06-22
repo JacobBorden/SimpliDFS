@@ -1,3 +1,7 @@
+## [0.6.1] - 2025-06-25
+### Added
+- CI now publishes CycloneDX and SPDX SBOMs signed with cosign.
+
 ## [0.6.0] - 2025-06-24
 ### Added
 - MerkleTree now stores directory nodes and can produce membership proofs.
