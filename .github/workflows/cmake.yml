@@ -48,6 +48,7 @@ jobs:
         run: cmake --build build --config $BUILD_TYPE
 
       - name: Install SBOM tools
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           sudo curl -L https://github.com/CycloneDX/cyclonedx-gomod/releases/latest/download/cyclonedx-gomod-linux-amd64 -o /usr/local/bin/cyclonedx-gomod
           sudo chmod +x /usr/local/bin/cyclonedx-gomod
@@ -56,13 +57,16 @@ jobs:
           sudo chmod +x /usr/local/bin/cosign
 
       - name: Generate CycloneDX SBOM
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           cyclonedx-gomod mod -licenses -json -output sbom-cyclonedx.json || touch sbom-cyclonedx.json
 
       - name: Generate Syft SBOM
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: syft dir:. -o spdx-json=sbom-syft.json
 
       - name: Sign SBOMs
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           COSIGN_EXPERIMENTAL: "1"
         run: |
@@ -70,6 +74,7 @@ jobs:
           cosign sign-blob --yes --output-signature sbom-syft.json.sig --output-certificate sbom-syft.json.pem sbom-syft.json
 
       - name: Upload SBOM artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
           name: sbom
