@@ -47,3 +47,7 @@ This compiles all binaries and runs the unit tests. Fuse-based integration tests
 ## Generating API Documentation
 
 Running `doxygen docs/Doxyfile` will produce HTML documentation for all headers and source files. The output will be placed under `docs/doxygen/html` and can be viewed in a web browser.
+
+## Raft Recovery
+
+When the Raft metadata becomes inconsistent or a cluster needs a clean start, run `scripts/rebootstrap_raft.sh`. The script stops all metaservers, wipes `raft_*` files in `/opt/simplidfs/metadata`, and restarts the services along with `simplidfs-node.service`.
