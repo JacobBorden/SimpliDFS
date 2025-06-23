@@ -44,6 +44,21 @@ public:
   void appendCommand(const std::string &command);
   void setApplyCallback(ApplyFunc cb) { applyCb = std::move(cb); }
 
+  /**
+   * @brief Send a snapshot of the current log state to a peer.
+   */
+  void sendSnapshot(const std::string &peer);
+
+  /**
+   * @brief Restore local state from a received snapshot.
+   */
+  void restoreSnapshot(const std::vector<RaftLogEntry> &snapshot, int commit);
+
+  /**
+   * @brief Trim the log to keep at most @p entries from the tail.
+   */
+  void compactLog(size_t entries);
+
 private:
   void electionLoop();
   void heartbeatLoop();
