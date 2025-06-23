@@ -39,9 +39,9 @@ enum class MessageType {
                         ///< logging/confirmation by target) required.
   ReceiveFileCommand,   ///< Command from MetaServer to a destination Node to
                         ///< expect a file from another Node. _Filename (file to
-  ///< receive), _NodeAddress (source node's address:port),
-  ///< _Content (target node ID for logging/confirmation by
-  ///< source) required.
+                      ///< receive), _NodeAddress (source node's address:port),
+                      ///< _Content (target node ID for logging/confirmation by
+                      ///< source) required.
   // Client to MetaServer, MetaServer to Node
   DeleteFile, ///< Request to delete a file. _Filename required.
 
