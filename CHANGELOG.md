@@ -1,3 +1,7 @@
+## [0.7.1] - 2025-06-27
+### Added
+- rebootstrap_raft.sh script resets Raft state and restarts nodes.
+
 ## [0.7.0] - 2025-06-26
 ### Added
 - Raft snapshot transfer API and log compaction support.

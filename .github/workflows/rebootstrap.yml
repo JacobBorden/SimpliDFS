@@ -1,0 +1,19 @@
+name: Rebootstrap Raft
+
+on:
+  push:
+    branches: [ main, development ]
+  pull_request:
+    branches: [ main, development ]
+
+jobs:
+  rebootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run rebootstrap script
+        env:
+          RAFT_STATE_DIR: tmp/raft
+        run: |
+          mkdir -p "$RAFT_STATE_DIR"
+          bash scripts/rebootstrap_raft.sh
