@@ -1,3 +1,11 @@
+## [0.7.0] - 2025-06-26
+### Added
+- Raft snapshot transfer API and log compaction support.
+
+## [0.7.1] - 2025-06-26
+### Fixed
+- Increased retry count when verifying FUSE stress test files to reduce flakiness.
+
 ## [0.6.1] - 2025-06-25
 ### Added
 - CI now publishes CycloneDX and SPDX SBOMs signed with cosign.

@@ -807,7 +807,7 @@ bool run_append_test() {
   // retry a few times to allow the filesystem to settle.
   std::ifstream infile;
   if (!openFileWithRetry(FULL_APPEND_TEST_FILE_PATH, infile,
-                         std::ios::in | std::ios::binary)) {
+                         std::ios::in | std::ios::binary, 5, 200)) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
               << "] AppendTest: VERIFICATION FAILED: Failed to open file for "
@@ -1037,7 +1037,7 @@ bool run_random_write_test() {
   // complete, so retry a few times before giving up.
   std::ifstream infile;
   if (!openFileWithRetry(FULL_TEST_FILE_PATH, infile,
-                         std::ios::in | std::ios::binary)) {
+                         std::ios::in | std::ios::binary, 5, 200)) {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
               << "] Main: Failed to open file for verification after retries: "
