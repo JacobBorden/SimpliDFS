@@ -3,6 +3,7 @@
 #include "utilities/filesystem.h"
 #include <grpcpp/grpcpp.h>
 #include <memory>
+#include <cstdlib>
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -65,7 +66,16 @@ void RunGrpcServer(const std::string& address, FileSystem& fs) {
     FileServiceImpl service(fs);
 
     // Configure and start the gRPC server
+    int stream_window = 8 * 1024 * 1024; // default 8 MiB
+    if (const char* env = std::getenv("SIMPLIDFS_STREAM_WINDOW_SIZE")) {
+        int val = std::atoi(env);
+        if (val > 0) {
+            stream_window = val;
+        }
+    }
+
     ServerBuilder builder;
+    builder.AddChannelArgument("grpc.grpc_http2_stream_window_size", stream_window);
     builder.AddListeningPort(address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
     std::unique_ptr<Server> server(builder.BuildAndStart());

@@ -51,3 +51,9 @@ Running `doxygen docs/Doxyfile` will produce HTML documentation for all headers 
 ## Raft Recovery
 
 When the Raft metadata becomes inconsistent or a cluster needs a clean start, run `scripts/rebootstrap_raft.sh`. The script stops all metaservers, wipes `raft_*` files in `/opt/simplidfs/metadata`, and restarts the services along with `simplidfs-node.service`.
+
+## Runtime Configuration
+
+The gRPC server sets `grpc.grpc_http2_stream_window_size` to **8 MiB** by default.
+Set the environment variable `SIMPLIDFS_STREAM_WINDOW_SIZE` to override this
+value (in bytes) when launching the server.
