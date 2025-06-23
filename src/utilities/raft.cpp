@@ -3,6 +3,9 @@
 #include <random>
 #include <sstream>
 
+static std::string serializeLog(const std::vector<RaftLogEntry> &entries);
+static std::vector<RaftLogEntry> deserializeLog(const std::string &data);
+
 RaftNode::RaftNode(const std::string &id, const std::vector<std::string> &peers,
                    SendFunc func)
     : nodeId(id), peerIds(peers), sendFunc(std::move(func)),
@@ -124,6 +127,37 @@ void RaftNode::handleMessage(const Message &msg, const std::string &from) {
             becomeLeader();
           }
         }
+      }
+    } else if (msg._Type == MessageType::RaftInstallSnapshot) {
+      size_t comma = msg._Content.find(',');
+      int term = std::stoi(msg._Content.substr(0, comma));
+      int commit = std::stoi(msg._Content.substr(comma + 1));
+      if (term >= currentTerm) {
+        currentTerm = term;
+        currentLeader = from;
+        role = RaftRole::Follower;
+        votedFor.clear();
+        resetElectionTimer();
+        log = deserializeLog(msg._Data);
+        commitIndex = commit;
+        MetricsRegistry::instance().setGauge("simplidfs_raft_commit_index",
+                                             commitIndex);
+        if (applyCb)
+          applyCb(log);
+      }
+      resp._Type = MessageType::RaftInstallSnapshotResponse;
+      resp._NodeAddress = nodeId;
+      resp._Content = std::to_string(currentTerm);
+      sendResp = true;
+    } else if (msg._Type == MessageType::RaftTrimLog) {
+      size_t keep = static_cast<size_t>(std::stoull(msg._Content));
+      if (keep < log.size()) {
+        log.erase(log.begin(), log.end() - keep);
+        commitIndex = log.size();
+        MetricsRegistry::instance().setGauge("simplidfs_raft_commit_index",
+                                             commitIndex);
+        if (applyCb)
+          applyCb(log);
       }
     }
   }
@@ -252,4 +286,63 @@ void RaftNode::appendCommand(const std::string &command) {
 std::vector<RaftLogEntry> RaftNode::getLog() const {
   std::lock_guard<std::mutex> lk(mtx);
   return log;
+}
+
+static std::string serializeLog(const std::vector<RaftLogEntry> &entries) {
+  std::stringstream ss;
+  for (const auto &e : entries) {
+    ss << e.term << ':' << e.command << ';';
+  }
+  return ss.str();
+}
+
+static std::vector<RaftLogEntry> deserializeLog(const std::string &data) {
+  std::vector<RaftLogEntry> out;
+  std::stringstream ss(data);
+  std::string entry;
+  while (std::getline(ss, entry, ';')) {
+    if (entry.empty())
+      continue;
+    size_t pos = entry.find(':');
+    if (pos == std::string::npos)
+      continue;
+    int t = std::stoi(entry.substr(0, pos));
+    std::string cmd = entry.substr(pos + 1);
+    out.push_back({t, cmd});
+  }
+  return out;
+}
+
+void RaftNode::sendSnapshot(const std::string &peer) {
+  Message m;
+  {
+    std::lock_guard<std::mutex> lk(mtx);
+    m._Type = MessageType::RaftInstallSnapshot;
+    m._NodeAddress = nodeId;
+    m._Content =
+        std::to_string(currentTerm) + "," + std::to_string(commitIndex);
+    m._Data = serializeLog(log);
+  }
+  sendMessage(peer, m);
+}
+
+void RaftNode::restoreSnapshot(const std::vector<RaftLogEntry> &snapshot,
+                               int commit) {
+  std::lock_guard<std::mutex> lk(mtx);
+  log = snapshot;
+  commitIndex = commit;
+  MetricsRegistry::instance().setGauge("simplidfs_raft_commit_index",
+                                       commitIndex);
+  if (applyCb)
+    applyCb(log);
+}
+
+void RaftNode::compactLog(size_t entries) {
+  std::lock_guard<std::mutex> lk(mtx);
+  if (entries >= log.size())
+    return;
+  log.erase(log.begin(), log.end() - entries);
+  commitIndex = log.size();
+  MetricsRegistry::instance().setGauge("simplidfs_raft_commit_index",
+                                       commitIndex);
 }
