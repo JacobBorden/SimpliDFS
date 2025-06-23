@@ -1,3 +1,7 @@
+## [0.7.0] - 2025-06-26
+### Added
+- Raft snapshot transfer API and log compaction support.
+
 ## [0.6.1] - 2025-06-25
 ### Added
 - CI now publishes CycloneDX and SPDX SBOMs signed with cosign.
