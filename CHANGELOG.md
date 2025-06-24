@@ -1,3 +1,8 @@
+## [0.8.0] - 2025-06-28
+### Added
+- Automatic SVID retrieval from SPIRE when TLS is enabled.
+- gRPC server now uses SPIRE-issued certificates by default.
+
 ## [0.7.1] - 2025-06-27
 ### Added
 - rebootstrap_raft.sh script resets Raft state and restarts nodes.

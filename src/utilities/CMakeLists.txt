@@ -1,9 +1,6 @@
-cmake_minimum_required(VERSION 3.10)
-
 # Library for common utilities (SimpliDFS_Utils, now includes BlockIO functionality)
 project(SimpliDFSUtils CXX) # Specify language for project command
 find_package(OpenSSL REQUIRED)
-# find_package(yaml-cpp REQUIRED) # yaml-cpp is made available by FetchContent in the parent scope
 add_library(SimpliDFS_Utils
     logger.cpp
     filesystem.cpp
@@ -22,6 +19,9 @@ add_library(SimpliDFS_Utils
     audit_log.cpp
     audit_verifier.cpp
     rbac.cpp
+    svid_fetcher.cpp
+    ../spiffe/workload/workload.pb.cc
+    ../spiffe/workload/workload.grpc.pb.cc
     fips.cpp
 )
 target_include_directories(SimpliDFS_Utils
@@ -33,7 +33,7 @@ target_include_directories(SimpliDFS_Utils
         ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/blake3
 )
 
-# Add ZSTD include directories for SimpliDFS_Utils
+#Add ZSTD include directories for SimpliDFS_Utils
 if(ZSTD_INCLUDE_DIRS) # If ZSTD was found by find_package
     target_include_directories(SimpliDFS_Utils PUBLIC ${ZSTD_INCLUDE_DIRS})
 endif()
@@ -41,9 +41,9 @@ if(zstd_SOURCE_DIR) # If zstd was fetched by FetchContent (zstd_SOURCE_DIR is de
     target_include_directories(SimpliDFS_Utils PUBLIC ${zstd_SOURCE_DIR}/lib)
 endif()
 
-# This allows consumers of SimpliDFS_Utils to find all necessary headers.
+#This allows consumers of SimpliDFS_Utils to find all necessary headers.
 
-# Link dependencies to SimpliDFS_Utils
+#Link dependencies to SimpliDFS_Utils
 target_link_libraries(SimpliDFS_Utils
     PUBLIC
         cppcodec
@@ -52,9 +52,11 @@ target_link_libraries(SimpliDFS_Utils
         OpenSSL::SSL
         OpenSSL::Crypto
         yaml-cpp::yaml-cpp
+        gRPC::grpc++
+        protobuf::libprotobuf
 )
 
-# Link ZSTD to SimpliDFS_Utils (similar to how it was done for BlockIOLib)
+#Link ZSTD to SimpliDFS_Utils(similar to how it was done for BlockIOLib)
 if(TARGET ZSTD::zstd)
     target_link_libraries(SimpliDFS_Utils PUBLIC ZSTD::zstd)
 elseif(TARGET zstd::zstd_shared)
