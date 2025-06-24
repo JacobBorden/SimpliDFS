@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-# Add executable for tests
+#Add executable for tests
 add_executable(SimpliDFSTests
     tests_main.cpp
     filesystem_tests.cpp
@@ -29,18 +29,19 @@ add_executable(SimpliDFSTests
     merkle_proof_tests.cpp
     open_file_with_retry_tests.cpp
     seekp_with_retry_tests.cpp
+    rest_server_tests.cpp
     node_io_tests.cpp
-    # Removed direct compilation of utility sources:
-    # ../../src/utilities/filesystem.cpp
-    # ../../src/utilities/message.cpp
-    # ../../src/utilities/client.cpp
-    # ../../src/utilities/server.cpp
-    # ../../src/utilities/logger.cpp
-    # ../../src/utilities/errorcodes.cpp
-    # ../../src/utilities/blockio.cpp
+#Removed direct compilation of utility sources:
+#../../ src / utilities / filesystem.cpp
+#../../ src / utilities / message.cpp
+#../../ src / utilities / client.cpp
+#../../ src / utilities / server.cpp
+#../../ src / utilities / logger.cpp
+#../../ src / utilities / errorcodes.cpp
+#../../ src / utilities / blockio.cpp
 )
 
-# Link GoogleTest, threading library, and other dependencies
+#Link GoogleTest, threading library, and other dependencies
 target_link_libraries(SimpliDFSTests
     PRIVATE
     gtest_main
@@ -52,18 +53,20 @@ target_link_libraries(SimpliDFSTests
     S3GatewayLib
 )
 
-# Include directories for the headers
+#Include directories for the headers
 target_include_directories(SimpliDFSTests
     PRIVATE
     ${PROJECT_SOURCE_DIR}/include
 )
 
-# Register tests with CTest
+target_compile_definitions(SimpliDFSTests PRIVATE REST_SERVER_DISABLE_MAIN)
+
+#Register tests with CTest
 include(GoogleTest)
 gtest_discover_tests(SimpliDFSTests)
 
-# --- Add FUSE Concurrency Test ---
-# Add executable for the FUSE concurrency test
+#-- - Add FUSE Concurrency Test -- -
+#Add executable for the FUSE concurrency test
 add_executable(SimpliDFSFuseRandomWriteTest
     fuse_concurrency_tests.cpp
     fuse_random_write_main.cpp
@@ -84,9 +87,9 @@ target_link_libraries(SimpliDFSFuseAppendTest
     ${SODIUM_LIBRARIES}
 )
 
-# Single-thread variants of the FUSE tests. These are compiled with
-# FUSE_NUM_THREADS/FUSE_NUM_APPEND_THREADS set to 1 to help diagnose
-# concurrency issues by removing multi-threading from the equation.
+#Single - thread variants of the FUSE tests.These are compiled with
+#FUSE_NUM_THREADS / FUSE_NUM_APPEND_THREADS set to 1 to help diagnose
+#concurrency issues by removing multi - threading from the equation.
 add_executable(SimpliDFSFuseRandomWriteSingleThreadTest
     fuse_concurrency_tests.cpp
     fuse_random_write_main.cpp
@@ -109,7 +112,7 @@ target_link_libraries(SimpliDFSFuseAppendSingleThreadTest
     ${SODIUM_LIBRARIES}
 )
 
-# --- Simple FUSE Tests for debugging ---
+#-- - Simple FUSE Tests for debugging -- -
 add_executable(SimpliDFSFuseMountTest
     fuse_basic_tests.cpp
     fuse_mount_main.cpp
@@ -176,27 +179,28 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 set_tests_properties(FuseSimpleAppendTest PROPERTIES DEPENDS FuseTestEnvSetup)
-# Define a test for running the setup script
-# Define a test for running the setup script
-# Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
-# Keeping these test definitions if they are useful for standalone execution.
+#Define a test for running the setup script
+#Define a test for running the setup script
+#Fixtures for FuseConcurrencyTest are now handled by the wrapper script.
+#Keeping these test definitions if they are useful for standalone execution.
 add_test(
     NAME FuseTestEnvSetup
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/setup_fuse_test_env.sh
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Scripts expect to be run from build/tests
 )
 
-# Define a test for running the cleanup script
+#Define a test for running the cleanup script
 add_test(
     NAME FuseTestEnvCleanup
     COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/cleanup_fuse_test_env.sh
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} # Scripts expect to be run from build/tests
 )
 
-# Set test properties for fixtures
-# These are removed as the wrapper script now handles setup/cleanup for FuseConcurrencyTest.
+#Set test properties for fixtures
+#These are removed as the wrapper script now handles setup / cleanup for
+#FuseConcurrencyTest.
 
-# --- End of FUSE Concurrency Test Addition ---
+#-- - End of FUSE Concurrency Test Addition -- -
 
 if(BUILD_FUZZING)
     message(STATUS "Fuzz testing build enabled.")
@@ -205,11 +209,11 @@ if(BUILD_FUZZING)
         message(WARNING "Fuzzing is enabled, but the compiler is not Clang (${CMAKE_CXX_COMPILER_ID}). LibFuzzer typically requires Clang.")
     endif()
 
-    # Common fuzzer compile flags (applied to each fuzzer target)
+#Common fuzzer compile flags(applied to each fuzzer target)
     set(FUZZER_COMPILE_FLAGS "-fsanitize=fuzzer,address" "-g") # Also add -g for better stack traces
     set(FUZZER_LINK_FLAGS "-fsanitize=fuzzer,address")
 
-    # List of fuzzer source files
+#List of fuzzer source files
     set(FUZZER_SOURCES
         fuzz/blockio_fuzzer.cpp
         fuzz/message_fuzzer.cpp
@@ -223,9 +227,10 @@ if(BUILD_FUZZING)
         add_executable(${FUZZER_NAME} ${FUZZER_SRC})
 
         target_compile_options(${FUZZER_NAME} PRIVATE ${FUZZER_COMPILE_FLAGS})
-        # target_link_libraries(${FUZZER_NAME} PRIVATE ${FUZZER_LINK_FLAGS}) # This is more of a linker flag for the main executable in some setups
+#target_link_libraries(${FUZZER_NAME} PRIVATE ${FUZZER_LINK_FLAGS})
+#This is more of a linker flag for the main executable in some setups
 
-        # Link necessary project libraries
+#Link necessary project libraries
         if(${FUZZER_NAME} STREQUAL "blockio_fuzzer" OR ${FUZZER_NAME} STREQUAL "message_fuzzer" OR ${FUZZER_NAME} STREQUAL "filesystem_fuzzer" OR ${FUZZER_NAME} STREQUAL "node_logic_fuzzer")
             target_link_libraries(${FUZZER_NAME} PRIVATE SimpliDFS_Utils Threads::Threads ${FUZZER_LINK_FLAGS})
         elseif(${FUZZER_NAME} STREQUAL "metaserver_load_fuzzer")

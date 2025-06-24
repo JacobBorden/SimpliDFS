@@ -1,13 +1,13 @@
-#include <boost/beast/core.hpp>
-#include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
+#include "utilities/filesystem.h"
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
-#include <sodium.h>
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
 #include <cppcodec/base64_url_unpadded.hpp>
-#include "utilities/filesystem.h"
-#include <algorithm>
+#include <sodium.h>
 #include <string>
 #include <vector>
 
@@ -55,13 +55,13 @@ void RestServer::do_accept() {
 
 void RestServer::on_accept(boost::beast::error_code ec, tcp::socket socket) {
   if (!ec) {
-    boost::asio::dispatch(
-        acceptor_.get_executor(), [this, s = std::move(socket)]() mutable {
-          boost::beast::flat_buffer buffer;
-          http::request<http::string_body> req;
-          http::read(s, buffer, req);
-          handle_request(std::move(req), std::move(s));
-        });
+    boost::asio::dispatch(acceptor_.get_executor(),
+                          [this, s = std::move(socket)]() mutable {
+                            boost::beast::flat_buffer buffer;
+                            http::request<http::string_body> req;
+                            http::read(s, buffer, req);
+                            handle_request(std::move(req), std::move(s));
+                          });
   }
   do_accept();
 }
@@ -88,14 +88,12 @@ bool RestServer::verify_jwt(const std::string &jwt) {
   std::string signing_input = header + "." + payload;
   std::vector<unsigned char> mac(crypto_auth_hmacsha256_BYTES);
   crypto_auth_hmacsha256_state state;
-  crypto_auth_hmacsha256_init(&state,
-                              reinterpret_cast<const unsigned char *>(
-                                  secret_.data()),
-                              secret_.size());
-  crypto_auth_hmacsha256_update(&state,
-                                reinterpret_cast<const unsigned char *>(
-                                    signing_input.data()),
-                                signing_input.size());
+  crypto_auth_hmacsha256_init(
+      &state, reinterpret_cast<const unsigned char *>(secret_.data()),
+      secret_.size());
+  crypto_auth_hmacsha256_update(
+      &state, reinterpret_cast<const unsigned char *>(signing_input.data()),
+      signing_input.size());
   crypto_auth_hmacsha256_final(&state, mac.data());
 
   std::string decoded = base64::decode<std::string>(sig);
@@ -170,6 +168,7 @@ void RestServer::handle_request(http::request<http::string_body> &&req,
   socket.shutdown(tcp::socket::shutdown_send);
 }
 
+#ifndef REST_SERVER_DISABLE_MAIN
 int main(int argc, char **argv) {
   if (sodium_init() < 0)
     return 1;
@@ -185,4 +184,4 @@ int main(int argc, char **argv) {
   ioc.run();
   return 0;
 }
-
+#endif
