@@ -3,6 +3,12 @@
 - Raft term and election metrics with Grafana panel.
 - Prometheus alerts for election rate and replica lag.
 
+## [0.9.2] - 2025-07-02
+### Added
+- Dockerfiles for metaserver and node referencing the current release.
+- `docker-compose.yml` for a devnet with monitoring stack.
+- `make devnet` target to build images and start the stack.
+
 ## [0.9.0] - 2025-06-30
 ### Added
 - JWT secret rotation script and daily cron schedule
