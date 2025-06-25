@@ -9,11 +9,16 @@ static std::vector<RaftLogEntry> deserializeLog(const std::string &data);
 RaftNode::RaftNode(const std::string &id, const std::vector<std::string> &peers,
                    SendFunc func)
     : nodeId(id), peerIds(peers), sendFunc(std::move(func)),
-      role(RaftRole::Follower), currentTerm(0), commitIndex(0), voteCount(0) {}
+      role(RaftRole::Follower), currentTerm(0), commitIndex(0), voteCount(0) {
+  MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                       static_cast<double>(currentTerm));
+}
 
 void RaftNode::start() {
   running = true;
   lastHeartbeat = std::chrono::steady_clock::now();
+  MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                       static_cast<double>(currentTerm));
   electionThread = std::thread(&RaftNode::electionLoop, this);
 }
 
@@ -67,6 +72,8 @@ void RaftNode::handleMessage(const Message &msg, const std::string &from) {
       int term = std::stoi(msg._Content);
       if (term >= currentTerm) {
         currentTerm = term;
+        MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                             static_cast<double>(currentTerm));
         currentLeader = from;
         role = RaftRole::Follower;
         votedFor.clear();
@@ -102,6 +109,8 @@ void RaftNode::handleMessage(const Message &msg, const std::string &from) {
       resp._NodeAddress = nodeId;
       if (term > currentTerm) {
         currentTerm = term;
+        MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                             static_cast<double>(currentTerm));
         role = RaftRole::Follower;
         votedFor.clear();
       }
@@ -134,6 +143,8 @@ void RaftNode::handleMessage(const Message &msg, const std::string &from) {
       int commit = std::stoi(msg._Content.substr(comma + 1));
       if (term >= currentTerm) {
         currentTerm = term;
+        MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                             static_cast<double>(currentTerm));
         currentLeader = from;
         role = RaftRole::Follower;
         votedFor.clear();
@@ -173,6 +184,10 @@ void RaftNode::startElection() {
     std::lock_guard<std::mutex> lk(mtx);
     voteCount = 1;
     currentTerm++;
+    MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                         static_cast<double>(currentTerm));
+    MetricsRegistry::instance().incrementCounter(
+        "simplidfs_raft_elections_total", 1.0);
     votedFor = nodeId;
     for (const auto &p : peerIds) {
       Message req;
@@ -204,6 +219,8 @@ void RaftNode::becomeFollower(int term) {
   role = RaftRole::Follower;
   currentLeader.clear();
   currentTerm = term;
+  MetricsRegistry::instance().setGauge("simplidfs_raft_term",
+                                       static_cast<double>(currentTerm));
   MetricsRegistry::instance().setGauge("simplidfs_raft_role", 1,
                                        {{"role", "follower"}});
   votedFor.clear();
