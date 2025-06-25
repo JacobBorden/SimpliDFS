@@ -3,6 +3,10 @@
 - REST server and S3 gateway now use internal `http.hpp` utilities.
 - JSON handling moved to lightweight `json.hpp`.
 
+## [0.10.1] - 2025-07-04
+### Fixed
+- REST server correctly maps 401 responses, preventing test failures.
+
 ## [0.9.2] - 2025-07-02
 ### Added
 - Dockerfiles for metaserver and node referencing the current release.
