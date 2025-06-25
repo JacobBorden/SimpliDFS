@@ -13,6 +13,8 @@ add_library(SimpliDFS_Utils
     key_manager.cpp
     chunk_store.cpp
     merkle_tree.cpp
+    http.cpp
+    json.cpp
     raft.cpp
     metrics.cpp
     prometheus_server.cpp

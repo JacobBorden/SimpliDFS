@@ -1,4 +1,4 @@
-# SimpliDFS Architecture Overview
+#SimpliDFS Architecture Overview
 
 SimpliDFS is a distributed file system designed around a simple metaserver and multiple storage nodes. This document summarizes the key components of the project and how they interact.
 
@@ -14,7 +14,7 @@ Nodes perform the actual data storage. They receive replication commands from th
 Communication between the metaserver and nodes uses gRPC. Stubs and service definitions are generated from the `proto` directory. The server setup code can be found in `src/grpc`.
 
 ### REST API
-A minimal REST server is available for management tasks and testing. It uses Boost.Beast and requires JWT authentication. See `src/rest_server.cpp` and `docs/rest_api.md` for details.
+A minimal REST server is available for management tasks and testing. It relies on the lightweight `http.hpp` utilities and requires JWT authentication. See `src/rest_server.cpp` and `docs/rest_api.md` for details.
 
 ### Cluster Health
 Node health information is cached in `NodeHealthCache`. It tracks successes and failures to decide when a node should be marked dead or suspect. The cache is documented in `include/cluster/NodeHealthCache.h`.

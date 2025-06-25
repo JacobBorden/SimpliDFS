@@ -1,13 +1,24 @@
-## [0.9.1] - 2025-07-01
-### Added
-- Raft term and election metrics with Grafana panel.
-- Prometheus alerts for election rate and replica lag.
+## [0.10.0] - 2025-07-03
+### Changed
+- REST server and S3 gateway now use internal `http.hpp` utilities.
+- JSON handling moved to lightweight `json.hpp`.
+
+## [0.10.1] - 2025-07-04
+### Fixed
+- REST server correctly maps 401 responses, preventing test failures.
+- S3 gateway closes client connections, resolving UploadAndDownload test
+  timeouts.
 
 ## [0.9.2] - 2025-07-02
 ### Added
 - Dockerfiles for metaserver and node referencing the current release.
 - `docker-compose.yml` for a devnet with monitoring stack.
 - `make devnet` target to build images and start the stack.
+
+## [0.9.1] - 2025-07-01
+### Added
+- Raft term and election metrics with Grafana panel.
+- Prometheus alerts for election rate and replica lag.
 
 ## [0.9.0] - 2025-06-30
 ### Added
