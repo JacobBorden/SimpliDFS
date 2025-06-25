@@ -6,7 +6,9 @@
 #include <openssl/hmac.h>
 #include <thread>
 
+#ifndef REST_SERVER_DISABLE_MAIN
 #define REST_SERVER_DISABLE_MAIN
+#endif
 #include "../src/rest_server.cpp"
 
 static std::string base64url_encode(const unsigned char *data, size_t len) {

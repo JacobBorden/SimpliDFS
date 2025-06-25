@@ -1,7 +1,7 @@
-# REST API Server
+#REST API Server
 
 The `rest_server` executable provides a minimal HTTP interface for interacting with
-SimpliDFS.  It uses Boost.Beast for networking and requires a JWT in the
+SimpliDFS.  It relies on the internal `http.hpp` utilities for networking and requires a JWT in the
 `Authorization` header of each request.
 
 ## Running the Server

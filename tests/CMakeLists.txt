@@ -30,6 +30,8 @@ add_executable(SimpliDFSTests
     open_file_with_retry_tests.cpp
     seekp_with_retry_tests.cpp
     rest_server_tests.cpp
+    http_utils_tests.cpp
+    json_tests.cpp
     node_io_tests.cpp
 #Removed direct compilation of utility sources:
 #../../ src / utilities / filesystem.cpp
