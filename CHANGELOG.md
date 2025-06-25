@@ -6,6 +6,8 @@
 ## [0.10.1] - 2025-07-04
 ### Fixed
 - REST server correctly maps 401 responses, preventing test failures.
+- S3 gateway closes client connections, resolving UploadAndDownload test
+  timeouts.
 
 ## [0.9.2] - 2025-07-02
 ### Added

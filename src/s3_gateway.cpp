@@ -79,6 +79,9 @@ void S3Gateway::start(int port) {
       out << "Content-Length: " << res.body.size() << "\r\n\r\n";
       out << res.body;
       boost::asio::write(socket, boost::asio::buffer(out.str()));
+      boost::system::error_code ignored;
+      socket.shutdown(tcp::socket::shutdown_both, ignored);
+      socket.close(ignored);
     }
   });
 }
