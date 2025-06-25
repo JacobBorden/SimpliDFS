@@ -1,0 +1,29 @@
+name: Deploy Metaserver to GCP
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - id: auth
+      uses: google-github-actions/auth@v2
+      with:
+        credentials_json: ${{ secrets.GCP_SA_KEY }}
+    - uses: google-github-actions/setup-gcloud@v2
+      with:
+        project_id: ${{ secrets.GCP_PROJECT }}
+    - name: Build Docker image
+      run: |
+        docker build -f deploy/metaserver.Dockerfile \
+          -t gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }} .
+    - name: Push image
+      run: |
+        gcloud auth configure-docker --quiet
+        docker push gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }}
+    - name: Restart Metaserver service
+      run: |
+        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} --zone ${{ secrets.GCE_ZONE }} --command='sudo docker pull gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }} && sudo systemctl restart simplidfs-metaserver'
