@@ -1,3 +1,7 @@
+## [0.11.1] - 2025-06-25
+### Added
+- Deployment guide for Google Cloud with CI/CD workflow.
+
 ## [0.11.0] - 2025-06-25
 ### Changed
 - Logger now formats messages via `json.hpp` instead of manual string escapes.

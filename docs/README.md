@@ -13,6 +13,7 @@ This directory contains design notes and technical references for the SimpliDFS 
 - `pki.md` - public key infrastructure overview.
 - `rest_api.md` - REST server usage and endpoints.
 - `tiered_storage_playbook.md` - deploying tiered storage across orbit and ground.
+- `gcp_ci_cd.md` - deploying and updating the metaserver on Google Cloud.
 
 ## API Reference
 A `Doxyfile` is provided to generate HTML reference documentation from the source code.
