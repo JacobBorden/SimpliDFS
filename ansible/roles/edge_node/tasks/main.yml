@@ -118,4 +118,12 @@
     - simplidfs-metafollower.service
     - simplidfs-node.service
 
+- name: Schedule JWT secret rotation
+  cron:
+    name: rotate_jwt_secret
+    user: root
+    job: "/opt/simplidfs/src/scripts/rotate_jwt_secret.sh"
+    minute: 0
+    hour: 0
+
 ...

@@ -1,3 +1,8 @@
+## [0.9.0] - 2025-06-30
+### Added
+- JWT secret rotation script and daily cron schedule
+- Token rotation tests for REST server
+
 ## [0.8.0] - 2025-06-28
 ### Added
 - Automatic SVID retrieval from SPIRE when TLS is enabled.
