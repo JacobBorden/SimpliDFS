@@ -1,3 +1,8 @@
+## [0.9.1] - 2025-07-01
+### Added
+- Raft term and election metrics with Grafana panel.
+- Prometheus alerts for election rate and replica lag.
+
 ## [0.9.0] - 2025-06-30
 ### Added
 - JWT secret rotation script and daily cron schedule

@@ -7,6 +7,7 @@
     ,{"type": "graph", "title": "Tier Storage", "targets": [{"expr": "simplidfs_tier_bytes"}]}
     ,{"type": "graph", "title": "Replication Pending", "targets": [{"expr": "simplidfs_replication_pending"}]}
     ,{"type": "graph", "title": "Replication Failures", "targets": [{"expr": "simplidfs_replication_failures"}]}
+    ,{"type": "graph", "title": "Leader Elections", "targets": [{"expr": "rate(simplidfs_raft_elections_total[1h])"}]}
   ],
   "schemaVersion": 16,
   "title": "SimpliDFS",

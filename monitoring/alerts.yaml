@@ -1,0 +1,17 @@
+groups:
+- name: simplidfs.alerts
+  rules:
+  - alert: HighRaftElectionRate
+    expr: rate(simplidfs_raft_elections_total[1h]) > 6
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Raft leader elections are occurring too frequently.
+  - alert: ReplicaLagHigh
+    expr: simplidfs_replica_lag_seconds > 20
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: Replica lag exceeds 20 seconds.
