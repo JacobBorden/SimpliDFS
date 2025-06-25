@@ -1,66 +1,71 @@
-## [0.10.0] - 2025-07-03
+## [0.11.0] - 2025-06-25
 ### Changed
-- REST server and S3 gateway now use internal `http.hpp` utilities.
-- JSON handling moved to lightweight `json.hpp`.
+- Logger now formats messages via `json.hpp` instead of manual string escapes.
 
-## [0.10.1] - 2025-07-04
+## [0.10.1] - 2025-06-25
 ### Fixed
 - REST server correctly maps 401 responses, preventing test failures.
 - S3 gateway closes client connections, resolving UploadAndDownload test
   timeouts.
 
-## [0.9.2] - 2025-07-02
+## [0.10.0] - 2025-06-25
+### Changed
+- REST server and S3 gateway now use internal `http.hpp` utilities.
+- JSON handling moved to lightweight `json.hpp`.
+
+## [0.9.2] - 2025-06-25
 ### Added
 - Dockerfiles for metaserver and node referencing the current release.
 - `docker-compose.yml` for a devnet with monitoring stack.
 - `make devnet` target to build images and start the stack.
 
-## [0.9.1] - 2025-07-01
+## [0.9.1] - 2025-06-24
 ### Added
 - Raft term and election metrics with Grafana panel.
 - Prometheus alerts for election rate and replica lag.
 
-## [0.9.0] - 2025-06-30
+## [0.9.0] - 2025-06-24
 ### Added
 - JWT secret rotation script and daily cron schedule
 - Token rotation tests for REST server
 
-## [0.8.0] - 2025-06-28
+## [0.8.0] - 2025-06-24
 ### Added
 - Automatic SVID retrieval from SPIRE when TLS is enabled.
 - gRPC server now uses SPIRE-issued certificates by default.
 
-## [0.7.1] - 2025-06-27
+## [0.7.1] - 2025-06-23
 ### Added
 - rebootstrap_raft.sh script resets Raft state and restarts nodes.
 
-## [0.7.0] - 2025-06-26
+## [0.7.0] - 2025-06-23
 ### Added
 - Raft snapshot transfer API and log compaction support.
 
-## [0.6.1] - 2025-06-25
-### Added
-- CI now publishes CycloneDX and SPDX SBOMs signed with cosign.
 
-## [0.6.2] - 2025-06-26
+## [0.6.2] - 2025-06-22
 ### Changed
 - SBOM generation workflow steps now run only on pushes to the `main` branch.
 
-## [0.6.0] - 2025-06-24
+## [0.6.1] - 2025-06-22
+### Added
+- CI now publishes CycloneDX and SPDX SBOMs signed with cosign.
+
+## [0.6.0] - 2025-06-21
 ### Added
 - MerkleTree now stores directory nodes and can produce membership proofs.
 - `simplidfs verify <cid>` command verifies chunks using stored proofs.
 
-## [0.5.1] - 2025-06-23
+## [0.5.1] - 2025-06-21
 ### Added
 - Raft now commits Merkle root hashes for every metadata update and exposes
   commit metrics via the Prometheus endpoint.
 
-## [0.5.0] - 2025-06-22
+## [0.5.0] - 2025-06-20
 ### Changed
 - Default encryption uses XChaCha20-Poly1305 with AES-GCM fallback.
 
-## [0.4.0] - 2025-06-21
+## [0.4.0] - 2025-06-20
 ### Added
 - TPM attestation on node join using PCR 7 quotes.
 - Edge node role generates quotes and passes them to the metaserver.
