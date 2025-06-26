@@ -42,7 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GIT_SHA: ${{ github.sha }}
-      IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ env.GIT_SHA }}
+      IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }}
     steps:
     - uses: actions/checkout@v4
 
