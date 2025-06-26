@@ -22,7 +22,8 @@ jobs:
           -t gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }} .
     - name: Push image
       run: |
-        gcloud auth configure-docker --quiet
+        gcloud auth configure-docker \
+          us-docker.pkg.dev
         docker push gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }}
     - name: Restart Metaserver service
       run: |
