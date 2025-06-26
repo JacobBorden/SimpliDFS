@@ -1,0 +1,32 @@
+name: Build Release
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libsodium-dev pkg-config build-essential meson ninja-build \
+                                 libudev-dev libboost-all-dev curl \
+                                 libprotobuf-dev protobuf-compiler \
+                                 libgrpc-dev protobuf-compiler-grpc \
+                                 libgrpc++-dev libyaml-cpp-dev
+    - name: Init submodules
+      run: git submodule update --init --recursive
+    - name: Configure
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+    - name: Build
+      run: cmake --build build --config Release
+    - name: Upload binaries
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          build/metaserver
+          build/node

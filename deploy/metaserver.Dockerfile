@@ -1,6 +1,9 @@
 FROM alpine:3.19
-ARG VERSION=v0.9.2
+ARG VERSION
 RUN apk add --no-cache curl ca-certificates
-RUN curl -L https://github.com/JacobBorden/SimpliDFS/releases/download/${VERSION}/simplidfs-metaserver -o /usr/local/bin/metaserver \
-    && chmod +x /usr/local/bin/metaserver
+# Strip any "-devel" suffix so development snapshots resolve to the
+# corresponding stable release assets.
+RUN RELEASE_VERSION="${VERSION%-devel}" && \
+    curl -L https://github.com/JacobBorden/SimpliDFS/releases/download/${RELEASE_VERSION}/simplidfs-metaserver -o /usr/local/bin/metaserver && \
+    chmod +x /usr/local/bin/metaserver
 ENTRYPOINT ["/usr/local/bin/metaserver"]

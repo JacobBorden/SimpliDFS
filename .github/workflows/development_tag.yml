@@ -1,0 +1,19 @@
+name: Tag Development Snapshot
+
+on:
+  push:
+    branches: [ development ]
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create development tag
+        run: |
+          VERSION=$(cat VERSION)
+          TAG="v${VERSION}-devel"
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag -f -a "$TAG" -m "Development snapshot"
+          git push origin "$TAG" --force

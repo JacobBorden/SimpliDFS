@@ -29,15 +29,25 @@ jobs:
       run: gcloud auth configure-docker us-docker.pkg.dev --quiet
 
     # 3 ─ Build & Push
+    - name: Read version
+      id: version
+      run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
     - name: Build image
-      run: docker build -f deploy/metaserver.Dockerfile -t $IMAGE .
+      run: docker build --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile -t $IMAGE .
 
     - name: Push image
       run: docker push $IMAGE
+
+    - name: Get image digest
+      id: digest
+      run: |
+        DIGEST=$(gcloud artifacts docker images describe $IMAGE --format='value(image_summary.digest)')
+        echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
 
     # 4 ─ Pull + restart on the VM
     - name: Restart Metaserver service
       run: |
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
-          --command='sudo docker pull '"$IMAGE"' && sudo systemctl restart simplidfs-metaserver'
+          --command='sudo docker pull '"${{ steps.digest.outputs.digest }}"' && sudo systemctl restart simplidfs-metaserver'
