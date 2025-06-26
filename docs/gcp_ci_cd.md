@@ -58,9 +58,17 @@ name: Deploy Metaserver to GCP
 on:
   push:
     tags: ['v*']
+  workflow_run:
+    workflows: ['Tag Development Snapshot']
+    types:
+      - completed
+
+env:
+  GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -77,15 +85,15 @@ jobs:
     - name: Build Docker image
       run: |
         docker build --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile \
-          -t us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }} .
+          -t us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ env.GIT_SHA }} .
     - name: Push image
       run: |
         gcloud auth configure-docker us-docker.pkg.dev --quiet
-        docker push us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }}
+        docker push us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ env.GIT_SHA }}
     - name: Get image digest
       id: digest
       run: |
-        DIGEST=$(gcloud artifacts docker images describe us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }} --format='value(image_summary.digest)')
+        DIGEST=$(gcloud artifacts docker images describe us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ env.GIT_SHA }} --format='value(image_summary.digest)')
         echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
     - name: Restart Metaserver service
       run: |
