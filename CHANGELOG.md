@@ -1,3 +1,13 @@
+## [0.11.3] - 2025-06-26
+### Fixed
+- Dockerfiles strip the `-devel` suffix from the build argument so development
+  tags resolve to existing release assets.
+
+## [0.11.2] - 2025-06-26
+### Changed
+- Docker build workflow reads the repo version and pulls by digest.
+- Release workflow now packages binaries as GitHub assets.
+
 ## [0.11.1] - 2025-06-25
 ### Added
 - Deployment guide for Google Cloud with CI/CD workflow.
