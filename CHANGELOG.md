@@ -1,3 +1,7 @@
+## [0.11.6] - 2025-06-29
+### Fixed
+- Release workflow grants proper permissions to upload binaries.
+
 ## [0.11.5] - 2025-06-28
 ### Fixed
 - Release workflow installs `libfuse3-dev` so release builds succeed.
