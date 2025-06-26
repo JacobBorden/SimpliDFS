@@ -1,3 +1,7 @@
+## [0.11.8] - 2025-07-01
+### Changed
+- Release workflow deploys to GCP; `gcp_deploy.yml` removed.
+
 ## [0.11.7] - 2025-06-30
 ### Fixed
 - GCP deploy workflow now runs on development tags using `workflow_run`.
