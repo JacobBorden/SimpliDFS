@@ -1,3 +1,7 @@
+## [0.11.5] - 2025-06-28
+### Fixed
+- Release workflow installs `libfuse3-dev` so release builds succeed.
+
 ## [0.11.4] - 2025-06-27
 ### Fixed
 - Development tag workflow uses proper write permissions.
