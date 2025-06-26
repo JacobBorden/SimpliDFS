@@ -4,6 +4,9 @@ on:
   release:
     types: [created]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -31,3 +34,5 @@ jobs:
         files: |
           build/metaserver
           build/node
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
