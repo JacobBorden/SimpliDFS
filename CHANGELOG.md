@@ -1,3 +1,7 @@
+## [0.11.4] - 2025-06-27
+### Fixed
+- Development tag workflow uses proper write permissions.
+
 ## [0.11.3] - 2025-06-26
 ### Fixed
 - Dockerfiles strip the `-devel` suffix from the build argument so development
