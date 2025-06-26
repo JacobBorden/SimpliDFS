@@ -1,3 +1,7 @@
+## [0.11.7] - 2025-06-30
+### Fixed
+- GCP deploy workflow now runs on development tags using `workflow_run`.
+
 ## [0.11.6] - 2025-06-29
 ### Fixed
 - Release workflow grants proper permissions to upload binaries.

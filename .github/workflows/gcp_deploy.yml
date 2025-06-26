@@ -3,12 +3,18 @@ name: Deploy Metaserver to GCP
 on:
   push:
     tags: ['v*']
+  workflow_run:
+    workflows: ['Tag Development Snapshot']
+    types:
+      - completed
 
 env:
-  IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }}
+  GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ env.GIT_SHA }}
 
 jobs:
   deploy:
+    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
