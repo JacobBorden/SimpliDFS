@@ -4,27 +4,40 @@ on:
   push:
     tags: ['v*']
 
+env:
+  IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
     - uses: actions/checkout@v4
+
+    # 1 ─ Authenticate to Google Cloud
     - id: auth
       uses: google-github-actions/auth@v2
       with:
         credentials_json: ${{ secrets.GCP_SA_KEY }}
+
     - uses: google-github-actions/setup-gcloud@v2
       with:
         project_id: ${{ secrets.GCP_PROJECT }}
-    - name: Build Docker image
-      run: |
-        docker build -f deploy/metaserver.Dockerfile \
-          -t gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }} .
+
+    # 2 ─ Wire creds into Docker *for Artifact Registry*
+    - name: Configure Docker
+      run: gcloud auth configure-docker us-docker.pkg.dev --quiet
+
+    # 3 ─ Build & Push
+    - name: Build image
+      run: docker build -f deploy/metaserver.Dockerfile -t $IMAGE .
+
     - name: Push image
-      run: |
-        gcloud auth configure-docker \
-          us-docker.pkg.dev
-        docker push gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }}
+      run: docker push $IMAGE
+
+    # 4 ─ Pull + restart on the VM
     - name: Restart Metaserver service
       run: |
-        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} --zone ${{ secrets.GCE_ZONE }} --command='sudo docker pull gcr.io/${{ secrets.GCP_PROJECT }}/simplidfs-metaserver:${{ github.sha }} && sudo systemctl restart simplidfs-metaserver'
+        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
+          --zone ${{ secrets.GCE_ZONE }} \
+          --command='sudo docker pull '"$IMAGE"' && sudo systemctl restart simplidfs-metaserver'
