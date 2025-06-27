@@ -51,6 +51,11 @@ WantedBy=multi-user.target
 ```
 Enable the unit with `systemctl enable --now simplidfs-metaserver`.
 
+If `systemctl` reports that the unit file does not exist, copy the above
+definition into `/etc/systemd/system/simplidfs-metaserver.service` and run
+`sudo systemctl daemon-reload` before enabling the service. This ensures the
+release workflow can restart the metaserver container.
+
 ## 4. GitHub Actions Workflow
 The following workflow builds a new image on each tag, pushes it to GCR and restarts the service on a VM.
 ```yaml

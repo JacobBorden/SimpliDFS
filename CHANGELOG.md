@@ -1,3 +1,8 @@
+## [0.11.17] - 2025-07-05
+### Fixed
+- Documented how to install the `simplidfs-metaserver.service` unit to avoid
+  "Unit not found" errors during deployment.
+
 ## [0.11.16] - 2025-06-27
 ### Fixed
 - Release workflow starts `simplidfs-metaserver.service` if it isn't running.
