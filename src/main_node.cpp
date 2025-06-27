@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    node.start();
+    node.start(metaserverAddress, metaserverPort);
     Logger::getInstance().log(LogLevel::INFO,
                               "Node " + nodeName + " server started.");
 

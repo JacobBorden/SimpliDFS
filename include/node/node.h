@@ -182,10 +182,15 @@ public:
 
   /**
    * @brief Starts the node's operations.
+   *
    * This includes starting the server to listen for requests and initiating
    * the periodic heartbeat sender.
+   * @param metadataManagerAddress Address of the MetadataManager to connect to
+   *                               for heartbeats and verification.
+   * @param metadataManagerPort    Port of the MetadataManager.
    */
-  void start() {
+  void start(const std::string &metadataManagerAddress = "127.0.0.1",
+             int metadataManagerPort = 50505) {
     std::cout << "Node " << nodeName << ": Attempting to start server on port "
               << server.GetPort() << std::endl;
     if (!this->server.startListening()) {
@@ -205,16 +210,17 @@ public:
     std::cout << "Node " << nodeName << ": Listener thread detached."
               << std::endl;
 
-    // Start the heartbeat thread
-    // Replace "127.0.0.1" and 50505 with actual MetadataManager IP and port if
-    // different Heartbeat interval is 10 seconds
+    // Start the heartbeat thread using the provided MetadataManager address
+    // and port. Heartbeat interval is 10 seconds.
     std::thread heartbeatThread(&Node::sendHeartbeatPeriodically, this,
-                                "127.0.0.1", 50505, 10);
+                                metadataManagerAddress, metadataManagerPort,
+                                10);
     heartbeatThread.detach();
     std::cout << "Node " << nodeName << ": Heartbeat thread detached."
               << std::endl;
 
-    std::thread verifyThread(&Node::verifyLoop, this, "127.0.0.1", 50505, 60);
+    std::thread verifyThread(&Node::verifyLoop, this, metadataManagerAddress,
+                             metadataManagerPort, 60);
     verifyThread.detach();
     std::cout << "Node " << nodeName << ": Verifier thread detached."
               << std::endl;
