@@ -82,6 +82,6 @@ jobs:
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
           --project ${{ secrets.GCP_PROJECT }} \
-          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart metaserver"
+          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart simplidfs-metaserver.service || sudo systemctl enable --now simplidfs-metaserver.service"
 
 

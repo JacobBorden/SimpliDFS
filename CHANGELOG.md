@@ -1,3 +1,15 @@
+## [0.11.16] - 2025-06-27
+### Fixed
+- Release workflow starts `simplidfs-metaserver.service` if it isn't running.
+
+## [0.11.15] - 2025-06-27
+### Fixed
+- Release workflow explicitly restarts `simplidfs-metaserver.service`, avoiding unit lookup errors.
+
+## [0.11.14] - 2025-06-27
+### Fixed
+- Release workflow restarts the `simplidfs-metaserver` service correctly.
+
 ## [0.11.12] - 2025-06-27
 ### Fixed
 - Restart Metaserver now passes an access token for Artifact Registry login, preventing "Unauthenticated request" errors.
