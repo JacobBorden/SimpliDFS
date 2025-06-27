@@ -58,9 +58,6 @@ jobs:
     - name: Configure Docker
       run: gcloud auth configure-docker us-docker.pkg.dev --quiet
 
-    - name: Configure Docker local
-      run: gcloud auth configure-docker ${{ secrets.GCE_ZONE }}-docker.pkg.dev --quiet
-
 
     - name: Read version
       id: version
@@ -78,8 +75,10 @@ jobs:
         DIGEST=$(gcloud artifacts docker images describe $IMAGE --format='value(image_summary.digest)')
         echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
 
+
     - name: Restart Metaserver service
       run: |
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
+          --project ${{ secrets.GCP_PROJECT }} \
           --command='sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart simplidfs-metaserver'
