@@ -1,3 +1,8 @@
+## [0.11.18] - 2025-07-06
+### Fixed
+- Node now consistently connects to the provided MetadataManager address and
+  port for heartbeats and verification instead of defaulting to 127.0.0.1.
+
 ## [0.11.17] - 2025-07-05
 ### Fixed
 - Documented how to install the `simplidfs-metaserver.service` unit to avoid
