@@ -97,7 +97,9 @@ jobs:
         echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
     - name: Restart Metaserver service
       run: |
-        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} --zone ${{ secrets.GCE_ZONE }} --command='gcloud auth configure-docker us-docker.pkg.dev --quiet && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo systemctl restart simplidfs-metaserver'
+        TOKEN=$(gcloud auth print-access-token)
+        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} --zone ${{ secrets.GCE_ZONE }} --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo systemctl restart simplidfs-metaserver"
+
         # Example digest pull
         # docker pull us-docker.pkg.dev/galvanic-ripsaw-439813-f2/simplidfs/simplidfs-metaserver@sha256:d1d57720f635303c677d97a8ad9e986c2bed022e23069a4ca3904a9d87783e4c
 ```

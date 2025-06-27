@@ -78,7 +78,10 @@ jobs:
 
     - name: Restart Metaserver service
       run: |
+        TOKEN=$(gcloud auth print-access-token)
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
           --project ${{ secrets.GCP_PROJECT }} \
-          --command='gcloud auth configure-docker us-docker.pkg.dev --quiet && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart simplidfs-metaserver'
+          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart simplidfs-metaserver"
+
+
