@@ -1,3 +1,7 @@
+## [0.11.11] - 2025-07-02
+### Fixed
+- Release workflow properly quotes the restart command to avoid authentication errors.
+
 ## [0.11.8] - 2025-07-01
 ### Changed
 - Release workflow deploys to GCP; `gcp_deploy.yml` removed.
