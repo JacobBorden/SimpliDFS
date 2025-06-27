@@ -1,3 +1,7 @@
+## [0.11.11] - 2025-06-27
+### Fixed
+- Metaserver restart step authenticates to Artifact Registry before pulling images.
+
 ## [0.11.8] - 2025-07-01
 ### Changed
 - Release workflow deploys to GCP; `gcp_deploy.yml` removed.
