@@ -58,6 +58,10 @@ jobs:
     - name: Configure Docker
       run: gcloud auth configure-docker us-docker.pkg.dev --quiet
 
+    - name: Configure Docker local
+      run: gcloud auth configure-docker ${{ secrets.GCE_ZONE }}-docker.pkg.dev --quiet
+
+
     - name: Read version
       id: version
       run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
