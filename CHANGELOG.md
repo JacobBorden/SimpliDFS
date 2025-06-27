@@ -1,4 +1,4 @@
-## [0.11.12] - 2025-07-02
+## [0.11.12] - 2025-06-27
 ### Fixed
 - Restart Metaserver now passes an access token for Artifact Registry login, preventing "Unauthenticated request" errors.
 
