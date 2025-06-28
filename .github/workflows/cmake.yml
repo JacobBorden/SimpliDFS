@@ -42,8 +42,8 @@ jobs:
         run: git submodule update --init --recursive
 
       - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DBUILD_POSIX_TEST_SUITE=ON
-
+        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DBUILD_POSIX_TEST_SUITE=ON -DBUILD_SHARED_LIBS=OFF -DWITH_STATIC_LIBS=ON
+ 
       - name: Build
         run: cmake --build build --config $BUILD_TYPE
 
