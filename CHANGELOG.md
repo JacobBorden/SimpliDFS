@@ -2,6 +2,10 @@
 ### Fixed
 - Release workflow now verifies binaries are statically linked to ensure they run without installed libraries.
 
+## [0.11.27] - 2025-07-12
+### Fixed
+- Release binaries are now fully static by linking gRPC via pkg-config.
+
 ## [0.11.25] - 2025-07-10
 ### Fixed
 - Release binaries are now statically linked and run without installed libraries.

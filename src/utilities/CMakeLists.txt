@@ -54,7 +54,7 @@ target_link_libraries(SimpliDFS_Utils
         OpenSSL::SSL
         OpenSSL::Crypto
         yaml-cpp::yaml-cpp
-        gRPC::grpc++
+        ${GRPC_TARGET}
         protobuf::libprotobuf
 )
 

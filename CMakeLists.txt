@@ -92,8 +92,20 @@ FetchContent_MakeAvailable(googletest)
 # version. Avoid calling find_package(Protobuf) to prevent duplicate
 # target definitions that lead to configuration errors.
 
-# Use system-installed gRPC to avoid network downloads
-find_package(gRPC CONFIG REQUIRED)
+if(WITH_STATIC_LIBS)
+  message(STATUS "Using pkg-config to locate gRPC static libraries")
+  pkg_check_modules(GRPC REQUIRED grpc++)
+  add_library(gRPC_pkg INTERFACE)
+  target_include_directories(gRPC_pkg INTERFACE ${GRPC_INCLUDE_DIRS})
+  target_link_libraries(gRPC_pkg INTERFACE ${GRPC_LIBRARIES})
+  set(GRPC_TARGET gRPC_pkg)
+  find_program(GRPC_CPP_PLUGIN NAMES grpc_cpp_plugin REQUIRED)
+else()
+  # Use system-installed gRPC to avoid network downloads
+  find_package(gRPC CONFIG REQUIRED)
+  set(GRPC_TARGET gRPC::grpc++)
+  get_target_property(GRPC_CPP_PLUGIN gRPC::grpc_cpp_plugin LOCATION)
+endif()
 find_package(Protobuf REQUIRED)
 
 # Fetch yaml-cpp
@@ -196,7 +208,7 @@ add_custom_command(
             --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
             --cpp_out=${GENERATED_PROTO_DIR}
             --grpc_out=${GENERATED_PROTO_DIR}
-            --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
+            --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
             ${CMAKE_CURRENT_SOURCE_DIR}/${PROTO_FILES}
     DEPENDS ${PROTO_FILES}
     COMMENT "Generating gRPC sources from ${PROTO_FILES}"
@@ -245,7 +257,7 @@ target_include_directories(simplidfs_grpc PUBLIC
 
 target_link_libraries(simplidfs_grpc
     PUBLIC
-    gRPC::grpc++
+    ${GRPC_TARGET}
     SimpliDFS_Utils
     Threads::Threads
 )
