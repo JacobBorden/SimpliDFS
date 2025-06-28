@@ -1,3 +1,7 @@
+## [0.11.27] - 2025-07-12
+### Fixed
+- Release binaries are now fully static by linking against system static libraries when `WITH_STATIC_LIBS` is enabled.
+
 ## [0.11.26] - 2025-07-11
 ### Fixed
 - Release workflow now verifies binaries are statically linked to ensure they run without installed libraries.

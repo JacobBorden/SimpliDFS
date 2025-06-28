@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.10)
 project(SimpliDFS)
 
-# Silence warnings from modern CMake policies when building with newer
-# CMake versions.  These policies affect how Boost and FetchContent behave
-# but keeping the OLD behavior maintains compatibility with the existing
-# build setup.
+#Silence warnings from modern CMake policies when building with newer
+#CMake versions.These policies affect how Boost and FetchContent behave
+#but keeping the OLD behavior maintains compatibility with the existing
+#build setup.
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 OLD)
 endif()
@@ -14,12 +14,13 @@ endif()
 
 option(BUILD_FUZZING "Enable fuzz testing builds" OFF)
 option(BUILD_POSIX_TEST_SUITE "Download and build POSIX conformance tests" OFF)
+option(WITH_STATIC_LIBS "Link against static system libraries" OFF)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON) # Corrected True to ON
 set(CMAKE_CXX_EXTENSIONS OFF) # Prefer not to use GNU extensions, stick to standard C++
 
-# Attempt to unify the C++ ABI for std::string
+#Attempt to unify the C++ ABI for std::string
 add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=1) 
 set_property(DIRECTORY PROPERTY COMPILE_DEFINITIONS _GLIBCXX_USE_CXX11_ABI=1)
 
@@ -28,14 +29,22 @@ set(CMAKE_THREAD_PREFER_PTHREAD ON)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 find_package(Threads REQUIRED)
-# find_package(FUSE REQUIRED) # Replaced by PkgConfig method
+#find_package(FUSE REQUIRED) #Replaced by PkgConfig method
 find_package(PkgConfig REQUIRED)
 set(PKG_CONFIG_USE_STATIC_LIBS ON)
 pkg_check_modules(FUSE REQUIRED fuse3) # For FUSE 3.x
 
+if(WITH_STATIC_LIBS)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+  set(Boost_USE_STATIC_LIBS ON)
+  set(Protobuf_USE_STATIC_LIBS ON)
+  set(OPENSSL_USE_STATIC_LIBS TRUE)
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libstdc++ -static-libgcc")
+endif()
+
 include(FetchContent)
 
-# Fetch libsodium at a pinned version to avoid system dependency variation
+#Fetch libsodium at a pinned version to avoid system dependency variation
 FetchContent_Declare(
   libsodium
   GIT_REPOSITORY https://github.com/jedisct1/libsodium.git
@@ -47,10 +56,10 @@ FetchContent_MakeAvailable(libsodium)
 set(SODIUM_INCLUDE_DIRS ${libsodium_SOURCE_DIR}/src/libsodium/include)
 set(SODIUM_LIBRARIES sodium)
 
-# Find Boost for the REST server
+#Find Boost for the REST server
 find_package(Boost REQUIRED COMPONENTS system)
 
-# Fetch zstd
+#Fetch zstd
 message(STATUS "Fetching zstd from source to ensure consistent version v1.5.5...")
 FetchContent_Declare(
   zstd
@@ -58,45 +67,45 @@ FetchContent_Declare(
   GIT_TAG v1.5.5 # Stable tag
   SOURCE_SUBDIR build/cmake # Use the CMakeLists.txt in build/cmake as the top-level one
 )
-# Set options for zstd build.
+#Set options for zstd build.
 set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs" FORCE)
 set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests" FORCE)
 set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Build zstd static library" FORCE) # Or ON if static is preferred
 set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library" FORCE) # Or OFF if static is preferred
 FetchContent_MakeAvailable(zstd)
 
-# Fetch cpp-base32 (cppcodec)
+#Fetch cpp - base32(cppcodec)
 FetchContent_Declare(
   cppcodec
   GIT_REPOSITORY https://github.com/tplgy/cppcodec.git
   GIT_TAG v0.2 # Using specific tag for stability
 )
-# Disable tests for cppcodec to avoid build issues with its Catch2 version
+#Disable tests for cppcodec to avoid build issues with its Catch2 version
 set(CPPCODEC_BUILD_TESTS OFF CACHE BOOL "Disable cppcodec tests" FORCE)
 set(CPPCODEC_BUILD_EXAMPLES OFF CACHE BOOL "Disable cppcodec examples" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Disable testing for cppcodec subproject" FORCE) # General FetchContent way
 FetchContent_MakeAvailable(cppcodec)
 set(BUILD_TESTING ON CACHE BOOL "Enable testing for main project" FORCE) # Re-enable for main project
 
-# Corrected FetchContent Declaration for Google Test
+#Corrected FetchContent Declaration for Google Test
 FetchContent_Declare(
     googletest
     GIT_REPOSITORY https://github.com/google/googletest.git
     GIT_TAG v1.14.0  # Specify the correct branch/tag
     SOURCE_DIR ${CMAKE_BINARY_DIR}/dependencies/googletest
 )
-# Make GoogleTest available
+#Make GoogleTest available
 FetchContent_MakeAvailable(googletest)
 
-# gRPC will provide its own protobuf targets when using the bundled
-# version. Avoid calling find_package(Protobuf) to prevent duplicate
-# target definitions that lead to configuration errors.
+#gRPC will provide its own protobuf targets when using the bundled
+#version.Avoid calling find_package(Protobuf) to prevent duplicate
+#target definitions that lead to configuration errors.
 
-# Use system-installed gRPC to avoid network downloads
+#Use system - installed gRPC to avoid network downloads
 find_package(gRPC CONFIG REQUIRED)
 find_package(Protobuf REQUIRED)
 
-# Fetch yaml-cpp
+#Fetch yaml - cpp
 FetchContent_Declare(
   yaml-cpp
   GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
@@ -104,28 +113,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
-# Local third-party libraries
+#Local third - party libraries
 add_subdirectory(third_party/blake3)
 
 message(STATUS "CMAKE_CXX_COMPILER_ID: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
 message(STATUS "_GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEFINITIONS:_GLIBCXX_USE_CXX11_ABI>")
 
-
 #Fetch Networking Library
-# FetchContent_Declare(
-# 	networking
-# 	GIT_REPOSITORY https://github.com/JacobBorden/NetworkingLibrary.git
-# 	GIT_TAG master
-# 	SOURCE_DIR ${CMAKE_BINARY_DIR}/dependencies/networking
-# )
+#FetchContent_Declare(
+#networking
+#GIT_REPOSITORY https: // github.com/JacobBorden/NetworkingLibrary.git
+#GIT_TAG master
+#SOURCE_DIR ${CMAKE_BINARY_DIR } / dependencies / networking
+#)
 
-# FetchContent_MakeAvailable(networking)
+#FetchContent_MakeAvailable(networking)
 
+#Remove GLOB - based variables for sources, list them explicitly
 
-# Remove GLOB-based variables for sources, list them explicitly
-
-# Define the SimpliDFS_MetaServerLib library
+#Define the SimpliDFS_MetaServerLib library
 add_library(SimpliDFS_MetaServerLib
     src/metaserver/metaserver.cpp
     src/metaserver/node_health_tracker.cpp
@@ -134,29 +141,26 @@ add_library(SimpliDFS_MetaServerLib
     src/repair/ReplicaVerifier.cpp)
 target_include_directories(SimpliDFS_MetaServerLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(SimpliDFS_MetaServerLib
-    PUBLIC # SimpliDFS_Utils headers are needed by users of SimpliDFS_MetaServerLib,
-            # or INTERFACE if SimpliDFS_Utils is header-only and its headers are included by SimpliDFS_MetaServerLib headers.
-            # For now, PRIVATE if SimpliDFS_Utils is mostly .cpp linked into MetaServerLib.
-            # If metaserver.h includes headers from SimpliDFS_Utils that then are needed by things linking to MetaServerLib,
-            # then SimpliDFS_Utils might need to be PUBLIC on MetaServerLib.
-            # Let's assume metaserver.cpp uses SimpliDFS_Utils, and metaserver.h might expose some types from it.
-    SimpliDFS_Utils
-    Threads::Threads
+    PUBLIC
+#SimpliDFS_Utils headers are needed by users of this library.If
+#SimpliDFS_Utils becomes header - only, change to INTERFACE.
+        SimpliDFS_Utils
+        Threads::Threads
 )
 
-# Define the metaserver executable
+#Define the metaserver executable
 add_executable(metaserver src/main_metaserver.cpp) # Assuming main() is moved or is in a separate file
 target_link_libraries(metaserver 
     PRIVATE
     SimpliDFS_MetaServerLib
-    # SimpliDFS_Utils is already linked via SimpliDFS_MetaServerLib if it's PUBLIC there
-    # Threads::Threads is already linked via SimpliDFS_MetaServerLib
+#SimpliDFS_Utils is already linked via SimpliDFS_MetaServerLib if it's PUBLIC there
+#Threads::Threads is already linked via SimpliDFS_MetaServerLib
 )
-# Ensure metaserver executable can find headers if main_metaserver.cpp needs them directly
+#Ensure metaserver executable can find headers if main_metaserver.cpp needs
+#them directly
 target_include_directories(metaserver PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-
-# Define the SimpliDFS_NodeLib library
+#Define the SimpliDFS_NodeLib library
 add_library(SimpliDFS_NodeLib
     src/node/node.cpp
     src/ipfs_gateway.cpp
@@ -169,33 +173,37 @@ target_link_libraries(SimpliDFS_NodeLib
     Threads::Threads
 )
 
-# ------------------------------------------------------------------------------
-# gRPC protobuf generation
-# ------------------------------------------------------------------------------
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+#gRPC protobuf generation
+#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
 
-# Directory to place generated sources. Keeping them in the build tree keeps the
-# repository clean and ensures regeneration when the proto file changes.
+#Directory to place generated sources.Keeping them in the build tree keeps the
+#repository clean and ensures regeneration when the proto file changes.
 set(GENERATED_PROTO_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
-# Path to the proto definitions
+#Path to the proto definitions
 set(PROTO_FILES "proto/filesystem.proto")
 
-# Ensure the output directory exists so protoc can write files
+#Ensure the output directory exists so protoc can write files
 file(MAKE_DIRECTORY ${GENERATED_PROTO_DIR}/proto)
 
-# Custom command to generate both the protobuf messages and gRPC service stubs.
-# Using the protoc executable and grpc_cpp_plugin from the found packages
-# guarantees that the headers match the libraries we link against.
+#Custom command to generate both the protobuf messages and gRPC service stubs.
+#Using the protoc executable and grpc_cpp_plugin from the found packages
+#guarantees that the headers match the libraries we link against.
 add_custom_command(
     OUTPUT
         "${GENERATED_PROTO_DIR}/proto/filesystem.pb.cc"
         "${GENERATED_PROTO_DIR}/proto/filesystem.pb.h"
         "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.cc"
         "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
-    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-            --proto_path=${CMAKE_CURRENT_SOURCE_DIR}
-            --cpp_out=${GENERATED_PROTO_DIR}
-            --grpc_out=${GENERATED_PROTO_DIR}
+    COMMAND ${
+  Protobuf_PROTOC_EXECUTABLE}
+            --proto_path=${
+  CMAKE_CURRENT_SOURCE_DIR}
+            --cpp_out=${
+  GENERATED_PROTO_DIR}
+            --grpc_out=${
+  GENERATED_PROTO_DIR}
             --plugin=protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>
             ${CMAKE_CURRENT_SOURCE_DIR}/${PROTO_FILES}
     DEPENDS ${PROTO_FILES}
@@ -203,10 +211,9 @@ add_custom_command(
     VERBATIM
 )
 
-
-# Expose a custom target so protobuf generation can be explicitly run and so
-# downstream targets may depend on it. CMake will only rerun protoc when the
-# .proto file changes, keeping rebuilds fast.
+#Expose a custom target so protobuf generation can be explicitly run and so
+#downstream targets may depend on it.CMake will only rerun protoc when the
+#.proto file changes, keeping rebuilds fast.
 add_custom_target(generate_protos
     DEPENDS
         "${GENERATED_PROTO_DIR}/proto/filesystem.pb.cc"
@@ -215,8 +222,7 @@ add_custom_target(generate_protos
         "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
 )
 
-
-# Group generated files for IDE convenience.
+#Group generated files for IDE convenience.
 set(GENERATED_PROTO_SRCS
     "${GENERATED_PROTO_DIR}/proto/filesystem.pb.cc"
     "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.cc"
@@ -226,7 +232,7 @@ set(GENERATED_PROTO_HDRS
     "${GENERATED_PROTO_DIR}/proto/filesystem.grpc.pb.h"
 )
 
-# Define the gRPC library using the generated sources.
+#Define the gRPC library using the generated sources.
 add_library(simplidfs_grpc
     ${GENERATED_PROTO_SRCS}
     src/grpc_server.cpp
@@ -234,9 +240,7 @@ add_library(simplidfs_grpc
 
 add_dependencies(simplidfs_grpc generate_protos)
 
-
-
-# Include directories for generated headers and public API headers.
+#Include directories for generated headers and public API headers.
 target_include_directories(simplidfs_grpc PUBLIC
     "${GENERATED_PROTO_DIR}"
     ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -250,24 +254,22 @@ target_link_libraries(simplidfs_grpc
     Threads::Threads
 )
 
-# Define the node executable
+#Define the node executable
 add_executable(node src/main_node.cpp) # Assuming a main_node.cpp for the executable
 target_link_libraries(node 
     PRIVATE
     SimpliDFS_NodeLib
-    # SimpliDFS_Utils and Threads::Threads are linked via SimpliDFS_NodeLib
+#SimpliDFS_Utils and Threads::Threads are linked via SimpliDFS_NodeLib
 )
-# Ensure node executable can find headers if main_node.cpp needs them directly
+#Ensure node executable can find headers if main_node.cpp needs them directly
 target_include_directories(node PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-
-# Control CLI
+#Control CLI
 add_executable(simplidfs src/simplidfs_ctl.cpp)
 target_link_libraries(simplidfs PRIVATE SimpliDFS_MetaServerLib)
 target_include_directories(simplidfs PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-
-# Define the FUSE adapter executable
+#Define the FUSE adapter executable
 add_executable(simpli_fuse_adapter src/utilities/fuse_adapter.cpp)
 target_include_directories(simpli_fuse_adapter
     PRIVATE
@@ -282,22 +284,20 @@ target_link_libraries(simpli_fuse_adapter
     ${FUSE_LIBRARIES}
 )
 
-
-# S3 Gateway executable
+#S3 Gateway executable
 add_library(S3GatewayLib src/s3_gateway.cpp)
 target_include_directories(S3GatewayLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(S3GatewayLib PUBLIC SimpliDFS_Utils Threads::Threads)
 
-# REST API server
+#REST API server
 add_executable(rest_server src/rest_server.cpp)
 target_include_directories(rest_server PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(rest_server PRIVATE SimpliDFS_Utils Boost::system Threads::Threads)
 
-
-# Utilities are now built as a library SimpliDFS_Utils via its own CMakeLists.txt
+#Utilities are now built as a library SimpliDFS_Utils via its own CMakeLists.txt
 add_subdirectory(src/utilities)
 
-# Add Google Test subdirectory and enable testing
+#Add Google Test subdirectory and enable testing
 enable_testing()
 add_subdirectory(tests)
 
@@ -312,5 +312,5 @@ add_executable(health_tests tests/test_health.cpp)
 target_link_libraries(health_tests PRIVATE Catch2::Catch2WithMain SimpliDFS_MetaServerLib)
 add_test(NAME health_tests COMMAND health_tests)
 
-# Add benchmark subdirectory
+#Add benchmark subdirectory
 add_subdirectory(bench)
