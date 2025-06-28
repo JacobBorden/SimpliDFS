@@ -30,6 +30,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 # find_package(FUSE REQUIRED) # Replaced by PkgConfig method
 find_package(PkgConfig REQUIRED)
+set(PKG_CONFIG_USE_STATIC_LIBS ON)
 pkg_check_modules(FUSE REQUIRED fuse3) # For FUSE 3.x
 
 include(FetchContent)
