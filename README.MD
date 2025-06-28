@@ -68,8 +68,9 @@ SimpliDFS is a distributed file system project designed to manage files across m
    git clone https://github.com/JacobBorden/SimpliDFS.git
    cd SimpliDFS
    ```
-2. Run the setup script to install dependencies (it will also install
-   Protobuf 3.21.12 if your system's version is older):
+2. Run the setup script to install dependencies (it ensures Protobuf
+   3.21.12 is installed, building from source if another version is
+   present):
    - On Debian/Ubuntu systems:
      ```sh
      ./setup_dependencies.sh
@@ -83,7 +84,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
    ```sh
    rm -rf build include/grpc/proto
    ```
-4. Verify your `protoc` version is at least 3.21.12:
+4. Verify your `protoc` version is exactly 3.21.12:
    ```sh
    protoc --version
    ```

@@ -1,5 +1,8 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+# Desired Protobuf release
+REQUIRED_VERSION=3.21.12
 
 # Install core packages
 sudo apt-get update -y
@@ -9,9 +12,12 @@ sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
     libprotobuf-dev protobuf-compiler libgrpc-dev protobuf-compiler-grpc \
     libgrpc++-dev
 # Verify protobuf version
-PROTOC_VERSION=$(protoc --version | awk '{print $2}')
-REQUIRED_VERSION=3.21.12
-if dpkg --compare-versions "$PROTOC_VERSION" lt "$REQUIRED_VERSION"; then
+if command -v protoc >/dev/null; then
+    PROTOC_VERSION=$(protoc --version | awk '{print $2}')
+else
+    PROTOC_VERSION="0"
+fi
+if [ "$PROTOC_VERSION" != "$REQUIRED_VERSION" ]; then
     echo "Installing protobuf ${REQUIRED_VERSION} from source..."
     tmpdir=$(mktemp -d)
     pushd "$tmpdir" >/dev/null
