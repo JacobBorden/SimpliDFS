@@ -1,3 +1,16 @@
+## [0.11.23] - 2025-07-08
+### Fixed
+- Dependency scripts now install Protobuf 3.21.12 automatically if an older
+  version is detected.
+
+## [0.11.22] - 2025-07-07
+### Fixed
+- Added protoc version check to `setup_dependencies_opensuse.sh` for consistency.
+
+## [0.11.21] - 2025-07-07
+### Fixed
+- Documented required Protobuf version for SPIFFE and added version check in setup script.
+
 ## [0.11.18] - 2025-07-06
 ### Fixed
 - Node now consistently connects to the provided MetadataManager address and

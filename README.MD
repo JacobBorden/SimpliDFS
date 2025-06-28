@@ -68,7 +68,8 @@ SimpliDFS is a distributed file system project designed to manage files across m
    git clone https://github.com/JacobBorden/SimpliDFS.git
    cd SimpliDFS
    ```
-2. Run the setup script to install dependencies:
+2. Run the setup script to install dependencies (it will also install
+   Protobuf 3.21.12 if your system's version is older):
    - On Debian/Ubuntu systems:
      ```sh
      ./setup_dependencies.sh
@@ -82,13 +83,17 @@ SimpliDFS is a distributed file system project designed to manage files across m
    ```sh
    rm -rf build include/grpc/proto
    ```
-4. Create a build directory and run CMake:
+4. Verify your `protoc` version is at least 3.21.12:
+   ```sh
+   protoc --version
+   ```
+5. Create a build directory and run CMake:
    ```sh
    mkdir build && cd build
    cmake ..
    make
    ```
-5. Run the tests:
+6. Run the tests:
    ```sh
    ./test/SimpliDFSTests
    ```

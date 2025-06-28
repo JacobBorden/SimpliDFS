@@ -36,6 +36,24 @@ else
   echo "✅  All core packages already present."
 fi
 
+# Verify protobuf version
+REQUIRED_VERSION=3.21.12
+PROTOC_VERSION=$(protoc --version | awk '{print $2}')
+if [ "$(printf '%s\n%s\n' "$PROTOC_VERSION" "$REQUIRED_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+  echo "Installing protobuf ${REQUIRED_VERSION} from source …"
+  tmpdir=$(mktemp -d)
+  pushd "$tmpdir" >/dev/null
+  curl -L -O "https://github.com/protocolbuffers/protobuf/releases/download/v${REQUIRED_VERSION}/protobuf-cpp-${REQUIRED_VERSION}.tar.gz"
+  tar xf "protobuf-cpp-${REQUIRED_VERSION}.tar.gz"
+  cd "protobuf-${REQUIRED_VERSION}"
+  ./configure --prefix=/usr
+  make -j"$(nproc)"
+  sudo make install
+  sudo ldconfig
+  popd >/dev/null
+  rm -rf "$tmpdir"
+fi
+
 #-----------------------------------------------------------
 # Fuse 3.x – prefer distro package, else build 3.16.2
 #-----------------------------------------------------------
