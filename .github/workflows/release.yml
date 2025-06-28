@@ -31,6 +31,11 @@ jobs:
                  -DCMAKE_EXE_LINKER_FLAGS="-static -static-libstdc++ -static-libgcc"
     - name: Build
       run: cmake --build build --config Release
+    - name: Verify static binaries
+      run: |
+        file build/metaserver build/node
+        file build/metaserver | grep -q "statically linked"
+        file build/node | grep -q "statically linked"
     - name: Upload binaries
       uses: softprops/action-gh-release@v1
       with:
