@@ -58,11 +58,12 @@ FetchContent_Declare(
   GIT_TAG v1.5.5 # Stable tag
   SOURCE_SUBDIR build/cmake # Use the CMakeLists.txt in build/cmake as the top-level one
 )
-# Set options for zstd build.
-set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs" FORCE)
-set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests" FORCE)
-set(ZSTD_BUILD_STATIC OFF CACHE BOOL "Build zstd static library" FORCE) # Or ON if static is preferred
-set(ZSTD_BUILD_SHARED ON CACHE BOOL "Build zstd shared library" FORCE) # Or OFF if static is preferred
+# Set options for zstd build. Respect any values provided on the
+# command line so the release workflow can enable static linking.
+set(ZSTD_BUILD_PROGRAMS OFF CACHE BOOL "Disable zstd programs")
+set(ZSTD_BUILD_TESTS OFF CACHE BOOL "Disable zstd tests")
+option(ZSTD_BUILD_STATIC "Build zstd static library" ON)
+option(ZSTD_BUILD_SHARED "Build zstd shared library" OFF)
 FetchContent_MakeAvailable(zstd)
 
 # Fetch cpp-base32 (cppcodec)
@@ -100,6 +101,8 @@ if(WITH_STATIC_LIBS)
   target_link_libraries(gRPC_pkg INTERFACE ${GRPC_LIBRARIES})
   set(GRPC_TARGET gRPC_pkg)
   find_program(GRPC_CPP_PLUGIN NAMES grpc_cpp_plugin REQUIRED)
+  # Link statically when requested
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static -static-libstdc++ -static-libgcc")
 else()
   # Use system-installed gRPC to avoid network downloads
   find_package(gRPC CONFIG REQUIRED)

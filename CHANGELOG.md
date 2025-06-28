@@ -1,3 +1,7 @@
+## [0.11.28] - 2025-07-13
+### Fixed
+- Release binaries now link libzstd statically by honoring CMake options.
+
 ## [0.11.26] - 2025-07-11
 ### Fixed
 - Release workflow now verifies binaries are statically linked to ensure they run without installed libraries.
