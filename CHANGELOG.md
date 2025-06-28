@@ -3,6 +3,11 @@
 - Dependency scripts now install Protobuf 3.21.12 automatically if an older
   version is detected.
 
+## [0.11.24] - 2025-07-09
+### Fixed
+- Dependency setup scripts now enforce Protobuf 3.21.12 even when a newer
+  version is present.
+
 ## [0.11.22] - 2025-07-07
 ### Fixed
 - Added protoc version check to `setup_dependencies_opensuse.sh` for consistency.

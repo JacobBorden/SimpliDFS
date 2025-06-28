@@ -5,6 +5,9 @@
 
 set -euo pipefail
 
+# Desired Protobuf release
+REQUIRED_VERSION=3.21.12
+
 #-----------------------------------------------------------
 # Helper: rpm -q returns 0 if the package is installed
 #-----------------------------------------------------------
@@ -37,9 +40,12 @@ else
 fi
 
 # Verify protobuf version
-REQUIRED_VERSION=3.21.12
-PROTOC_VERSION=$(protoc --version | awk '{print $2}')
-if [ "$(printf '%s\n%s\n' "$PROTOC_VERSION" "$REQUIRED_VERSION" | sort -V | head -n1)" != "$REQUIRED_VERSION" ]; then
+if command -v protoc >/dev/null; then
+  PROTOC_VERSION=$(protoc --version | awk '{print $2}')
+else
+  PROTOC_VERSION="0"
+fi
+if [ "$PROTOC_VERSION" != "$REQUIRED_VERSION" ]; then
   echo "Installing protobuf ${REQUIRED_VERSION} from source …"
   tmpdir=$(mktemp -d)
   pushd "$tmpdir" >/dev/null
