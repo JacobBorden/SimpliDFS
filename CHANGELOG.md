@@ -1,3 +1,7 @@
+## [0.11.25] - 2025-07-10
+### Fixed
+- Release binaries are now statically linked and run without installed libraries.
+
 ## [0.11.23] - 2025-07-08
 ### Fixed
 - Dependency scripts now install Protobuf 3.21.12 automatically if an older
