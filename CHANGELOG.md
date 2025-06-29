@@ -2,6 +2,10 @@
 ### Fixed
 - Added c-ares packages to CI workflows and dependency scripts so linking against `-lcares` succeeds.
 
+## [0.11.32] - 2025-06-29
+### Fixed
+- Ensure runtime `libcares2` installs in CI workflows for successful linking.
+
 ## [0.11.30] - 2025-06-29
 ### Fixed
 - Documented c-ares development requirement in README.

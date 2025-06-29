@@ -10,7 +10,7 @@ sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
     build-essential cmake meson ninja-build libudev-dev libyaml-cpp-dev \
     libboost-all-dev curl git \
     libprotobuf-dev protobuf-compiler libgrpc-dev protobuf-compiler-grpc \
-    libgrpc++-dev libc-ares-dev
+    libgrpc++-dev libc-ares-dev libcares2
 # Verify protobuf version
 if command -v protoc >/dev/null; then
     PROTOC_VERSION=$(protoc --version | awk '{print $2}')

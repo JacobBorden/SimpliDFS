@@ -24,7 +24,7 @@ jobs:
                                    libprotobuf-dev protobuf-compiler \
                                    libgrpc-dev protobuf-compiler-grpc \
                                    libgrpc++-dev libyaml-cpp-dev \
-                                   libc-ares-dev
+                                   libc-ares-dev libcares2
 
       # ---- build libfuse 3.16.2 ------------------------------------------
       - name: Build & install libfuse 3.16.2
