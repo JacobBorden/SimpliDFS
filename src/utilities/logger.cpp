@@ -244,6 +244,7 @@ void Logger::log(LogLevel level, const std::string &message) {
   if (logFileStream.is_open()) {
     logFileStream << jsonLine << std::endl;
   }
+  std::cout << jsonLine << std::endl;
   // If not CONSOLE_ONLY_OUTPUT and logFileStream is not open (e.g. initial open
   // failed), the message is currently dropped silently. This could be changed
   // if desired.

@@ -6,6 +6,14 @@
 ### Fixed
 - Built-in libfuse step now produces static libraries so linking against `-lfuse3` succeeds.
 
+## [0.11.35] - 2025-06-29
+### Changed
+- Logs are now written to `/var/logs/simplidfs/`. The metaserver logs to `metaserver.log` and nodes use `<NodeName>.log`.
+
+## [0.11.36] - 2025-06-29
+### Fixed
+- Logger now outputs to both the console and log files so FUSE tests can parse redirected logs.
+
 ## [0.11.31] - 2025-06-29
 ### Fixed
 - Added c-ares packages to CI workflows and dependency scripts so linking against `-lcares` succeeds.
