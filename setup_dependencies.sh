@@ -46,7 +46,7 @@ if ! pkg-config --exists fuse3; then
         https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/fuse-${FUSE_VERSION}.tar.gz
     tar xzf fuse-${FUSE_VERSION}.tar.gz
     cd fuse-${FUSE_VERSION}
-    meson setup build --prefix=/usr
+    meson setup build --prefix=/usr -Ddefault_library=both
     ninja -C build
     sudo ninja -C build install
     sudo ldconfig

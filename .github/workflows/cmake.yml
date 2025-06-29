@@ -40,7 +40,7 @@ jobs:
                https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
           tar xzf fuse-3.16.2.tar.gz
           cd fuse-3.16.2
-          meson setup build --prefix=/usr
+          meson setup build --prefix=/usr -Ddefault_library=both
           ninja -C build
           sudo ninja -C build install
           sudo ldconfig

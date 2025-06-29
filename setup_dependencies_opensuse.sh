@@ -84,7 +84,7 @@ else
     curl -L -O "https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/fuse-${FUSE_VERSION}.tar.gz"
     tar xf "fuse-${FUSE_VERSION}.tar.gz"
     cd "fuse-${FUSE_VERSION}"
-    meson setup build --prefix=/usr -Dexamples=false
+    meson setup build --prefix=/usr -Dexamples=false -Ddefault_library=both
     ninja -C build
     sudo ninja -C build install
     sudo ldconfig

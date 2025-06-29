@@ -2,6 +2,10 @@
 ### Fixed
 - CI and dependency scripts create a `libcares.a` symlink so static linking finds c‑ares.
 
+## [0.11.34] - 2025-06-29
+### Fixed
+- Built-in libfuse step now produces static libraries so linking against `-lfuse3` succeeds.
+
 ## [0.11.31] - 2025-06-29
 ### Fixed
 - Added c-ares packages to CI workflows and dependency scripts so linking against `-lcares` succeeds.

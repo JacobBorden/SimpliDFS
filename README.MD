@@ -59,7 +59,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
 - CMake 3.10 or later.
 - A C++ compiler (e.g., GCC or Clang).
 - Google Test for unit testing.
-- FUSE 3 (libfuse) installed.
+- FUSE 3 (libfuse) installed with static libraries (`libfuse3-dev` or built from source).
 - c-ares development headers (`libc-ares-dev` or `c-ares-devel`).
 - Root privileges or the `fusermount` utility to mount the filesystem.
 
