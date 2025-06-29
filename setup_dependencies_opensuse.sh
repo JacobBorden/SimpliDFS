@@ -24,7 +24,7 @@ core_pkgs=(
   meson           pkgconf-pkg-config
   libsodium-devel libzstd-devel   libudev-devel
   yaml-cpp-devel  boost-devel     curl            git
-  protobuf-devel  grpc-devel
+  protobuf-devel  grpc-devel    c-ares-devel
 )
 
 missing=()
@@ -37,6 +37,12 @@ if ((${#missing[@]})); then
   sudo zypper --non-interactive install -y --no-recommends "${missing[@]}"
 else
   echo "✅  All core packages already present."
+fi
+
+# ensure libcares.a exists for static linking
+LIBDIR=$(pkg-config --variable=libdir libcares)
+if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+  sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
 fi
 
 # Verify protobuf version
@@ -78,7 +84,7 @@ else
     curl -L -O "https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/fuse-${FUSE_VERSION}.tar.gz"
     tar xf "fuse-${FUSE_VERSION}.tar.gz"
     cd "fuse-${FUSE_VERSION}"
-    meson setup build --prefix=/usr -Dexamples=false
+    meson setup build --prefix=/usr -Dexamples=false -Ddefault_library=both
     ninja -C build
     sudo ninja -C build install
     sudo ldconfig

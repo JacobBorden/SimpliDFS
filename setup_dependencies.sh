@@ -10,7 +10,13 @@ sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
     build-essential cmake meson ninja-build libudev-dev libyaml-cpp-dev \
     libboost-all-dev curl git \
     libprotobuf-dev protobuf-compiler libgrpc-dev protobuf-compiler-grpc \
-    libgrpc++-dev
+    libgrpc++-dev libc-ares-dev libcares2
+
+# c-ares package ships libcares_static.a; create libcares.a if missing
+LIBDIR=$(pkg-config --variable=libdir libcares)
+if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+    sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
+fi
 # Verify protobuf version
 if command -v protoc >/dev/null; then
     PROTOC_VERSION=$(protoc --version | awk '{print $2}')
@@ -40,7 +46,7 @@ if ! pkg-config --exists fuse3; then
         https://github.com/libfuse/libfuse/releases/download/fuse-${FUSE_VERSION}/fuse-${FUSE_VERSION}.tar.gz
     tar xzf fuse-${FUSE_VERSION}.tar.gz
     cd fuse-${FUSE_VERSION}
-    meson setup build --prefix=/usr
+    meson setup build --prefix=/usr -Ddefault_library=both
     ninja -C build
     sudo ninja -C build install
     sudo ldconfig
