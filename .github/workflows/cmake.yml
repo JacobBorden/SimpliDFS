@@ -26,6 +26,13 @@ jobs:
                                    libgrpc++-dev libyaml-cpp-dev \
                                    libc-ares-dev libcares2
 
+      - name: Ensure libcares.a exists
+        run: |
+          LIBDIR=$(pkg-config --variable=libdir libcares)
+          if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+            sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
+          fi
+
       # ---- build libfuse 3.16.2 ------------------------------------------
       - name: Build & install libfuse 3.16.2
         run: |

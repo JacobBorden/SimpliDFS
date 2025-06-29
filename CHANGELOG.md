@@ -1,3 +1,7 @@
+## [0.11.33] - 2025-06-29
+### Fixed
+- CI and dependency scripts create a `libcares.a` symlink so static linking finds c‑ares.
+
 ## [0.11.31] - 2025-06-29
 ### Fixed
 - Added c-ares packages to CI workflows and dependency scripts so linking against `-lcares` succeeds.

@@ -11,6 +11,12 @@ sudo apt-get install -y libsodium-dev libzstd-dev pkg-config \
     libboost-all-dev curl git \
     libprotobuf-dev protobuf-compiler libgrpc-dev protobuf-compiler-grpc \
     libgrpc++-dev libc-ares-dev libcares2
+
+# c-ares package ships libcares_static.a; create libcares.a if missing
+LIBDIR=$(pkg-config --variable=libdir libcares)
+if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+    sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
+fi
 # Verify protobuf version
 if command -v protoc >/dev/null; then
     PROTOC_VERSION=$(protoc --version | awk '{print $2}')

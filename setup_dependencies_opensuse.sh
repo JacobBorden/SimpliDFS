@@ -39,6 +39,12 @@ else
   echo "✅  All core packages already present."
 fi
 
+# ensure libcares.a exists for static linking
+LIBDIR=$(pkg-config --variable=libdir libcares)
+if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+  sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
+fi
+
 # Verify protobuf version
 if command -v protoc >/dev/null; then
   PROTOC_VERSION=$(protoc --version | awk '{print $2}')
