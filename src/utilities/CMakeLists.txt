@@ -1,5 +1,7 @@
 # Library for common utilities (SimpliDFS_Utils, now includes BlockIO functionality)
 project(SimpliDFSUtils CXX) # Specify language for project command
+set(OPENSSL_USE_STATIC_LIBS ON)
+# Request static OpenSSL libraries when building fully static binaries.
 find_package(OpenSSL REQUIRED)
 add_library(SimpliDFS_Utils
     logger.cpp

@@ -1,3 +1,7 @@
+## [0.11.29] - 2025-07-14
+### Fixed
+- Release binaries now link OpenSSL statically for fully static builds.
+
 ## [0.11.28] - 2025-07-13
 ### Fixed
 - Release binaries now link libzstd statically by honoring CMake options.

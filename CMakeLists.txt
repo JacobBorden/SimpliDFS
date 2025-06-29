@@ -48,6 +48,7 @@ set(SODIUM_INCLUDE_DIRS ${libsodium_SOURCE_DIR}/src/libsodium/include)
 set(SODIUM_LIBRARIES sodium)
 
 # Find Boost for the REST server
+set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost REQUIRED COMPONENTS system)
 
 # Fetch zstd
@@ -109,6 +110,7 @@ else()
   set(GRPC_TARGET gRPC::grpc++)
   get_target_property(GRPC_CPP_PLUGIN gRPC::grpc_cpp_plugin LOCATION)
 endif()
+set(Protobuf_USE_STATIC_LIBS ON)
 find_package(Protobuf REQUIRED)
 
 # Fetch yaml-cpp
