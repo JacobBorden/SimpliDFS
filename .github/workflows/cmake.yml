@@ -23,7 +23,8 @@ jobs:
                                    libudev-dev libboost-all-dev curl \
                                    libprotobuf-dev protobuf-compiler \
                                    libgrpc-dev protobuf-compiler-grpc \
-                                   libgrpc++-dev libyaml-cpp-dev
+                                   libgrpc++-dev libyaml-cpp-dev \
+                                   libc-ares-dev
 
       # ---- build libfuse 3.16.2 ------------------------------------------
       - name: Build & install libfuse 3.16.2

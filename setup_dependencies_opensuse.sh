@@ -24,7 +24,7 @@ core_pkgs=(
   meson           pkgconf-pkg-config
   libsodium-devel libzstd-devel   libudev-devel
   yaml-cpp-devel  boost-devel     curl            git
-  protobuf-devel  grpc-devel
+  protobuf-devel  grpc-devel    c-ares-devel
 )
 
 missing=()

@@ -1,47 +1,51 @@
-## [0.11.29] - 2025-07-14
+## [0.11.30] - 2025-06-29
+### Fixed
+- CI workflows install libc-ares-dev to resolve -lcares link errors.
+
+## [0.11.29] - 2025-06-28
 ### Fixed
 - Release binaries now link OpenSSL statically for fully static builds.
 
-## [0.11.28] - 2025-07-13
+## [0.11.28] - 2025-06-28
 ### Fixed
 - Release binaries now link libzstd statically by honoring CMake options.
 
-## [0.11.26] - 2025-07-11
+## [0.11.26] - 2025-06-28
 ### Fixed
 - Release workflow now verifies binaries are statically linked to ensure they run without installed libraries.
 
-## [0.11.27] - 2025-07-12
+## [0.11.27] - 2025-06-28
 ### Fixed
 - Release binaries are now fully static by linking gRPC via pkg-config.
 
-## [0.11.25] - 2025-07-10
+## [0.11.25] - 2025-06-28
 ### Fixed
 - Release binaries are now statically linked and run without installed libraries.
 
-## [0.11.23] - 2025-07-08
+## [0.11.23] - 2025-06-28
 ### Fixed
 - Dependency scripts now install Protobuf 3.21.12 automatically if an older
   version is detected.
 
-## [0.11.24] - 2025-07-09
+## [0.11.24] - 2025-06-28
 ### Fixed
 - Dependency setup scripts now enforce Protobuf 3.21.12 even when a newer
   version is present.
 
-## [0.11.22] - 2025-07-07
+## [0.11.22] - 2025-06-28
 ### Fixed
 - Added protoc version check to `setup_dependencies_opensuse.sh` for consistency.
 
-## [0.11.21] - 2025-07-07
+## [0.11.21] - 2025-06-28
 ### Fixed
 - Documented required Protobuf version for SPIFFE and added version check in setup script.
 
-## [0.11.18] - 2025-07-06
+## [0.11.18] - 2025-06-27
 ### Fixed
 - Node now consistently connects to the provided MetadataManager address and
   port for heartbeats and verification instead of defaulting to 127.0.0.1.
 
-## [0.11.17] - 2025-07-05
+## [0.11.17] - 2025-06-27
 ### Fixed
 - Documented how to install the `simplidfs-metaserver.service` unit to avoid
   "Unit not found" errors during deployment.
@@ -66,23 +70,23 @@
 ### Fixed
 - Metaserver restart step authenticates to Artifact Registry before pulling images.
 
-## [0.11.8] - 2025-07-01
+## [0.11.8] - 2025-06-26
 ### Changed
 - Release workflow deploys to GCP; `gcp_deploy.yml` removed.
 
-## [0.11.7] - 2025-06-30
+## [0.11.7] - 2025-06-26
 ### Fixed
 - GCP deploy workflow now runs on development tags using `workflow_run`.
 
-## [0.11.6] - 2025-06-29
+## [0.11.6] - 2025-06-26
 ### Fixed
 - Release workflow grants proper permissions to upload binaries.
 
-## [0.11.5] - 2025-06-28
+## [0.11.5] - 2025-06-26
 ### Fixed
 - Release workflow installs `libfuse3-dev` so release builds succeed.
 
-## [0.11.4] - 2025-06-27
+## [0.11.4] - 2025-06-26
 ### Fixed
 - Development tag workflow uses proper write permissions.
 
