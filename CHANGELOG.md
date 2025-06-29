@@ -1,6 +1,6 @@
 ## [0.11.30] - 2025-06-29
 ### Fixed
-- CI workflows install c-ares libraries (`libc-ares-dev`/`c-ares-devel`) to resolve `-lcares` link errors.
+- CI workflows and dependency scripts install c-ares libraries (`libc-ares-dev`/`c-ares-devel`) so linking against `-lcares` succeeds.
 
 ## [0.11.29] - 2025-06-28
 ### Fixed
