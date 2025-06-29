@@ -3,6 +3,7 @@
 #include "utilities/key_manager.hpp"
 #include "utilities/logger.h"
 #include <chrono> // For std::chrono::seconds
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -58,7 +59,12 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    Logger::init("node_" + nodeName + ".log", LogLevel::INFO);
+    std::string logDir = "/var/logs/simplidfs";
+    try {
+      std::filesystem::create_directories(logDir);
+    } catch (...) {
+    }
+    Logger::init(logDir + "/" + nodeName + ".log", LogLevel::INFO);
   } catch (const std::exception &e) {
     std::cerr << "FATAL: Logger initialization failed for node " << nodeName
               << ": " << e.what() << std::endl;

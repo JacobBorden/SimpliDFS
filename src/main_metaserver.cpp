@@ -8,8 +8,9 @@
 #include "utilities/prometheus_server.h"
 #include "utilities/raft.h"
 #include "utilities/server.h" // For Networking::Server, Networking::ClientConnection
-#include <iostream>           // For std::cerr, std::to_string
-#include <thread>             // For std::thread
+#include <filesystem>
+#include <iostream> // For std::cerr, std::to_string
+#include <thread>   // For std::thread
 
 #include <cstdlib>  // For std::atoi
 #include <signal.h> // For signal(), SIGPIPE, SIG_IGN
@@ -149,8 +150,12 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    Logger::init(Logger::CONSOLE_ONLY_OUTPUT,
-                 LogLevel::DEBUG); // Attempt to use console output constant
+    std::string logDir = "/var/logs/simplidfs";
+    try {
+      std::filesystem::create_directories(logDir);
+    } catch (...) {
+    }
+    Logger::init(logDir + "/metaserver.log", LogLevel::DEBUG);
   } catch (const std::exception &e) {
     std::cerr << "FATAL: Logger initialization failed for metaserver: "
               << e.what() << std::endl;
