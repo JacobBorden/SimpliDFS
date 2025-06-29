@@ -1,6 +1,10 @@
+## [0.11.31] - 2025-06-29
+### Fixed
+- Added c-ares packages to CI workflows and dependency scripts so linking against `-lcares` succeeds.
+
 ## [0.11.30] - 2025-06-29
 ### Fixed
-- CI workflows and dependency scripts install c-ares libraries (`libc-ares-dev`/`c-ares-devel`) so linking against `-lcares` succeeds.
+- Documented c-ares development requirement in README.
 
 ## [0.11.29] - 2025-06-28
 ### Fixed
