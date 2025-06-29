@@ -60,6 +60,7 @@ SimpliDFS is a distributed file system project designed to manage files across m
 - A C++ compiler (e.g., GCC or Clang).
 - Google Test for unit testing.
 - FUSE 3 (libfuse) installed.
+- c-ares development headers (`libc-ares-dev` or `c-ares-devel`).
 - Root privileges or the `fusermount` utility to mount the filesystem.
 
 ### Build Instructions
