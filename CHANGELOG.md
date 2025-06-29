@@ -1,3 +1,7 @@
+## [0.11.37] - 2025-06-29
+### Changed
+- Release workflow updates systemd unit with the deployed Docker tag.
+
 ## [0.11.33] - 2025-06-29
 ### Fixed
 - CI and dependency scripts create a `libcares.a` symlink so static linking finds c‑ares.

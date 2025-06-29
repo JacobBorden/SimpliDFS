@@ -54,9 +54,6 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    env:
-      GIT_SHA: ${{ github.sha }}
-      IMAGE: us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ github.sha }}
     steps:
     - uses: actions/checkout@v4
 
@@ -77,6 +74,9 @@ jobs:
       id: version
       run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
 
+    - name: Set image name
+      run: echo "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >> "$GITHUB_ENV"
+
     - name: Build image
       run: docker build --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile -t $IMAGE .
 
@@ -90,12 +90,12 @@ jobs:
         echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
 
 
-    - name: Restart Metaserver service
+    - name: Deploy Metaserver container
       run: |
         TOKEN=$(gcloud auth print-access-token)
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
           --project ${{ secrets.GCP_PROJECT }} \
-          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo systemctl restart simplidfs-metaserver.service || sudo systemctl enable --now simplidfs-metaserver.service"
+          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver.service || sudo systemctl enable --now simplidfs-metaserver.service"
 
 
