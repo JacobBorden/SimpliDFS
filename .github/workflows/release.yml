@@ -78,7 +78,7 @@ jobs:
       run: echo "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >> "$GITHUB_ENV"
 
     - name: Build image
-      run: docker build --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile -t $IMAGE .
+      run: docker build --platform linux/amd64 --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile -t $IMAGE .
 
     - name: Push image
       run: docker push $IMAGE

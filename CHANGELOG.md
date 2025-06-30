@@ -1,3 +1,7 @@
+## [0.11.38] - 2025-06-30
+### Fixed
+- Release workflow builds x86-64 Docker images to match the metaserver binary.
+
 ## [0.11.37] - 2025-06-29
 ### Changed
 - Release workflow updates systemd unit with the deployed Docker tag.
