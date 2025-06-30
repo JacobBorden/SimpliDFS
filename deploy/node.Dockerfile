@@ -1,4 +1,6 @@
-FROM --platform=linux/amd64 alpine:3.19
+# Ensure the base image matches the static binary architecture.
+ARG TARGETARCH=amd64
+FROM --platform=linux/${TARGETARCH} alpine:3.19
 ARG VERSION
 RUN apk add --no-cache curl ca-certificates
 # Development tags end with "-devel" but binaries live under the stable
