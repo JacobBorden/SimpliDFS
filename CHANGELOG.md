@@ -1,3 +1,7 @@
+## [0.11.39] - 2025-06-30
+### Changed
+- Dockerfiles target the `linux/amd64` platform so containers run on x86-64 systems.
+
 ## [0.11.38] - 2025-06-30
 ### Fixed
 - Release workflow builds x86-64 Docker images to match the metaserver binary.

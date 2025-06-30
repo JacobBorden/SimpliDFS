@@ -1,4 +1,5 @@
-FROM alpine:3.19
+# Build explicitly for x86-64 to match the distributed binaries.
+FROM --platform=linux/amd64 alpine:3.19
 ARG VERSION
 RUN apk add --no-cache curl ca-certificates
 # Strip any "-devel" suffix so development snapshots resolve to the
