@@ -1,3 +1,8 @@
+## [0.11.40] - 2025-06-30
+### Fixed
+- Dockerfiles now pin the base image to `linux/amd64` even when built on
+  arm64 hosts, preventing `exec format error` at runtime.
+
 ## [0.11.39] - 2025-06-30
 ### Changed
 - Dockerfiles explicitly target the `linux/amd64` platform for x86-64 hardware.

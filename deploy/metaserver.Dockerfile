@@ -1,4 +1,7 @@
-FROM --platform=linux/amd64 alpine:3.19
+# Explicitly set the build platform so arm64 hosts don't produce
+# images with mismatched binaries.
+ARG TARGETARCH=amd64
+FROM --platform=linux/${TARGETARCH} alpine:3.19
 ARG VERSION
 RUN apk add --no-cache curl ca-certificates
 # Strip any "-devel" suffix so development snapshots resolve to the
