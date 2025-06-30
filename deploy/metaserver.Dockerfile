@@ -1,4 +1,4 @@
-FROM alpine:3.19
+FROM --platform=linux/amd64 alpine:3.19
 ARG VERSION
 RUN apk add --no-cache curl ca-certificates
 # Strip any "-devel" suffix so development snapshots resolve to the
