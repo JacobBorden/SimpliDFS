@@ -1,3 +1,7 @@
+## [0.11.45] - 2025-07-03
+### Changed
+- FUSE stress tests moved to a separate GitHub Actions workflow.
+
 ## [0.11.44] - 2025-07-02
 ### Fixed
 - Deployment workflow now stops any running container before starting the updated image.

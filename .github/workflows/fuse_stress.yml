@@ -1,0 +1,58 @@
+name: FUSE Stress Tests
+
+on:
+  push:
+    branches: [ master, development ]
+  pull_request:
+    branches: [ master, development ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  stress:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install base packages
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y libsodium-dev pkg-config \
+                                   build-essential meson ninja-build \
+                                   libudev-dev libboost-all-dev curl \
+                                   libprotobuf-dev protobuf-compiler \
+                                   libgrpc-dev protobuf-compiler-grpc \
+                                   libgrpc++-dev libyaml-cpp-dev \
+                                   libc-ares-dev libcares2
+
+      - name: Ensure libcares.a exists
+        run: |
+          LIBDIR=$(pkg-config --variable=libdir libcares)
+          if [ -f "$LIBDIR/libcares_static.a" ] && [ ! -e "$LIBDIR/libcares.a" ]; then
+            sudo ln -s libcares_static.a "$LIBDIR/libcares.a"
+          fi
+
+      - name: Build & install libfuse 3.16.2
+        run: |
+          curl -L -o fuse-3.16.2.tar.gz \
+               https://github.com/libfuse/libfuse/releases/download/fuse-3.16.2/fuse-3.16.2.tar.gz
+          tar xzf fuse-3.16.2.tar.gz
+          cd fuse-3.16.2
+          meson setup build --prefix=/usr -Ddefault_library=both
+          ninja -C build
+          sudo ninja -C build install
+          sudo ldconfig
+
+      - name: Init submodules
+        run: git submodule update --init --recursive
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DBUILD_POSIX_TEST_SUITE=ON -DBUILD_SHARED_LIBS=OFF -DWITH_STATIC_LIBS=ON
+
+      - name: Build
+        run: cmake --build build --config $BUILD_TYPE
+
+      - name: Run FUSE Stress Tests
+        run: sudo ./run_fuse_stress_tests.sh
