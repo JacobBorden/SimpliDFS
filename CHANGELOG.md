@@ -1,3 +1,7 @@
+## [0.11.43] - 2025-07-02
+### Fixed
+- Node now advertises its real IP address when registering with the MetadataManager.
+
 ## [0.11.42] - 2025-07-01
 ### Fixed
 - Dockerfiles now keep the `-devel` suffix when downloading binaries so

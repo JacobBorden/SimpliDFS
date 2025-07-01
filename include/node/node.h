@@ -245,7 +245,17 @@ public:
     msg._Type = MessageType::RegisterNode;
     msg._Filename =
         this->nodeName; // Using _Filename to carry the node identifier
-    msg._NodeAddress = "127.0.0.1"; // Placeholder for node's actual address
+    std::string localAddr = "127.0.0.1";
+    try {
+      Networking::Client tmpClient;
+      localAddr = tmpClient.GetLocalIPAddress();
+    } catch (const std::exception &e) {
+      Logger::getInstance().log(
+          LogLevel::WARN,
+          "Failed to get local IP address: " + std::string(e.what()) +
+              ". Defaulting to 127.0.0.1");
+    }
+    msg._NodeAddress = localAddr; // Node's actual address
     msg._NodePort = this->server.GetPort(); // Node's listening port
     if (!quotePath.empty()) {
       std::ifstream qf(quotePath, std::ios::binary);

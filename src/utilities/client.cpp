@@ -719,44 +719,46 @@ std::string Networking::Client::GetServerHostName()
 }
 
 // Get the local IP address of the client
-std::string Networking::Client::GetLocalIPAddress()
-{
-	// Get the local IP address of the client
-	addrinfo* localAddress;
-	if(getaddrinfo("localhost", NULL, NULL, &localAddress) == SOCKET_ERROR)
-	{
-		// Get the error code
-		int errorCode = GETERROR();
+std::string Networking::Client::GetLocalIPAddress() {
+        char hostname_buf[128];
+        if (gethostname(hostname_buf, sizeof(hostname_buf)) == SOCKET_ERROR)
+        {
+                int errorCode = GETERROR();
+                throw Networking::NetworkException(connectionSocket, errorCode, "Client gethostname failed");
+        }
 
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code
-		throw Networking::NetworkException(connectionSocket, errorCode, "Client getaddrinfo failed for local IP");
-	}
+        addrinfo hints;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        addrinfo* info = nullptr;
+        if (getaddrinfo(hostname_buf, nullptr, &hints, &info) == SOCKET_ERROR)
+        {
+                int errorCode = GETERROR();
+                throw Networking::NetworkException(connectionSocket, errorCode, "Client getaddrinfo failed for local IP");
+        }
 
-	// Convert the local IP address to a string
-	char localIP[128];
-	if(inet_ntop(AF_INET, &((sockaddr_in*)localAddress->ai_addr)->sin_addr, localIP, sizeof(localIP)) == NULL)
-	{
-		// Get the error code
-		int errorCode = GETERROR();
+        for (addrinfo* p = info; p != nullptr; p = p->ai_next)
+        {
+                sockaddr_in* sa = reinterpret_cast<sockaddr_in*>(p->ai_addr);
+                if (sa->sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+                {
+                        char localIP[128];
+                        if (inet_ntop(AF_INET, &sa->sin_addr, localIP, sizeof(localIP)) != NULL)
+                        {
+                                freeaddrinfo(info);
+                                return localIP;
+                        }
+                        else
+                        {
+                                int errorCode = GETERROR();
+                                freeaddrinfo(info);
+                                throw Networking::NetworkException(connectionSocket, errorCode, "Client inet_ntop failed for local IP");
+                        }
+                }
+        }
 
-		// Close the socket
-		CLOSESOCKET(connectionSocket);
-	#ifdef _WIN32
-		// Clean up the Windows Sockets DLL
-		WSACleanup();
-	#endif
-		// Throw the error code
-		throw Networking::NetworkException(connectionSocket, errorCode, "Client inet_ntop failed for local IP");
-	}
-
-	// Return the local IP address of the client
-	return localIP;
+        freeaddrinfo(info);
+        return "127.0.0.1";
 }
 
 // Get the remote IP address of the server
