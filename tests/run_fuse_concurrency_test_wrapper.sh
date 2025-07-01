@@ -1,25 +1,25 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "INFO: Wrapper script starting..."
 
-# Skip if FUSE device isn't available. This mirrors the check used in other
-# FUSE-related test scripts so the suite can run in environments without the
-# kernel module loaded (e.g. CI containers).
+# Skip if FUSE device isn't available. Mirrors checks in other FUSE-related
+# scripts so the suite can run without the kernel module (e.g. CI containers).
 if [ ! -e /dev/fuse ]; then
     echo "SKIP: /dev/fuse not found, skipping FUSE concurrency test."
     exit 0
 fi
 
-# Paths to executables - CTest's WORKING_DIRECTORY for the test is typically build/tests.
+#Paths to executables - CTest's WORKING_DIRECTORY for the test is typically build/tests.
 METASERVER_EXEC=../metaserver
 FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
 TEST_EXEC=${1:-./SimpliDFSFuseConcurrencyTest}
-# If the provided test executable does not contain a path component, prefix it
-# with ./ so the shell searches the current working directory. CTest runs the
-# wrapper from build/tests where the compiled binaries live, but that directory
-# usually is not part of PATH.  This ensures the requested test binary is
-# executed from the build directory.
+#If the provided test executable does not contain a path component, prefix it
+#with./ so the shell searches the current working directory.CTest runs the
+#wrapper from build / tests where the compiled binaries live, but that directory
+#usually is not part of PATH.This ensures the requested test binary is
+#executed from the build directory.
 if [[ "${TEST_EXEC}" != */* ]]; then
     TEST_EXEC="./${TEST_EXEC}"
 fi
@@ -72,7 +72,10 @@ do
     rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
 # Remove stale metadata files to avoid persistence between runs
-rm -f file_metadata.dat node_registry.dat
+mkdir -p /var/simplidfs/logs
+rm -f /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
+rm -f /var/simplidfs/NodeWrapper*.dat
+touch /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
 
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"
@@ -377,6 +380,12 @@ if [ "$MOUNT_READY" -eq 0 ]; then
     cleanup_and_exit 1
 fi
 echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_PID}, Mount: ${MOUNT_POINT}"
+
+# Pre-create files used by the concurrency tests so writes do not fail due to
+# missing paths.
+for file in concurrent_write_test.txt concurrent_append_test.txt; do
+    : > "${MOUNT_POINT}/${file}"
+done
 
 # Run the actual test
 echo "INFO: Running ${TEST_EXEC}..."
