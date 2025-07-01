@@ -96,7 +96,7 @@ void persistence_thread_function() {
           LogLevel::INFO,
           "[PersistenceThread] Metadata is dirty, attempting to save.");
       try {
-        metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
+        metadataManager.saveMetadata("var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
         metadataManager
             .clearDirty(); // Clear dirty flag only after successful save
         Logger::getInstance().log(
@@ -150,7 +150,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    std::string logDir = "/var/logs/simplidfs";
+    std::string logDir = "/var/simplidfs/logs";
     try {
       std::filesystem::create_directories(logDir);
     } catch (...) {
@@ -187,7 +187,7 @@ int main(int argc, char *argv[]) {
   Logger::getInstance().log(
       LogLevel::INFO,
       "Loading metadata from file_metadata.dat and node_registry.dat");
-  metadataManager.loadMetadata("file_metadata.dat", "node_registry.dat");
+  metadataManager.loadMetadata("/var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
 
   const char *id_env = std::getenv("RAFT_ID");
   const char *peers_env = std::getenv("RAFT_PEERS");
@@ -344,7 +344,7 @@ int main(int argc, char *argv[]) {
     Logger::getInstance().log(
         LogLevel::INFO, "Main: Performing final metadata save on shutdown.");
     try {
-      metadataManager.saveMetadata("file_metadata.dat", "node_registry.dat");
+      metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
       metadataManager.clearDirty();
       Logger::getInstance().log(LogLevel::INFO,
                                 "Main: Final metadata save successful.");
