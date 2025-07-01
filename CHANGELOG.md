@@ -1,3 +1,11 @@
+## [0.11.47] - 2025-07-04
+### Changed
+- Release workflow injects `SIMPLIDFS_CLUSTER_KEY` into the metaserver service.
+
+## [0.11.46] - 2025-07-04
+### Changed
+- Metaserver deployment passes `SIMPLIDFS_CLUSTER_KEY` to the container.
+
 ## [0.11.45] - 2025-07-03
 ### Changed
 - FUSE stress tests moved to a separate GitHub Actions workflow.

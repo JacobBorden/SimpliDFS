@@ -96,6 +96,6 @@ jobs:
         gcloud compute ssh ${{ secrets.GCE_INSTANCE }} \
           --zone ${{ secrets.GCE_ZONE }} \
           --project ${{ secrets.GCP_PROJECT }} \
-          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo docker rm -f metaserver || true && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver.service || sudo systemctl enable --now simplidfs-metaserver.service"
+          --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull '${{ steps.digest.outputs.digest }}' && sudo docker rm -f metaserver || true && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo sed -i \"s#Environment=SIMPLIDFS_CLUSTER_KEY=.*#Environment=SIMPLIDFS_CLUSTER_KEY=${{ secrets.SIMPLIDFS_CLUSTER_KEY }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver.service || sudo systemctl enable --now simplidfs-metaserver.service"
 
 

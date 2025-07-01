@@ -39,10 +39,12 @@ After=docker.service
 Requires=docker.service
 
 [Service]
+Environment=SIMPLIDFS_CLUSTER_KEY=<HEX_KEY>
 Restart=always
 ExecStartPre=/usr/bin/docker rm -f metaserver || true
 ExecStart=/usr/bin/docker run --rm \
   --name metaserver \
+  -e SIMPLIDFS_CLUSTER_KEY=$SIMPLIDFS_CLUSTER_KEY \
   -p 8080:8080 \
   us-docker.pkg.dev/<PROJECT_ID>/simplidfs/simplidfs-metaserver:<TAG>
 
@@ -114,7 +116,7 @@ runs - on : ubuntu - latest steps : -uses : actions / checkout @v4 -
   {
     secrets.GCE_ZONE
   }
-} --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver || sudo systemctl enable --now simplidfs-metaserver"
+} --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo sed -i \"s#Environment=SIMPLIDFS_CLUSTER_KEY=.*#Environment=SIMPLIDFS_CLUSTER_KEY=${{ secrets.SIMPLIDFS_CLUSTER_KEY }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver || sudo systemctl enable --now simplidfs-metaserver"
 
 #Example digest pull
 #docker pull us - docker.pkg.dev / galvanic - ripsaw - 439813 -                \
