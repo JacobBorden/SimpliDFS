@@ -1,4 +1,4 @@
-#GCP CI/CD Deployment
+#GCP CI / CD Deployment
 
 This guide outlines how to run the metaserver on Google Cloud and keep it up to date automatically.
 
@@ -40,6 +40,7 @@ Requires=docker.service
 
 [Service]
 Restart=always
+ExecStartPre=/usr/bin/docker rm -f metaserver || true
 ExecStart=/usr/bin/docker run --rm \
   --name metaserver \
   -p 8080:8080 \
@@ -68,45 +69,60 @@ on:
       - completed
 
 env:
-  GIT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  GIT_SHA: ${
+  {
+    github.event.workflow_run.head_sha || github.sha
+  }
+}
 
-jobs:
-  deploy:
-    if: ${{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - id: auth
-      uses: google-github-actions/auth@v2
-      with:
-        credentials_json: ${{ secrets.GCP_SA_KEY }}
-    - uses: google-github-actions/setup-gcloud@v2
-      with:
-        project_id: ${{ secrets.GCP_PROJECT }}
-    - name: Read release tag
-      id: version
-      run: echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
-    - name: Set image name
-      run: echo "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >> "$GITHUB_ENV"
-    - name: Build Docker image
-      run: |
-        docker build --build-arg VERSION=${{ steps.version.outputs.tag }} -f deploy/metaserver.Dockerfile \
-          -t $IMAGE .
-    - name: Push image
-      run: |
-        gcloud auth configure-docker us-docker.pkg.dev --quiet
-        docker push $IMAGE
-    - name: Get image digest
-      id: digest
-      run: |
-        DIGEST=$(gcloud artifacts docker images describe $IMAGE --format='value(image_summary.digest)')
-        echo "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver@${DIGEST}" >> "$GITHUB_OUTPUT"
-    - name: Deploy Metaserver service
-      run: |
-        TOKEN=$(gcloud auth print-access-token)
-        gcloud compute ssh ${{ secrets.GCE_INSTANCE }} --zone ${{ secrets.GCE_ZONE }} --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver || sudo systemctl enable --now simplidfs-metaserver"
+jobs : deploy : if : $ {{ github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+runs - on : ubuntu - latest steps : -uses : actions / checkout @v4 -
+            id : auth uses
+    : google -
+      github -
+      actions / auth @v2 with : credentials_json : ${{secrets.GCP_SA_KEY}} -
+      uses : google - github - actions / setup -
+             gcloud @v2 with : project_id : ${{secrets.GCP_PROJECT}} -
+                                            name : Read release tag id
+    : version run : echo "tag=${{ github.event.release.tag_name }}" >>
+        "$GITHUB_OUTPUT" - name : Set image name run
+    : echo
+      "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT "
+      "}}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >>
+        "$GITHUB_ENV" - name : Build Docker image run
+    : |
+      docker build-- build - arg VERSION =
+    ${{steps.version.outputs.tag}} - f deploy / metaserver.Dockerfile -
+        t $IMAGE.-
+        name : Push image run : |
+                                gcloud auth configure - docker us -
+                                    docker.pkg.dev-- quiet docker push $IMAGE -
+                                    name : Get image digest id : digest run
+    : |
+      DIGEST = $(gcloud artifacts docker images describe $IMAGE-- format =
+                     'value(image_summary.digest)') echo
+                   "digest=us-docker.pkg.dev/${{ secrets.GCP_PROJECT "
+                   "}}/simplidfs/simplidfs-metaserver@${DIGEST}" >>
+                   "$GITHUB_OUTPUT" - name : Deploy Metaserver service run
+    : |
+      TOKEN = $(gcloud auth print - access - token) gcloud compute ssh $ {
+  {
+    secrets.GCE_INSTANCE
+  }
+}
+--zone $ {
+  {
+    secrets.GCE_ZONE
+  }
+} --command="echo $TOKEN | sudo docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev && sudo docker pull ${{ steps.digest.outputs.digest }} && sudo sed -i \"s#simplidfs-metaserver:[^ ]*#simplidfs-metaserver:${{ steps.version.outputs.tag }}#\" /etc/systemd/system/simplidfs-metaserver.service && sudo systemctl daemon-reload && sudo systemctl restart simplidfs-metaserver || sudo systemctl enable --now simplidfs-metaserver"
 
-        # Example digest pull
-        # docker pull us-docker.pkg.dev/galvanic-ripsaw-439813-f2/simplidfs/simplidfs-metaserver@sha256:d1d57720f635303c677d97a8ad9e986c2bed022e23069a4ca3904a9d87783e4c
+#Example digest pull
+#docker pull us - docker.pkg.dev / galvanic - ripsaw - 439813 -                \
+    f2 / simplidfs / simplidfs -                                               \
+    metaserver                                                                 \
+    @sha256 : d1d57720f635303c677d97a8ad9e986c2bed022e23069a4ca3904a9d87783e4c
 ```
-This requires secrets for the service account key and instance details (`GCP_SA_KEY`, `GCP_PROJECT`, `GCE_INSTANCE`, and `GCE_ZONE`).
+This requires secrets for
+the service account key and instance
+    details(`GCP_SA_KEY`, `GCP_PROJECT`, `GCE_INSTANCE`, and `GCE_ZONE`)
+        .

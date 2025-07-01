@@ -1,3 +1,7 @@
+## [0.11.44] - 2025-07-02
+### Fixed
+- Deployment workflow now stops any running container before starting the updated image.
+
 ## [0.11.43] - 2025-07-02
 ### Fixed
 - Node now advertises its real IP address when registering with the MetadataManager.
