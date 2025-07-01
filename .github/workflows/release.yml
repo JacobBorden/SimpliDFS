@@ -70,9 +70,9 @@ jobs:
       run: gcloud auth configure-docker us-docker.pkg.dev --quiet
 
 
-    - name: Read version
+    - name: Read release tag
       id: version
-      run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
+      run: echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
 
     - name: Set image name
       run: echo "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >> "$GITHUB_ENV"

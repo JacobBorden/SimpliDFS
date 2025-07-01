@@ -8,16 +8,15 @@ This guide outlines how to run the metaserver on Google Cloud and keep it up to 
    gcloud auth configure-docker
    ```
 2. Build the metaserver image using the provided Dockerfile. Pass the repository
-   version as a build argument. Development snapshots are tagged with `-devel`,
-   but the Dockerfiles automatically strip this suffix when downloading
-   binaries:
+   version as a build argument. Use the exact tag (for example, `v0.11.42-devel`
+   when building from the development branch):
    ```sh
    VERSION=$(cat VERSION)
    docker build --build-arg VERSION=v${VERSION} -f deploy/metaserver.Dockerfile \
      -t us-docker.pkg.dev/<PROJECT_ID>/simplidfs/simplidfs-metaserver:${VERSION} .
    ```
-3. Build the storage node image if needed. The same `-devel` suffix is ignored
-   during the build:
+3. Build the storage node image if needed. Again provide the full tag so the
+   Dockerfile downloads the matching binaries:
    ```sh
    VERSION=$(cat VERSION)
    docker build --build-arg VERSION=v${VERSION} -f deploy/node.Dockerfile \
@@ -84,9 +83,9 @@ jobs:
     - uses: google-github-actions/setup-gcloud@v2
       with:
         project_id: ${{ secrets.GCP_PROJECT }}
-    - name: Read version
+    - name: Read release tag
       id: version
-      run: echo "tag=v$(cat VERSION)" >> "$GITHUB_OUTPUT"
+      run: echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
     - name: Set image name
       run: echo "IMAGE=us-docker.pkg.dev/${{ secrets.GCP_PROJECT }}/simplidfs/simplidfs-metaserver:${{ steps.version.outputs.tag }}" >> "$GITHUB_ENV"
     - name: Build Docker image

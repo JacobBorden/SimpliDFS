@@ -1,3 +1,13 @@
+## [0.11.42] - 2025-07-01
+### Fixed
+- Dockerfiles now keep the `-devel` suffix when downloading binaries so
+  tagged development snapshots build correctly.
+
+## [0.11.41] - 2025-06-30
+### Fixed
+- Release workflow now tags Docker images with the exact GitHub release
+  version, so development snapshots use the `-devel` suffix.
+
 ## [0.11.40] - 2025-06-30
 ### Fixed
 - Dockerfiles now pin the base image to `linux/amd64` even when built on
