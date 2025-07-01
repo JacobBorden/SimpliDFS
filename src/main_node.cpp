@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    std::string logDir = "/var/logs/simplidfs";
+    std::string logDir = "/var/simplidfs/logs";
     try {
       std::filesystem::create_directories(logDir);
     } catch (...) {
