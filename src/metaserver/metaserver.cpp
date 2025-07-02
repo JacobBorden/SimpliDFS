@@ -219,6 +219,8 @@ int MetadataManager::addFile(const std::string &filename,
     raftNode_->appendCommand("ROOT|" + rootCid);
   }
 
+  saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
+
   return 0;
 }
 
@@ -287,6 +289,9 @@ bool MetadataManager::removeFile(const std::string &filename) {
     std::string rootCid = computeMerkleRoot();
     raftNode_->appendCommand("ROOT|" + rootCid);
   }
+
+  saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
+
   return true; // Success
 }
 
@@ -635,6 +640,7 @@ int MetadataManager::truncateFile(const std::string &filename, uint64_t size) {
                                                 filename + " truncated to " +
                                                 std::to_string(size));
   markDirty();
+  saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   return 0;
 }
 
@@ -686,6 +692,7 @@ int MetadataManager::renameFileEntry(const std::string &old_filename,
     std::string rootCid = computeMerkleRoot();
     raftNode_->appendCommand("ROOT|" + rootCid);
   }
+  saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   return 0; // Success
 }
 
@@ -717,6 +724,9 @@ bool MetadataManager::applySnapshotDelta(const std::string &nodeIdentifier,
         changed = true;
       }
     }
+  }
+  if (changed) {
+    saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   }
   return changed;
 }

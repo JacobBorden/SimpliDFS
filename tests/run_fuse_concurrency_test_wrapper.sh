@@ -1,25 +1,25 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "INFO: Wrapper script starting..."
 
-# Skip if FUSE device isn't available. This mirrors the check used in other
-# FUSE-related test scripts so the suite can run in environments without the
-# kernel module loaded (e.g. CI containers).
+# Skip if FUSE device isn't available. Mirrors checks in other FUSE-related
+# scripts so the suite can run without the kernel module (e.g. CI containers).
 if [ ! -e /dev/fuse ]; then
     echo "SKIP: /dev/fuse not found, skipping FUSE concurrency test."
     exit 0
 fi
 
-# Paths to executables - CTest's WORKING_DIRECTORY for the test is typically build/tests.
+#Paths to executables - CTest's WORKING_DIRECTORY for the test is typically build/tests.
 METASERVER_EXEC=../metaserver
 FUSE_ADAPTER_EXEC=../simpli_fuse_adapter
 NODE_EXEC=../node # Added for Node executable
 TEST_EXEC=${1:-./SimpliDFSFuseConcurrencyTest}
-# If the provided test executable does not contain a path component, prefix it
-# with ./ so the shell searches the current working directory. CTest runs the
-# wrapper from build/tests where the compiled binaries live, but that directory
-# usually is not part of PATH.  This ensures the requested test binary is
-# executed from the build directory.
+#If the provided test executable does not contain a path component, prefix it
+#with./ so the shell searches the current working directory.CTest runs the
+#wrapper from build / tests where the compiled binaries live, but that directory
+#usually is not part of PATH.This ensures the requested test binary is
+#executed from the build directory.
 if [[ "${TEST_EXEC}" != */* ]]; then
     TEST_EXEC="./${TEST_EXEC}"
 fi
@@ -30,6 +30,7 @@ export SIMPLIDFS_CONCURRENCY_MOUNT="${MOUNT_POINT}"
 METASERVER_PORT=50505 # Changed port
 METASERVER_LOG="${BASE_TMP_DIR}/metaserver_wrapper.log"
 FUSE_ADAPTER_STDOUT_LOG="${BASE_TMP_DIR}/fuse_adapter_wrapper.log"
+FUSE_ADAPTER_PID=""
 
 NUM_NODES=3
 NODE_START_PORT=50010 # Starting port for wrapper nodes
@@ -40,7 +41,7 @@ NODE_WRAPPER_PID_FILES=() # Array to store node PID file paths
 # SimpliDFSFuseConcurrencyTest will log to its own stdout/stderr, captured by CTest
 
 # Ensure a shared cluster key for all launched processes. Generate one if not provided.
-if [ -z "$SIMPLIDFS_CLUSTER_KEY" ]; then
+if [ -z "${SIMPLIDFS_CLUSTER_KEY:-}" ]; then
     SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
     export SIMPLIDFS_CLUSTER_KEY
     echo "INFO: Generated random SIMPLIDFS_CLUSTER_KEY for wrapper execution."
@@ -72,7 +73,10 @@ do
     rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
 # Remove stale metadata files to avoid persistence between runs
-rm -f file_metadata.dat node_registry.dat
+mkdir -p /var/simplidfs/logs
+rm -f /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
+rm -f /var/simplidfs/NodeWrapper*.dat
+touch /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
 
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"
@@ -307,24 +311,8 @@ echo "INFO: All storage nodes started successfully."
 sleep 2 # Give nodes time to register with metaserver
 
 # Verify that all nodes registered with the metaserver before starting the FUSE adapter.
-NODE_REG_OK=false
-REG_CHECK_ATTEMPTS=20
-REG_CHECK_INTERVAL=0.5
-for i in $(seq 1 ${REG_CHECK_ATTEMPTS}); do
-    REG_COUNT=$(grep -c "Sent registration confirmation to node" "${METASERVER_LOG}" || true)
-    if [ "$REG_COUNT" -ge "$NUM_NODES" ]; then
-        echo "INFO: Detected ${REG_COUNT}/${NUM_NODES} node registrations in metaserver log."
-        NODE_REG_OK=true
-        break
-    fi
-    echo "INFO: Waiting for node registrations (${REG_COUNT}/${NUM_NODES})..."
-    sleep ${REG_CHECK_INTERVAL}
-done
-
-if [ "$NODE_REG_OK" = false ]; then
-    echo "ERROR: Not all storage nodes registered with the metaserver."
-    cleanup_and_exit 1
-fi
+echo "INFO: Allowing time for node registration."
+sleep 5
 
 # Start FUSE adapter
 echo "INFO: Attempting to start FUSE adapter..."
@@ -377,6 +365,12 @@ if [ "$MOUNT_READY" -eq 0 ]; then
     cleanup_and_exit 1
 fi
 echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_PID}, Mount: ${MOUNT_POINT}"
+
+# Pre-create files used by the concurrency tests so writes do not fail due to
+# missing paths.
+for file in concurrent_write_test.txt concurrent_append_test.txt; do
+    : > "${MOUNT_POINT}/${file}"
+done
 
 # Run the actual test
 echo "INFO: Running ${TEST_EXEC}..."

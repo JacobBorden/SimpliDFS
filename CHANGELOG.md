@@ -1,3 +1,58 @@
+## [0.11.59] - 2025-07-07
+### Fixed
+- FUSE concurrency wrapper no longer fails when SIMPLIDFS_CLUSTER_KEY is unset.
+
+## [0.11.60] - 2025-07-07
+### Fixed
+- MetadataManager constructor now precreates /var/simplidfs persistence files and log.
+
+## [0.11.58] - 2025-07-07
+### Fixed
+- Ensure metaserver and nodes pre-create dat and log files on startup for persistent storage.
+
+## [0.11.57] - 2025-07-07
+### Fixed
+- Restore execute permission for concurrency test wrapper so stress tests run.
+- Pre-create test files before FUSE concurrency tests start.
+- Ensure dat and log files are created and persistence saved after each change.
+
+## [0.11.56] - 2025-07-07
+### Fixed
+- Create concurrency test files on the FUSE mount before running tests to avoid
+  missing-file errors.
+
+## [0.11.55] - 2025-07-07
+### Fixed
+- Ensure stress test wrapper creates /var/simplidfs files before running.
+
+## [0.11.54] - 2025-07-07
+### Fixed
+- Ensure metaserver and nodes create data and log files before serving.
+- Persist metadata after node registration and heartbeats.
+- Nodes immediately persist an empty snapshot on startup.
+
+## [0.11.51] - 2025-07-06
+### Fixed
+- Nodes now write file data to disk using CAR snapshots for persistent recovery.
+- Metaserver and nodes create persistence and log files at startup.
+- Metadata is saved on every change to avoid loss during shutdown.
+
+## [0.11.52] - 2025-07-06
+### Fixed
+- Use relative paths for persistence so tests can run without root.
+- Ensure data and log files are created before startup.
+
+## [0.11.53] - 2025-07-06
+### Fixed
+- Revert persistence to absolute /var paths.
+- Create all required data and log files on startup.
+- Metadata persisted on each change for reliability.
+
+## [0.11.50] - 2025-07-05
+### Fixed
+- Metaserver now initializes persistence directories and data files on startup.
+- Nodes persist file lists after each modification.
+
 ## [0.11.47] - 2025-07-04
 ### Changed
 - Release workflow injects `SIMPLIDFS_CLUSTER_KEY` into the metaserver service.

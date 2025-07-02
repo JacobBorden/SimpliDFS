@@ -18,7 +18,8 @@
 #include <algorithm> // Required for std::find
 #include <atomic>    // For std::atomic<bool>
 #include <ctime>     // Required for time(nullptr)
-#include <fstream>   // For std::ofstream, std::ifstream
+#include <filesystem>
+#include <fstream> // For std::ofstream, std::ifstream
 #include <iostream>
 #include <memory>
 #include <sstream>   // For std::stringstream
@@ -35,6 +36,12 @@ const char METADATA_SEPARATOR = '|';
 /** @brief Separator character for lists of nodes in metadata persistence files.
  */
 const char NODE_LIST_SEPARATOR = ',';
+
+// Default persistence file paths
+static const char *const FILE_METADATA_PATH =
+    "/var/simplidfs/file_metadata.dat";
+static const char *const NODE_REGISTRY_PATH =
+    "/var/simplidfs/node_registry.dat";
 
 /// Error codes specific to MetadataManager operations
 const int ERR_NO_REPLICA = 2001;
@@ -144,6 +151,14 @@ public:
    * separately after construction (e.g., in main).
    */
   MetadataManager() {
+    try {
+      std::filesystem::create_directories("/var/simplidfs/logs");
+      std::ofstream("/var/simplidfs/file_metadata.dat", std::ios::app).close();
+      std::ofstream("/var/simplidfs/node_registry.dat", std::ios::app).close();
+      std::ofstream("/var/simplidfs/logs/metaserver.log", std::ios::app)
+          .close();
+    } catch (...) {
+    }
     // loadMetadata is called from metaserver.cpp after instantiation
   }
 
@@ -176,6 +191,8 @@ public:
               << ":" << nodePrt << std::endl;
     if (raftNode_)
       raftNode_->appendCommand("REG|" + nodeIdentifier);
+    markDirty();
+    saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   }
 
   // Process a heartbeat message from a node
@@ -188,6 +205,8 @@ public:
       healthCache_.recordSuccess(nodeIdentifier);
       std::cout << "Heartbeat received from node " << nodeIdentifier
                 << std::endl;
+      markDirty();
+      saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
     } else {
       std::cout << "Heartbeat from unregistered node " << nodeIdentifier
                 << std::endl;
@@ -219,6 +238,8 @@ public:
            cacheDead)) {
         entry.second.isAlive = false;
         std::string deadNodeID = entry.first;
+        markDirty();
+        saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
         std::cout << "Node " << deadNodeID << " timed out. Marked as offline."
                   << std::endl;
 
@@ -334,10 +355,9 @@ public:
                       << newNodeID << ": " << e.what() << std::endl;
           }
         }
-        // After processing all redistributions for a dead node.
-        // Call saveMetadata here if defined, path constants should be
-        // accessible. saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH); //
-        // Path constants need to be accessible
+        // After processing redistributions for a dead node.
+        markDirty();
+        saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
       }
     }
   }

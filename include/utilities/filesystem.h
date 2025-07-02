@@ -160,6 +160,13 @@ public:
   bool snapshotExportCar(const std::string &name,
                          const std::string &carPath) const;
 
+  /**
+   * @brief Export the current filesystem state to a CAR file.
+   * @param carPath Destination path for the CAR file.
+   * @return True on success.
+   */
+  bool exportCurrentStateCar(const std::string &carPath) const;
+
 private:
   /**
    * @brief In-memory storage for files, mapping filename to its content (now
