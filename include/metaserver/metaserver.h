@@ -78,8 +78,11 @@ class MetadataManager {
 private:
   // Mutex to protect all shared metadata (fileMetadata, registeredNodes).
   // Critical for all operations.
-  std::mutex metadataMutex; ///< Mutex ensuring thread-safe access to internal
-                            ///< data structures.
+  std::recursive_mutex
+      metadataMutex; ///< Mutex ensuring thread-safe access to internal
+                     ///< data structures. Recursive to allow helper methods
+                     ///< like saveMetadata() to be invoked while holding the
+                     ///< lock.
 
   /** @brief Maps filenames to a list of node identifiers that store replicas of
    * the file. */
@@ -169,7 +172,7 @@ public:
    */
   void registerNode(const std::string &nodeIdentifier,
                     const std::string &nodeAddr, int nodePrt) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     NodeInfo newNodeInfo;
     newNodeInfo.nodeAddress = nodeAddr + ":" + std::to_string(nodePrt);
     newNodeInfo.registrationTime = time(nullptr);
@@ -188,7 +191,7 @@ public:
 
   // Process a heartbeat message from a node
   void processHeartbeat(const std::string &nodeIdentifier) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     auto it = registeredNodes.find(nodeIdentifier);
     if (it != registeredNodes.end()) {
       it->second.lastHeartbeat = time(nullptr);
@@ -219,7 +222,7 @@ public:
    * for replication is handled via the networking library.
    */
   void checkForDeadNodes() {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     time_t currentTime = time(nullptr);
     for (auto &entry : registeredNodes) {
       NodeState cacheState = healthCache_.state(entry.first);
@@ -378,7 +381,7 @@ public:
 
   // New/modified public methods for FUSE operations
   bool fileExists(const std::string &filename) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     return fileMetadata.count(filename);
   }
   int getFileAttributes(const std::string &filename, uint32_t &mode,
@@ -390,7 +393,7 @@ public:
 
   // Retrieve the current content hash (CID) for a file
   std::string getFileHash(const std::string &filename) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     auto it = fileHashes.find(filename);
     if (it != fileHashes.end()) {
       return it->second;
@@ -464,7 +467,7 @@ public:
    * @throw std::runtime_error if the file is not found in the metadata.
    */
   std::vector<std::string> getFileNodes(const std::string &filename) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     if (fileMetadata.find(filename) != fileMetadata.end()) {
       return fileMetadata[filename];
     } else {
@@ -530,7 +533,7 @@ public:
   std::string computeMerkleRoot();
   void applyRaftLog(const std::vector<RaftLogEntry> &log);
   std::string getMerkleRoot() {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     return merkleRoot_;
   }
 
@@ -540,7 +543,7 @@ public:
    * @return True if the node is registered, false otherwise.
    */
   bool isNodeRegistered(const std::string &nodeIdentifier) { // Removed const
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     return registeredNodes.count(nodeIdentifier);
   }
 
@@ -551,7 +554,7 @@ public:
    * @throw std::runtime_error if the node is not found.
    */
   NodeInfo getNodeInfo(const std::string &nodeIdentifier) { // Removed const
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     auto it = registeredNodes.find(nodeIdentifier);
     if (it != registeredNodes.end()) {
       return it->second;
@@ -566,7 +569,7 @@ public:
    * Lists all files and the nodes storing their replicas.
    */
   void printMetadata() {
-    std::lock_guard<std::mutex> lock(
+    std::lock_guard<std::recursive_mutex> lock(
         metadataMutex); // Should be const if printMetadata is const
     std::cout << "Current Metadata: " << std::endl;
     for (const auto &entry : fileMetadata) {
@@ -587,7 +590,7 @@ public:
    */
   void saveMetadata(const std::string &fileMetadataPath,
                     const std::string &nodeRegistryPath) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
 
     // Save file metadata along with mode and size
     std::ofstream fm_ofs(fileMetadataPath);
@@ -647,7 +650,7 @@ public:
    */
   void loadMetadata(const std::string &fileMetadataPath,
                     const std::string &nodeRegistryPath) {
-    std::lock_guard<std::mutex> lock(
+    std::lock_guard<std::recursive_mutex> lock(
         metadataMutex); // metadataMutex should be mutable for lock_guard in
                         // const method Or isNodeRegistered should not be const
                         // if metadataMutex is not mutable. Making metadataMutex

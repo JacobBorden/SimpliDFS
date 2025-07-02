@@ -61,7 +61,7 @@ bool MetadataManager::waitForFileMetadata(const std::string &filename,
                                           int retries, int delay_ms) {
   for (int i = 0; i <= retries; ++i) {
     {
-      std::lock_guard<std::mutex> lock(metadataMutex);
+      std::lock_guard<std::recursive_mutex> lock(metadataMutex);
       if (fileMetadata.count(filename))
         return true;
     }
@@ -86,7 +86,7 @@ int MetadataManager::addFile(const std::string &filename,
                              unsigned int mode) {
   std::vector<std::string> targetNodes;
   std::vector<std::string> targetAddrs;
-  std::unique_lock<std::mutex> lock(metadataMutex);
+  std::unique_lock<std::recursive_mutex> lock(metadataMutex);
   if (fileMetadata.count(filename)) {
     Logger::getInstance().log(
         LogLevel::WARN,
@@ -228,7 +228,7 @@ int MetadataManager::addFile(const std::string &filename,
 bool MetadataManager::removeFile(const std::string &filename) {
   std::vector<std::string> nodesToNotify;
   std::vector<std::string> nodeAddrs;
-  std::unique_lock<std::mutex> lock(metadataMutex);
+  std::unique_lock<std::recursive_mutex> lock(metadataMutex);
   if (!fileMetadata.count(filename)) {
     Logger::getInstance().log(LogLevel::WARN,
                               "[MetadataManager] removeFile: File not found: " +
@@ -301,7 +301,7 @@ int MetadataManager::getFileAttributes(const std::string &filename,
   if (!waitForFileMetadata(filename)) {
     return ENOENT;
   }
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   mode = fileModes.count(filename) ? fileModes.at(filename)
                                    : (S_IFREG | 0644); // Default if not in map
   size = fileSizes.count(filename) ? fileSizes.at(filename)
@@ -316,7 +316,7 @@ int MetadataManager::getFileAttributes(const std::string &filename,
 }
 
 std::vector<std::string> MetadataManager::getAllFileNames() {
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   std::vector<std::string> names;
   names.reserve(fileMetadata.size());
   for (const auto &pair : fileMetadata) {
@@ -330,7 +330,7 @@ int MetadataManager::checkAccess(const std::string &filename,
   if (!waitForFileMetadata(filename)) {
     return ENOENT;
   }
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
 
   uint32_t mode =
       fileModes.count(filename) ? fileModes.at(filename) : (S_IFREG | 0644);
@@ -357,7 +357,7 @@ int MetadataManager::openFile(const std::string &filename, uint32_t flags) {
   if (!waitForFileMetadata(filename)) {
     return ENOENT;
   }
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
 
   // O_EXCL without O_CREAT is invalid per POSIX
   if ((flags & O_EXCL) && !(flags & O_CREAT)) {
@@ -400,7 +400,7 @@ int MetadataManager::readFileData(const std::string &filename, int64_t offset,
   std::vector<std::pair<std::string, std::string>> nodeAddrs;
   uint64_t current_file_size = 0;
   {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::lock_guard<std::recursive_mutex> lock(metadataMutex);
     auto nodes = fileMetadata[filename];
     for (const auto &n : nodes) {
       auto it = registeredNodes.find(n);
@@ -492,7 +492,7 @@ int MetadataManager::writeFileData(const std::string &filename, int64_t offset,
   std::lock_guard<std::mutex> file_guard(*file_lock);
 
   std::vector<std::pair<std::string, std::string>> nodeAddrs;
-  std::unique_lock<std::mutex> lock(metadataMutex);
+  std::unique_lock<std::recursive_mutex> lock(metadataMutex);
   Logger::getInstance().log(
       LogLevel::DEBUG,
       "[MetadataManager] writeFileData: dispatching write for " + filename);
@@ -634,7 +634,7 @@ int MetadataManager::truncateFile(const std::string &filename, uint64_t size) {
   if (!waitForFileMetadata(filename)) {
     return ENOENT;
   }
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   fileSizes[filename] = size;
   Logger::getInstance().log(LogLevel::INFO, "[MetadataManager] File " +
                                                 filename + " truncated to " +
@@ -649,7 +649,7 @@ int MetadataManager::renameFileEntry(const std::string &old_filename,
   if (!waitForFileMetadata(old_filename)) {
     return ENOENT;
   }
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   if (fileMetadata.count(new_filename)) {
     return EEXIST;
   }
@@ -1341,7 +1341,7 @@ void HandleClientConnection(Networking::Server &server_instance,
 std::vector<std::string> MetadataManager::pickLiveNodes(size_t count) {
   std::vector<std::string> healthy = healthCache_.getHealthyNodes();
   std::vector<std::string> result;
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   for (const auto &id : healthy) {
     auto it = registeredNodes.find(id);
     if (it != registeredNodes.end() && it->second.isAlive &&
@@ -1355,7 +1355,7 @@ std::vector<std::string> MetadataManager::pickLiveNodes(size_t count) {
 }
 
 std::string MetadataManager::computeMerkleRoot() {
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   ChunkStore store;
   std::vector<std::pair<std::string, std::string>> entries;
   entries.reserve(fileHashes.size());
@@ -1369,7 +1369,7 @@ std::string MetadataManager::computeMerkleRoot() {
 }
 
 void MetadataManager::applyRaftLog(const std::vector<RaftLogEntry> &log) {
-  std::lock_guard<std::mutex> lock(metadataMutex);
+  std::lock_guard<std::recursive_mutex> lock(metadataMutex);
   for (size_t i = lastAppliedIndex_; i < log.size(); ++i) {
     const std::string &cmd = log[i].command;
     if (cmd.rfind("ROOT|", 0) == 0) {
