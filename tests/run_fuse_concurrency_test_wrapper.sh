@@ -3,10 +3,6 @@ set -euo pipefail
 
 echo "INFO: Wrapper script starting..."
 
-if [ -z "${SIMPLIDFS_RUN_FUSE_TESTS:-}" ]; then
-    echo "SKIP: FUSE tests disabled"
-    exit 0
-fi
 # Skip if FUSE device isn't available. Mirrors checks in other FUSE-related
 # scripts so the suite can run without the kernel module (e.g. CI containers).
 if [ ! -e /dev/fuse ]; then

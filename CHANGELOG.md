@@ -1,3 +1,7 @@
+## [0.11.61] - 2025-07-08
+### Fixed
+- Re-enabled network and FUSE tests by default.
+- S3 gateway test remains disabled.
 
 ## [0.11.59] - 2025-07-07
 ### Fixed
