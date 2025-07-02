@@ -546,6 +546,47 @@ bool FileSystem::snapshotExportCar(const std::string &name,
   return write_car_file(orderedChunks, rootCid, carPath);
 }
 
+bool FileSystem::exportCurrentStateCar(const std::string &carPath) const {
+  std::lock_guard<std::mutex> lock(_Mutex);
+  ChunkStore store;
+  std::vector<std::pair<std::string, std::string>> entries;
+
+  for (const auto &[file, data] : _Files) {
+    auto attrMapIt = _FileXattrs.find(file);
+    if (attrMapIt == _FileXattrs.end())
+      continue;
+    const auto &attrMap = attrMapIt->second;
+    auto cidIt = attrMap.find("user.cid");
+    auto nonceIt = attrMap.find("user.nonce");
+    auto encIt = attrMap.find("user.encrypted_size");
+    if (cidIt == attrMap.end() || nonceIt == attrMap.end() ||
+        encIt == attrMap.end())
+      continue;
+
+    std::string cid = cidIt->second;
+    std::string nonce_str = nonceIt->second;
+    size_t enc_size = std::stoul(encIt->second);
+
+    std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
+    std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
+    simplidfs::KeyManager::getInstance().getClusterKey(key);
+    BlockIO local(compression_level_, cipher_algo_);
+    std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
+    std::vector<std::byte> raw = local.decrypt_data(decompressed, key, nonce);
+    store.addChunk(raw);
+    entries.emplace_back(file, cid);
+  }
+
+  std::string rootCid = MerkleTree::hashDirectory(entries, store);
+
+  std::map<std::string, std::vector<std::byte>> orderedChunks;
+  for (const auto &[cid, bytes] : store.getAllChunks()) {
+    orderedChunks[cid] = bytes;
+  }
+
+  return write_car_file(orderedChunks, rootCid, carPath);
+}
+
 void FileSystem::setTier(const std::string &tier) {
   std::lock_guard<std::mutex> lg(_Mutex);
   tier_ = tier;
