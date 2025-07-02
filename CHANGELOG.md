@@ -1,3 +1,7 @@
+## [0.11.59] - 2025-07-07
+### Fixed
+- Avoid deadlock in node registration by releasing the metadata mutex before persisting state.
+
 ## [0.11.58] - 2025-07-07
 ### Fixed
 - Ensure metaserver and nodes pre-create dat and log files on startup for persistent storage.

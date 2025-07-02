@@ -169,20 +169,22 @@ public:
    */
   void registerNode(const std::string &nodeIdentifier,
                     const std::string &nodeAddr, int nodePrt) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
     NodeInfo newNodeInfo;
     newNodeInfo.nodeAddress = nodeAddr + ":" + std::to_string(nodePrt);
     newNodeInfo.registrationTime = time(nullptr);
     newNodeInfo.lastHeartbeat = time(nullptr); // Initialize lastHeartbeat
     newNodeInfo.isAlive = true;
 
-    registeredNodes[nodeIdentifier] = newNodeInfo;
-    healthCache_.recordSuccess(nodeIdentifier);
-    std::cout << "Node " << nodeIdentifier << " registered from " << nodeAddr
-              << ":" << nodePrt << std::endl;
-    if (raftNode_)
-      raftNode_->appendCommand("REG|" + nodeIdentifier);
-    markDirty();
+    {
+      std::lock_guard<std::mutex> lock(metadataMutex);
+      registeredNodes[nodeIdentifier] = newNodeInfo;
+      healthCache_.recordSuccess(nodeIdentifier);
+      std::cout << "Node " << nodeIdentifier << " registered from " << nodeAddr
+                << ":" << nodePrt << std::endl;
+      if (raftNode_)
+        raftNode_->appendCommand("REG|" + nodeIdentifier);
+      markDirty();
+    }
     saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   }
 
