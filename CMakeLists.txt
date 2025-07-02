@@ -44,8 +44,56 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libsodium)
 
-set(SODIUM_INCLUDE_DIRS ${libsodium_SOURCE_DIR}/src/libsodium/include)
-set(SODIUM_LIBRARIES sodium)
+# Build libsodium
+execute_process(
+  COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/libsodium_install
+  WORKING_DIRECTORY ${libsodium_SOURCE_DIR}
+  RESULT_VARIABLE LIBSODIUM_CONFIGURE_RESULT
+)
+if(NOT LIBSODIUM_CONFIGURE_RESULT EQUAL 0)
+  message(FATAL_ERROR "libsodium configure failed")
+endif()
+
+find_program(NPROC_COMMAND nproc)
+if(NPROC_COMMAND)
+  execute_process(
+    COMMAND ${NPROC_COMMAND}
+    OUTPUT_VARIABLE NUM_PROCESSORS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+else()
+  set(NUM_PROCESSORS 1)
+endif()
+
+execute_process(
+  COMMAND make -j${NUM_PROCESSORS}
+  WORKING_DIRECTORY ${libsodium_SOURCE_DIR}
+  RESULT_VARIABLE LIBSODIUM_BUILD_RESULT
+)
+if(NOT LIBSODIUM_BUILD_RESULT EQUAL 0)
+  message(FATAL_ERROR "libsodium build failed")
+endif()
+
+execute_process(
+  COMMAND make install
+  WORKING_DIRECTORY ${libsodium_SOURCE_DIR}
+  RESULT_VARIABLE LIBSODIUM_INSTALL_RESULT
+)
+if(NOT LIBSODIUM_INSTALL_RESULT EQUAL 0)
+  message(FATAL_ERROR "libsodium install failed")
+endif()
+
+set(SODIUM_INCLUDE_DIRS ${CMAKE_BINARY_DIR}/libsodium_install/include)
+set(SODIUM_LIBRARIES ${CMAKE_BINARY_DIR}/libsodium_install/lib/libsodium.a)
+# For shared library, it would be:
+# set(SODIUM_LIBRARIES ${CMAKE_BINARY_DIR}/libsodium_install/lib/libsodium.so)
+# Or link against the interface library if libsodium provided one via CMake.
+# Since we are building it manually, we point to the .a file.
+
+# Ensure targets that link against libsodium can find it.
+link_directories(${CMAKE_BINARY_DIR}/libsodium_install/lib)
+include_directories(${SODIUM_INCLUDE_DIRS}) # Make headers globally available for simplicity here
+                                          # More robust would be target_include_directories for specific targets
 
 # Find Boost for the REST server
 set(Boost_USE_STATIC_LIBS ON)
