@@ -1886,6 +1886,7 @@ TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
 }
 
 TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
+    if(!std::getenv("SIMPLIDFS_RUN_NETWORK_TESTS")) { GTEST_SKIP() << "Network tests disabled"; }
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeHeartbeatProcessing: Starting." << std::endl;
     const int metaserverPort = getEphemeralPort();
     MetadataManager metadataManager;

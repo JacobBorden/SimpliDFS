@@ -8,6 +8,7 @@
 #include "utilities/prometheus_server.h"
 #include "utilities/raft.h"
 #include "utilities/server.h" // For Networking::Server, Networking::ClientConnection
+#include "utilities/var_dir.hpp"
 #include <filesystem>
 #include <iostream> // For std::cerr, std::to_string
 #include <thread>   // For std::thread
@@ -96,8 +97,8 @@ void persistence_thread_function() {
           LogLevel::INFO,
           "[PersistenceThread] Metadata is dirty, attempting to save.");
       try {
-        metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat",
-                                     "/var/simplidfs/node_registry.dat");
+        metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
+                                     simplidfs::nodeRegistryPath());
         metadataManager
             .clearDirty(); // Clear dirty flag only after successful save
         Logger::getInstance().log(
@@ -129,13 +130,14 @@ int main(int argc, char *argv[]) {
 
   // Ensure persistence directories and files exist
   try {
-    std::filesystem::create_directories("/var/simplidfs/logs");
-    std::filesystem::create_directories("/var/simplidfs");
-    std::ofstream("/var/simplidfs/file_metadata.dat", std::ios::app).close();
-    std::ofstream("/var/simplidfs/node_registry.dat", std::ios::app).close();
-    std::ofstream("/var/simplidfs/logs/metaserver.log", std::ios::app).close();
-    metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat",
-                                 "/var/simplidfs/node_registry.dat");
+    std::filesystem::create_directories(simplidfs::logsDir());
+    std::filesystem::create_directories(simplidfs::getVarDir());
+    std::ofstream(simplidfs::fileMetadataPath(), std::ios::app).close();
+    std::ofstream(simplidfs::nodeRegistryPath(), std::ios::app).close();
+    std::ofstream(simplidfs::logsDir() + "/metaserver.log", std::ios::app)
+        .close();
+    metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
+                                 simplidfs::nodeRegistryPath());
   } catch (...) {
   }
 
@@ -163,7 +165,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    std::string logDir = "/var/simplidfs/logs";
+    std::string logDir = simplidfs::logsDir();
     try {
       std::filesystem::create_directories(logDir);
     } catch (...) {
@@ -198,10 +200,10 @@ int main(int argc, char *argv[]) {
   // Assuming loadMetadata is a public method of MetadataManager
   // and metadataManager instance is accessible (declared extern above).
   Logger::getInstance().log(
-      LogLevel::INFO, "Loading metadata from /var/simplidfs/file_metadata.dat "
-                      "and /var/simplidfs/node_registry.dat");
-  metadataManager.loadMetadata("/var/simplidfs/file_metadata.dat",
-                               "/var/simplidfs/node_registry.dat");
+      LogLevel::INFO, "Loading metadata from " + simplidfs::fileMetadataPath() +
+                          " and " + simplidfs::nodeRegistryPath());
+  metadataManager.loadMetadata(simplidfs::fileMetadataPath(),
+                               simplidfs::nodeRegistryPath());
 
   const char *id_env = std::getenv("RAFT_ID");
   const char *peers_env = std::getenv("RAFT_PEERS");
@@ -358,8 +360,8 @@ int main(int argc, char *argv[]) {
     Logger::getInstance().log(
         LogLevel::INFO, "Main: Performing final metadata save on shutdown.");
     try {
-      metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat",
-                                   "/var/simplidfs/node_registry.dat");
+      metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
+                                   simplidfs::nodeRegistryPath());
       metadataManager.clearDirty();
       Logger::getInstance().log(LogLevel::INFO,
                                 "Main: Final metadata save successful.");

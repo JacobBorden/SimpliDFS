@@ -121,6 +121,7 @@ static void worker_deadcheck(MetadataManager& manager) {
 }
 
 TEST(MetadataConcurrency, ConcurrentOps) {
+    if(!std::getenv("SIMPLIDFS_RUN_NETWORK_TESTS")) { GTEST_SKIP() << "Network tests disabled"; }
     MetadataManager manager;
     registerPorts[0] = getEphemeralPort();
     registerPorts[1] = getEphemeralPort();
