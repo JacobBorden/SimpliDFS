@@ -3,6 +3,10 @@ set -euo pipefail
 
 echo "INFO: Wrapper script starting..."
 
+if [ -z "${SIMPLIDFS_RUN_FUSE_TESTS:-}" ]; then
+    echo "SKIP: FUSE tests disabled"
+    exit 0
+fi
 # Skip if FUSE device isn't available. Mirrors checks in other FUSE-related
 # scripts so the suite can run without the kernel module (e.g. CI containers).
 if [ ! -e /dev/fuse ]; then
@@ -27,6 +31,7 @@ fi
 BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
 MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
 export SIMPLIDFS_CONCURRENCY_MOUNT="${MOUNT_POINT}"
+export SIMPLIDFS_VAR_DIR="${BASE_TMP_DIR}/var_simplidfs"
 METASERVER_PORT=50505 # Changed port
 METASERVER_LOG="${BASE_TMP_DIR}/metaserver_wrapper.log"
 FUSE_ADAPTER_STDOUT_LOG="${BASE_TMP_DIR}/fuse_adapter_wrapper.log"
@@ -73,10 +78,10 @@ do
     rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
 # Remove stale metadata files to avoid persistence between runs
-mkdir -p /var/simplidfs/logs
-rm -f /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
-rm -f /var/simplidfs/NodeWrapper*.dat
-touch /var/simplidfs/file_metadata.dat /var/simplidfs/node_registry.dat
+mkdir -p "${SIMPLIDFS_VAR_DIR}/logs"
+rm -f "${SIMPLIDFS_VAR_DIR}/file_metadata.dat" "${SIMPLIDFS_VAR_DIR}/node_registry.dat"
+rm -f "${SIMPLIDFS_VAR_DIR}/NodeWrapper"*.dat
+touch "${SIMPLIDFS_VAR_DIR}/file_metadata.dat" "${SIMPLIDFS_VAR_DIR}/node_registry.dat"
 
 cleanup_and_exit() {
     echo "INFO: Cleanup and exit called with status $1"

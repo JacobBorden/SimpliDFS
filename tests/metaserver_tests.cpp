@@ -359,6 +359,7 @@ TEST_F(MetadataManagerTest, ReadFileDataReturnsWrittenContent) {
 }
 
 TEST_F(MetadataManagerTest, TruncateFileUpdatesSize) {
+    if(!std::getenv("SIMPLIDFS_RUN_NETWORK_TESTS")) { GTEST_SKIP() << "Network tests disabled"; }
     std::string filename = "trunc.txt";
     const std::string n1 = "NodeT1";
     const std::string n2 = "NodeT2";

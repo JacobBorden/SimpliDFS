@@ -18,6 +18,7 @@
 #include "utilities/message.h"
 #include "utilities/networkexception.h"
 #include "utilities/rbac.h"
+#include "utilities/var_dir.hpp"
 #include "utilities/server.h"
 #include <chrono> // Required for std::chrono
 #include <filesystem>
@@ -177,13 +178,13 @@ public:
            BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
         fileSystem(compression_level, cipher_algo),
-        persistenceFilePath("/var/simplidfs/" + name + ".dat") {
+        persistenceFilePath(simplidfs::getVarDir() + "/" + name + ".dat") {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
     try {
-      std::filesystem::create_directories("/var/simplidfs/logs");
-      std::filesystem::create_directories("/var/simplidfs");
+      std::filesystem::create_directories(simplidfs::logsDir());
+      std::filesystem::create_directories(simplidfs::getVarDir());
       std::ofstream(persistenceFilePath, std::ios::app).close();
-      std::ofstream("/var/simplidfs/logs/" + name + ".log", std::ios::app)
+      std::ofstream(simplidfs::logsDir() + "/" + name + ".log", std::ios::app)
           .close();
       persistState();
     } catch (...) {
