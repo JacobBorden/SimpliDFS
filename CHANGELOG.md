@@ -1,3 +1,9 @@
+## [0.11.57] - 2025-07-07
+### Fixed
+- Restore execute permission for concurrency test wrapper so stress tests run.
+- Pre-create test files before FUSE concurrency tests start.
+- Ensure dat and log files are created and persistence saved after each change.
+
 ## [0.11.56] - 2025-07-07
 ### Fixed
 - Create concurrency test files on the FUSE mount before running tests to avoid
