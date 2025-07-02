@@ -18,7 +18,8 @@
 #include <algorithm> // Required for std::find
 #include <atomic>    // For std::atomic<bool>
 #include <ctime>     // Required for time(nullptr)
-#include <fstream>   // For std::ofstream, std::ifstream
+#include <filesystem>
+#include <fstream> // For std::ofstream, std::ifstream
 #include <iostream>
 #include <memory>
 #include <sstream>   // For std::stringstream
@@ -150,6 +151,14 @@ public:
    * separately after construction (e.g., in main).
    */
   MetadataManager() {
+    try {
+      std::filesystem::create_directories("/var/simplidfs/logs");
+      std::ofstream("/var/simplidfs/file_metadata.dat", std::ios::app).close();
+      std::ofstream("/var/simplidfs/node_registry.dat", std::ios::app).close();
+      std::ofstream("/var/simplidfs/logs/metaserver.log", std::ios::app)
+          .close();
+    } catch (...) {
+    }
     // loadMetadata is called from metaserver.cpp after instantiation
   }
 
