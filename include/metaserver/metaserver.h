@@ -178,7 +178,7 @@ public:
    */
   void registerNode(const std::string &nodeIdentifier,
                     const std::string &nodeAddr, int nodePrt) {
-    std::lock_guard<std::mutex> lock(metadataMutex);
+    std::unique_lock<std::mutex> lock(metadataMutex);
     NodeInfo newNodeInfo;
     newNodeInfo.nodeAddress = nodeAddr + ":" + std::to_string(nodePrt);
     newNodeInfo.registrationTime = time(nullptr);
@@ -192,6 +192,7 @@ public:
     if (raftNode_)
       raftNode_->appendCommand("REG|" + nodeIdentifier);
     markDirty();
+    lock.unlock();
     saveMetadata(FILE_METADATA_PATH, NODE_REGISTRY_PATH);
   }
 

@@ -1,3 +1,4 @@
+
 ## [0.11.59] - 2025-07-07
 ### Fixed
 - FUSE concurrency wrapper no longer fails when SIMPLIDFS_CLUSTER_KEY is unset.
@@ -6,7 +7,6 @@
 ### Fixed
 - MetadataManager constructor now precreates /var/simplidfs persistence files and log.
 
-## [0.11.58] - 2025-07-07
 ### Fixed
 - Ensure metaserver and nodes pre-create dat and log files on startup for persistent storage.
 
