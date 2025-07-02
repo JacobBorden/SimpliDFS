@@ -1,3 +1,7 @@
+## [0.11.58] - 2025-07-07
+### Fixed
+- Ensure metaserver and nodes pre-create dat and log files on startup for persistent storage.
+
 ## [0.11.57] - 2025-07-07
 ### Fixed
 - Restore execute permission for concurrency test wrapper so stress tests run.

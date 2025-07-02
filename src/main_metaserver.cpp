@@ -133,6 +133,7 @@ int main(int argc, char *argv[]) {
     std::filesystem::create_directories("/var/simplidfs");
     std::ofstream("/var/simplidfs/file_metadata.dat", std::ios::app).close();
     std::ofstream("/var/simplidfs/node_registry.dat", std::ios::app).close();
+    std::ofstream("/var/simplidfs/logs/metaserver.log", std::ios::app).close();
     metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat",
                                  "/var/simplidfs/node_registry.dat");
   } catch (...) {

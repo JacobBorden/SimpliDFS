@@ -180,8 +180,11 @@ public:
         persistenceFilePath("/var/simplidfs/" + name + ".dat") {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
     try {
+      std::filesystem::create_directories("/var/simplidfs/logs");
       std::filesystem::create_directories("/var/simplidfs");
       std::ofstream(persistenceFilePath, std::ios::app).close();
+      std::ofstream("/var/simplidfs/logs/" + name + ".log", std::ios::app)
+          .close();
       persistState();
     } catch (...) {
     }
