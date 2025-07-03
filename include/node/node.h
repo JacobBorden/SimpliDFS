@@ -180,6 +180,10 @@ public:
     return server.enableTLS(certFile, keyFile);
   }
 
+  bool saveState(const std::string &path) const;
+
+  bool loadState(const std::string &path);
+
   /**
    * @brief Starts the node's operations.
    *
@@ -255,7 +259,7 @@ public:
           "Failed to get local IP address: " + std::string(e.what()) +
               ". Defaulting to 127.0.0.1");
     }
-    msg._NodeAddress = localAddr; // Node's actual address
+    msg._NodeAddress = localAddr;           // Node's actual address
     msg._NodePort = this->server.GetPort(); // Node's listening port
     if (!quotePath.empty()) {
       std::ifstream qf(quotePath, std::ios::binary);

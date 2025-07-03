@@ -160,6 +160,9 @@ public:
   bool snapshotExportCar(const std::string &name,
                          const std::string &carPath) const;
 
+  bool saveState(const std::string &path) const;
+  bool loadState(const std::string &path);
+
 private:
   /**
    * @brief In-memory storage for files, mapping filename to its content (now

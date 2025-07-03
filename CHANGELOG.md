@@ -2,6 +2,11 @@
 ### Changed
 - Restored contributor guidelines about testing in `AGENTS.md`.
 
+## [0.11.49] - 2025-07-05
+### Added
+- Persistent state files for metaserver and nodes with configurable storage
+  directory.
+
 ## [0.11.47] - 2025-07-04
 ### Changed
 - Release workflow injects `SIMPLIDFS_CLUSTER_KEY` into the metaserver service.

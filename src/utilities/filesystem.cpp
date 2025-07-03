@@ -7,6 +7,8 @@
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/merkle_tree.hpp"
 #include "utilities/metrics.h"
+#include <cppcodec/base64_rfc4648.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include <algorithm> // For std::copy, std::transform
 #include <cstddef>   // For std::byte
@@ -544,6 +546,64 @@ bool FileSystem::snapshotExportCar(const std::string &name,
   }
 
   return write_car_file(orderedChunks, rootCid, carPath);
+}
+
+bool FileSystem::saveState(const std::string &path) const {
+  std::lock_guard<std::mutex> lock(_Mutex);
+  YAML::Node root;
+  for (const auto &[name, data] : _Files) {
+    std::string encoded = cppcodec::base64_rfc4648::encode(
+        reinterpret_cast<const unsigned char *>(data.data()), data.size());
+    root["files"][name] = encoded;
+    auto it = _FileXattrs.find(name);
+    if (it != _FileXattrs.end()) {
+      YAML::Node xn;
+      for (const auto &[k, v] : it->second) {
+        std::string enc = cppcodec::base64_rfc4648::encode(
+            reinterpret_cast<const unsigned char *>(v.data()), v.size());
+        xn[k] = enc;
+      }
+      root["xattrs"][name] = xn;
+    }
+  }
+  std::ofstream out(path);
+  if (!out.is_open())
+    return false;
+  out << root;
+  return true;
+}
+
+bool FileSystem::loadState(const std::string &path) {
+  std::lock_guard<std::mutex> lock(_Mutex);
+  std::ifstream in(path);
+  if (!in.is_open())
+    return false;
+  YAML::Node root = YAML::Load(in);
+  _Files.clear();
+  _FileXattrs.clear();
+  if (root["files"]) {
+    for (auto it : root["files"]) {
+      std::string name = it.first.as<std::string>();
+      std::string enc = it.second.as<std::string>();
+      std::string bytes = cppcodec::base64_rfc4648::decode<std::string>(enc);
+      std::vector<std::byte> vec(bytes.size());
+      std::transform(bytes.begin(), bytes.end(), vec.begin(),
+                     [](char c) { return static_cast<std::byte>(c); });
+      _Files[name] = std::move(vec);
+    }
+  }
+  if (root["xattrs"]) {
+    for (auto it : root["xattrs"]) {
+      std::string name = it.first.as<std::string>();
+      for (auto xv : it.second) {
+        std::string enc = xv.second.as<std::string>();
+        std::string dec = cppcodec::base64_rfc4648::decode<std::string>(enc);
+        _FileXattrs[name][xv.first.as<std::string>()] = dec;
+      }
+    }
+  }
+  updateStorageMetric();
+  return true;
 }
 
 void FileSystem::setTier(const std::string &tier) {
