@@ -1,6 +1,7 @@
 #include "utilities/var_dir.hpp"
 
 #include <cstdlib>
+#include <filesystem>
 
 namespace simplidfs {
 
@@ -9,7 +10,9 @@ static std::string varDir = [] {
   if (env && env[0] != '\0') {
     return std::string(env);
   }
-  return std::string("/var/simplidfs");
+  if (std::filesystem::exists("/var/simplidfs"))
+    return std::string("/var/simplidfs");
+  return std::string("var/simplidfs");
 }();
 
 void setVarDir(const std::string &dir) { varDir = dir; }

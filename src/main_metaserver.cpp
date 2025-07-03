@@ -8,6 +8,7 @@
 #include "utilities/prometheus_server.h"
 #include "utilities/raft.h"
 #include "utilities/server.h" // For Networking::Server, Networking::ClientConnection
+#include "utilities/var_dir.hpp"
 #include <filesystem>
 #include <iostream> // For std::cerr, std::to_string
 #include <thread>   // For std::thread
@@ -96,7 +97,8 @@ void persistence_thread_function() {
           LogLevel::INFO,
           "[PersistenceThread] Metadata is dirty, attempting to save.");
       try {
-        metadataManager.saveMetadata("var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
+        metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
+                                     simplidfs::nodeRegistryPath());
         metadataManager
             .clearDirty(); // Clear dirty flag only after successful save
         Logger::getInstance().log(
@@ -150,7 +152,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    std::string logDir = "/var/simplidfs/logs";
+    std::string logDir = simplidfs::logsDir();
     try {
       std::filesystem::create_directories(logDir);
     } catch (...) {
@@ -187,7 +189,8 @@ int main(int argc, char *argv[]) {
   Logger::getInstance().log(
       LogLevel::INFO,
       "Loading metadata from file_metadata.dat and node_registry.dat");
-  metadataManager.loadMetadata("/var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
+  metadataManager.loadMetadata(simplidfs::fileMetadataPath(),
+                               simplidfs::nodeRegistryPath());
 
   const char *id_env = std::getenv("RAFT_ID");
   const char *peers_env = std::getenv("RAFT_PEERS");
@@ -344,7 +347,8 @@ int main(int argc, char *argv[]) {
     Logger::getInstance().log(
         LogLevel::INFO, "Main: Performing final metadata save on shutdown.");
     try {
-      metadataManager.saveMetadata("/var/simplidfs/file_metadata.dat", "/var/simplidfs/node_registry.dat");
+      metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
+                                   simplidfs::nodeRegistryPath());
       metadataManager.clearDirty();
       Logger::getInstance().log(LogLevel::INFO,
                                 "Main: Final metadata save successful.");
