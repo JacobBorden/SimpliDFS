@@ -1,3 +1,7 @@
+
+## [0.11.63] - 2025-07-10
+### Fixed
+- Prefix node persistence files with node name to avoid conflicts during tests.
 ## [0.11.62] - 2025-07-09
 ### Changed
 - `var_dir` path is now configurable via `setVarDir`; environment variable fallback removed.

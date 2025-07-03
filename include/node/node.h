@@ -18,8 +18,8 @@
 #include "utilities/message.h"
 #include "utilities/networkexception.h"
 #include "utilities/rbac.h"
-#include "utilities/var_dir.hpp"
 #include "utilities/server.h"
+#include "utilities/var_dir.hpp"
 #include <chrono> // Required for std::chrono
 #include <filesystem>
 #include <fstream>
@@ -178,7 +178,8 @@ public:
            BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
         fileSystem(compression_level, cipher_algo),
-        persistenceFilePath(simplidfs::getVarDir() + "/" + name + ".dat") {
+        persistenceFilePath(simplidfs::getVarDir() + "/" + name +
+                            "_storage.dat") {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
     try {
       std::filesystem::create_directories(simplidfs::logsDir());
