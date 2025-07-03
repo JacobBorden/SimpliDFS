@@ -1,3 +1,7 @@
+## [0.11.62] - 2025-07-09
+### Changed
+- `var_dir` path is now configurable via `setVarDir`; environment variable fallback removed.
+
 ## [0.11.61] - 2025-07-08
 ### Fixed
 - Re-enabled network and FUSE tests by default.
