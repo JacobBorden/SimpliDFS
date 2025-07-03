@@ -23,6 +23,7 @@ add_library(SimpliDFS_Utils
     audit_log.cpp
     audit_verifier.cpp
     rbac.cpp
+    var_dir.cpp
     svid_fetcher.cpp
     ../spiffe/workload/workload.pb.cc
     ../spiffe/workload/workload.grpc.pb.cc
