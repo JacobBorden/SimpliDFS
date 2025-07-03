@@ -1,32 +1,13 @@
+#include <gtest/gtest.h>
 #include "metaserver/metaserver.h"
+#include "utilities/server.h"
 #include "utilities/client.h"
 #include "utilities/message.h"
-#include "utilities/server.h"
-#include <atomic>
-#include <chrono>
-#include <gtest/gtest.h>
-#include <mutex>
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <thread>
-#include <unistd.h>
 #include <vector>
-
-static int getEphemeralPort() {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;
-  bind(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-  socklen_t len = sizeof(addr);
-  getsockname(sock, reinterpret_cast<sockaddr *>(&addr), &len);
-  int port = ntohs(addr.sin_port);
-  close(sock);
-  return port;
-}
-
-static int registerPorts[2];
+#include <mutex>
+#include <chrono>
+#include <atomic>
 
 /** Simple server accepting connections until stopped. */
 struct DummyServer {
@@ -54,13 +35,10 @@ struct DummyServer {
             Networking::Client c("127.0.0.1", server.GetPort());
             c.Send("");
             c.Disconnect();
-        } catch (...) {
-        }
+        } catch (...) {}
+        if (th.joinable()) th.join();
         server.Shutdown();
-        if (th.joinable())
-          th.join();
     }
-    int port() { return server.GetPort(); }
 };
 
 /**
@@ -91,7 +69,7 @@ static void worker_register_and_add(MetadataManager& manager,
                                     std::mutex& regMutex,
                                     int id) {
     std::string nodeId = "Node" + std::to_string(id);
-    manager.registerNode(nodeId, "127.0.0.1", registerPorts[id]);
+    manager.registerNode(nodeId, "127.0.0.1", 12000 + id);
     {
         std::lock_guard<std::mutex> lk(regMutex);
         registered.push_back(nodeId);
@@ -122,9 +100,7 @@ static void worker_deadcheck(MetadataManager& manager) {
 
 TEST(MetadataConcurrency, ConcurrentOps) {
     MetadataManager manager;
-    registerPorts[0] = getEphemeralPort();
-    registerPorts[1] = getEphemeralPort();
-    DummyServer s0(registerPorts[0]), s1(registerPorts[1]);
+    DummyServer s0(12000), s1(12001);
     std::vector<std::string> registered;
     std::mutex regMutex;
 

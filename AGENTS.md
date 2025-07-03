@@ -54,7 +54,7 @@ the codebase. Treat them as a contract for quality, security, and operational re
 
 Do not submit code that does not pass all test.
 There should be a test for every function that returns a value or changes the state
-and can be tested. 
+and can be tested.
 If fuse is unavalible it is okay to skip the fuse tests.
 No test should ever be disabled execept the S3 test which isn't really supported.
 
