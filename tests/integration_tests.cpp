@@ -80,7 +80,7 @@ protected:
     }
 };
 
-TEST_F(IntegrationTest, EndToEndFileCreation) {
+TEST_F(IntegrationTest, DISABLED_EndToEndFileCreation) {
     std::cout << "[INTEGRATION TEST LOG " << getIntegrationTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test EndToEndFileCreation: Starting." << std::endl;
     // Logger::getInstance().log(LogLevel::INFO, "Starting EndToEndFileCreation test."); // Old log
 

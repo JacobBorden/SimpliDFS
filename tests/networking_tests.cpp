@@ -1,35 +1,18 @@
-#include "metaserver/metaserver.h" // For MetadataManager
-#include "utilities/client.h"
-#include "utilities/logger.h" // Add this include
-#include "utilities/networkexception.h"
-#include "utilities/server.h"
 #include "gtest/gtest.h"
-#include <chrono>
-#include <cstdio>  // For std::remove
-#include <iomanip> // For std::put_time (timestamps)
-#include <netinet/in.h>
-#include <signal.h> // Added for SIGPIPE handling
-#include <sstream>  // For std::ostringstream (timestamps)
-#include <string>
-#include <string> // For std::to_string in TearDown
-#include <sys/socket.h>
+#include "utilities/client.h"
+#include "utilities/server.h"
+#include "utilities/networkexception.h"
 #include <thread>
-#include <unistd.h>
+#include <chrono>
 #include <vector>
-
-static int getEphemeralPort() {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;
-  bind(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-  socklen_t len = sizeof(addr);
-  getsockname(sock, reinterpret_cast<sockaddr *>(&addr), &len);
-  int port = ntohs(addr.sin_port);
-  close(sock);
-  return port;
-}
+#include <string>
+#include <signal.h> // Added for SIGPIPE handling
+#include "utilities/logger.h" // Add this include
+#include <cstdio>   // For std::remove
+#include <string>   // For std::to_string in TearDown
+#include <iomanip>  // For std::put_time (timestamps)
+#include <sstream>  // For std::ostringstream (timestamps)
+#include "metaserver/metaserver.h" // For MetadataManager
 #include "node/node.h"             // For Node
 #include "utilities/message.h"     // For Message, MessageType
 #include <errno.h>
@@ -1887,11 +1870,11 @@ TEST_F(NetworkingTest, NodeRegistrationWithMetadataManager) {
 
 TEST_F(NetworkingTest, NodeHeartbeatProcessing) {
     std::cout << "[TEST LOG " << getTestTimestamp() << " TID: " << std::this_thread::get_id() << "] Test NodeHeartbeatProcessing: Starting." << std::endl;
-    const int metaserverPort = getEphemeralPort();
+    const int metaserverPort = 12352; // Different port for this test
     MetadataManager metadataManager;
     const std::string nodeId = "heartbeatNode";
     const std::string nodeAddr = "127.0.0.1";
-    const int nodePort = getEphemeralPort();
+    const int nodePort = 7777;
 
     // 1. Pre-register the node
     metadataManager.registerNode(nodeId, nodeAddr, nodePort);

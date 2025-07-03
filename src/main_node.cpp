@@ -2,7 +2,6 @@
 #include "utilities/fips.h"
 #include "utilities/key_manager.hpp"
 #include "utilities/logger.h"
-#include "utilities/var_dir.hpp"
 #include <chrono> // For std::chrono::seconds
 #include <filesystem>
 #include <iostream>
@@ -60,7 +59,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    std::string logDir = simplidfs::logsDir();
+    std::string logDir = "/var/logs/simplidfs";
     try {
       std::filesystem::create_directories(logDir);
     } catch (...) {

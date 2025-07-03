@@ -19,12 +19,9 @@
 #include "utilities/networkexception.h"
 #include "utilities/rbac.h"
 #include "utilities/server.h"
-#include "utilities/var_dir.hpp"
 #include <chrono> // Required for std::chrono
-#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -45,8 +42,6 @@ private:
                              ///< listen for incoming connections.
   FileSystem fileSystem;     ///< Local file system manager for this node.
   SimpliDFS::RBACPolicy rbacPolicy; ///< Access control policy loaded from YAML.
-  std::string persistenceFilePath;
-  mutable std::mutex persistMutex;
   bool hotCacheMode{false};
   std::string hotCacheSnapshotName;
   std::vector<std::string> hotCacheDeltas;
@@ -151,14 +146,6 @@ private:
     hotCacheDeltas.clear();
   }
 
-  void persistState() {
-    std::lock_guard<std::mutex> lock(persistMutex);
-    try {
-      fileSystem.exportCurrentStateCar(persistenceFilePath);
-    } catch (...) {
-    }
-  }
-
 public:
   /**
    * @brief Checks if a file exists on the node's local filesystem.
@@ -177,19 +164,8 @@ public:
        BlockIO::CipherAlgorithm cipher_algo =
            BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
-        fileSystem(compression_level, cipher_algo),
-        persistenceFilePath(simplidfs::getVarDir() + "/" + name +
-                            "_storage.dat") {
+        fileSystem(compression_level, cipher_algo) {
     rbacPolicy.loadFromFile("rbac_policy.yaml");
-    try {
-      std::filesystem::create_directories(simplidfs::logsDir());
-      std::filesystem::create_directories(simplidfs::getVarDir());
-      std::ofstream(persistenceFilePath, std::ios::app).close();
-      std::ofstream(simplidfs::logsDir() + "/" + name + ".log", std::ios::app)
-          .close();
-      persistState();
-    } catch (...) {
-    }
   }
 
   /**
@@ -279,7 +255,7 @@ public:
           "Failed to get local IP address: " + std::string(e.what()) +
               ". Defaulting to 127.0.0.1");
     }
-    msg._NodeAddress = localAddr;           // Node's actual address
+    msg._NodeAddress = localAddr; // Node's actual address
     msg._NodePort = this->server.GetPort(); // Node's listening port
     if (!quotePath.empty()) {
       std::ifstream qf(quotePath, std::ios::binary);
@@ -354,7 +330,6 @@ public:
                             .c_str(),
                         client);
             recordSnapshotDelta();
-            persistState();
           } else {
             // createFile logs if it already exists or other errors.
             // Check if it already exists to send a different success message
@@ -401,7 +376,6 @@ public:
                             .c_str(),
                         client);
             recordSnapshotDelta();
-            persistState();
           } else {
             server.Send(
                 ("Error: Unable to write file " + message._Filename + ".")
@@ -484,8 +458,6 @@ public:
           if (!vec.empty()) {
             std::string d(vec.begin(), vec.end());
             fileSystem.writeFile(filenameToReceive, d);
-            recordSnapshotDelta();
-            persistState();
           }
         } catch (...) {
           std::cerr << "[NODE " << nodeName << "] Failed to receive file from "
@@ -509,7 +481,6 @@ public:
                     << "_STUB] Sent delete confirmation to metaserver/client."
                     << std::endl;
           recordSnapshotDelta();
-          persistState();
         } else {
           std::cout << "[NODE " << nodeName << "] Error: Unable to delete file "
                     << message._Filename << " (not found or other error)."

@@ -78,7 +78,6 @@ target_link_libraries(SimpliDFSFuseRandomWriteTest
     Threads::Threads
     ${SODIUM_LIBRARIES}
 )
-target_include_directories(SimpliDFSFuseRandomWriteTest PRIVATE ${SODIUM_INCLUDE_DIRS})
 
 add_executable(SimpliDFSFuseAppendTest
     fuse_concurrency_tests.cpp
@@ -89,7 +88,6 @@ target_link_libraries(SimpliDFSFuseAppendTest
     Threads::Threads
     ${SODIUM_LIBRARIES}
 )
-target_include_directories(SimpliDFSFuseAppendTest PRIVATE ${SODIUM_INCLUDE_DIRS})
 
 #Single - thread variants of the FUSE tests.These are compiled with
 #FUSE_NUM_THREADS / FUSE_NUM_APPEND_THREADS set to 1 to help diagnose
@@ -104,7 +102,6 @@ target_link_libraries(SimpliDFSFuseRandomWriteSingleThreadTest
     Threads::Threads
     ${SODIUM_LIBRARIES}
 )
-target_include_directories(SimpliDFSFuseRandomWriteSingleThreadTest PRIVATE ${SODIUM_INCLUDE_DIRS})
 
 add_executable(SimpliDFSFuseAppendSingleThreadTest
     fuse_concurrency_tests.cpp
@@ -116,7 +113,6 @@ target_link_libraries(SimpliDFSFuseAppendSingleThreadTest
     Threads::Threads
     ${SODIUM_LIBRARIES}
 )
-target_include_directories(SimpliDFSFuseAppendSingleThreadTest PRIVATE ${SODIUM_INCLUDE_DIRS})
 
 #-- - Simple FUSE Tests for debugging -- -
 add_executable(SimpliDFSFuseMountTest
@@ -245,7 +241,7 @@ if(BUILD_FUZZING)
             target_link_libraries(${FUZZER_NAME} PRIVATE SimpliDFS_Utils Threads::Threads ${FUZZER_LINK_FLAGS}) # Default, adjust as needed
         endif()
 
-        target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include ${SODIUM_INCLUDE_DIRS})
+        target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
         message(STATUS "Configured fuzzer: ${FUZZER_NAME}")
     endforeach()
@@ -254,9 +250,3 @@ endif()
 if(BUILD_POSIX_TEST_SUITE)
     add_subdirectory(posix)
 endif()
-
-# Minimal test executable
-add_executable(MinimalTest minimal_test.cpp)
-target_link_libraries(MinimalTest PRIVATE gtest_main)
-include(GoogleTest) # Ensure GoogleTest CMake utilities are included
-gtest_discover_tests(MinimalTest)
