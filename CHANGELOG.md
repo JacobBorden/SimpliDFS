@@ -7,6 +7,11 @@
 - Persistent state files for metaserver and nodes with configurable storage
   directory.
 
+## [0.11.50] - 2025-07-05
+### Fixed
+- Node verifier thread now catches decryption errors when validating files,
+  preventing crashes on startup.
+
 ## [0.11.47] - 2025-07-04
 ### Changed
 - Release workflow injects `SIMPLIDFS_CLUSTER_KEY` into the metaserver service.
