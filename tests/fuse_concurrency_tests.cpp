@@ -217,8 +217,17 @@ void writer_thread_func(int thread_id) {
   //   operations if needed.
   // - std::ios::binary: Ensures data is written/read without CRLF translation
   // or other text-mode processing.
-  outfile.open(FULL_TEST_FILE_PATH,
-               std::ios::out | std::ios::in | std::ios::binary);
+  // Use a small retry loop when opening the file to guard against the
+  // situation where the preallocated test file is not immediately
+  // visible through the FUSE mount.
+  if (!openFstreamWithRetry(FULL_TEST_FILE_PATH, outfile,
+                            std::ios::out | std::ios::in | std::ios::binary)) {
+    std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
+              << " TID: " << std::this_thread::get_id() << "] Thread "
+              << thread_id << ": Failed to open file " << FULL_TEST_FILE_PATH
+              << " after retries." << std::endl;
+    return;
+  }
 
   // Log success or failure of the open operation. This is critical for
   // diagnosing issues related to file access permissions or mount point

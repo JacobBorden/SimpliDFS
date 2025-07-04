@@ -128,19 +128,6 @@ int main(int argc, char *argv[]) {
   // Ignore SIGPIPE: prevents termination if writing to a closed socket
   signal(SIGPIPE, SIG_IGN);
 
-  // Ensure persistence directories and files exist
-  try {
-    std::filesystem::create_directories(simplidfs::logsDir());
-    std::filesystem::create_directories(simplidfs::getVarDir());
-    std::ofstream(simplidfs::fileMetadataPath(), std::ios::app).close();
-    std::ofstream(simplidfs::nodeRegistryPath(), std::ios::app).close();
-    std::ofstream(simplidfs::logsDir() + "/metaserver.log", std::ios::app)
-        .close();
-    metadataManager.saveMetadata(simplidfs::fileMetadataPath(),
-                                 simplidfs::nodeRegistryPath());
-  } catch (...) {
-  }
-
   int port = 50505; // Default port
   std::string certFile;
   std::string keyFile;
@@ -200,8 +187,8 @@ int main(int argc, char *argv[]) {
   // Assuming loadMetadata is a public method of MetadataManager
   // and metadataManager instance is accessible (declared extern above).
   Logger::getInstance().log(
-      LogLevel::INFO, "Loading metadata from " + simplidfs::fileMetadataPath() +
-                          " and " + simplidfs::nodeRegistryPath());
+      LogLevel::INFO,
+      "Loading metadata from file_metadata.dat and node_registry.dat");
   metadataManager.loadMetadata(simplidfs::fileMetadataPath(),
                                simplidfs::nodeRegistryPath());
 

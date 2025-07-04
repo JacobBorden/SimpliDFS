@@ -3,7 +3,9 @@
 #include "utilities/key_manager.hpp"
 #include "utilities/logger.h"
 #include "utilities/var_dir.hpp"
+#include <atomic>
 #include <chrono> // For std::chrono::seconds
+#include <csignal>
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -36,6 +38,11 @@ static RuntimeOptions loadRuntimeOptions() {
   return opts;
 }
 
+std::atomic<bool> g_running(true);
+const int SAVE_INTERVAL_SECONDS = 30;
+
+void handle_signal(int) { g_running = false; }
+
 int main(int argc, char *argv[]) {
   if (argc < 5) {
     std::cerr << "Usage: " << argv[0]
@@ -58,6 +65,15 @@ int main(int argc, char *argv[]) {
               << std::endl;
     return 1;
   }
+
+  try {
+    std::filesystem::create_directories(simplidfs::getVarDir());
+  } catch (...) {
+  }
+  std::string statePath =
+      simplidfs::getVarDir() + "/" + nodeName + "_state.yaml";
+  std::signal(SIGINT, handle_signal);
+  std::signal(SIGTERM, handle_signal);
 
   try {
     std::string logDir = simplidfs::logsDir();
@@ -138,6 +154,7 @@ int main(int argc, char *argv[]) {
                                   "' created. Compression level " +
                                   std::to_string(opts.compressionLevel) +
                                   ", cipher " + opts.cipherAlgorithm);
+    node.loadState(statePath);
 
     if (!certFile.empty() && !keyFile.empty()) {
       if (!node.enableServerTLS(certFile, keyFile)) {
@@ -161,15 +178,26 @@ int main(int argc, char *argv[]) {
                               "Node " + nodeName +
                                   " registration attempt completed.");
 
+    std::thread state_thread([&]() {
+      while (g_running.load()) {
+        std::this_thread::sleep_for(
+            std::chrono::seconds(SAVE_INTERVAL_SECONDS));
+        node.saveState(statePath);
+      }
+      node.saveState(statePath);
+    });
+    state_thread.detach();
+
     Logger::getInstance().log(LogLevel::INFO,
                               "Node " + nodeName +
                                   " running. Main thread entering idle loop.");
-    while (true) {
+    while (g_running.load()) {
       std::this_thread::sleep_for(std::chrono::seconds(60));
       Logger::getInstance().log(LogLevel::DEBUG,
                                 "Node " + nodeName +
                                     " main thread periodic wake up.");
     }
+    node.saveState(statePath);
 
   } catch (const std::exception &e) {
     Logger::getInstance().log(LogLevel::FATAL, "Unhandled exception in node " +

@@ -7,6 +7,8 @@
 #include "utilities/logger.h" // Include the Logger header
 #include "utilities/merkle_tree.hpp"
 #include "utilities/metrics.h"
+#include <cppcodec/base64_rfc4648.hpp>
+#include <yaml-cpp/yaml.h>
 
 #include <algorithm> // For std::copy, std::transform
 #include <cstddef>   // For std::byte
@@ -365,14 +367,21 @@ bool FileSystem::verifyFileIntegrity(const std::string &filename) const {
   std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
   std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
   simplidfs::KeyManager::getInstance().getClusterKey(key);
-  BlockIO bio(compression_level_, cipher_algo_);
-  std::vector<std::byte> decrypted = bio.decrypt_data(
-      bio.decompress_data(compressedData, encrypted_size), key, nonce);
-  BlockIO verify(compression_level_, cipher_algo_);
-  if (!decrypted.empty())
-    verify.ingest(decrypted.data(), decrypted.size());
-  DigestResult dr = verify.finalize_hashed();
-  return dr.cid == cid;
+  try {
+    BlockIO bio(compression_level_, cipher_algo_);
+    std::vector<std::byte> decrypted = bio.decrypt_data(
+        bio.decompress_data(compressedData, encrypted_size), key, nonce);
+    BlockIO verify(compression_level_, cipher_algo_);
+    if (!decrypted.empty())
+      verify.ingest(decrypted.data(), decrypted.size());
+    DigestResult dr = verify.finalize_hashed();
+    return dr.cid == cid;
+  } catch (const std::exception &e) {
+    Logger::getInstance().log(LogLevel::ERROR,
+                              std::string("verifyFileIntegrity failed for ") +
+                                  filename + ": " + e.what());
+    return false;
+  }
 }
 
 bool FileSystem::snapshotCreate(const std::string &name) {
@@ -546,45 +555,62 @@ bool FileSystem::snapshotExportCar(const std::string &name,
   return write_car_file(orderedChunks, rootCid, carPath);
 }
 
-bool FileSystem::exportCurrentStateCar(const std::string &carPath) const {
+bool FileSystem::saveState(const std::string &path) const {
   std::lock_guard<std::mutex> lock(_Mutex);
-  ChunkStore store;
-  std::vector<std::pair<std::string, std::string>> entries;
-
-  for (const auto &[file, data] : _Files) {
-    auto attrMapIt = _FileXattrs.find(file);
-    if (attrMapIt == _FileXattrs.end())
-      continue;
-    const auto &attrMap = attrMapIt->second;
-    auto cidIt = attrMap.find("user.cid");
-    auto nonceIt = attrMap.find("user.nonce");
-    auto encIt = attrMap.find("user.encrypted_size");
-    if (cidIt == attrMap.end() || nonceIt == attrMap.end() ||
-        encIt == attrMap.end())
-      continue;
-
-    std::string cid = cidIt->second;
-    std::string nonce_str = nonceIt->second;
-    size_t enc_size = std::stoul(encIt->second);
-
-    std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
-    std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
-    simplidfs::KeyManager::getInstance().getClusterKey(key);
-    BlockIO local(compression_level_, cipher_algo_);
-    std::vector<std::byte> decompressed = local.decompress_data(data, enc_size);
-    std::vector<std::byte> raw = local.decrypt_data(decompressed, key, nonce);
-    store.addChunk(raw);
-    entries.emplace_back(file, cid);
+  YAML::Node root;
+  for (const auto &[name, data] : _Files) {
+    std::string encoded = cppcodec::base64_rfc4648::encode(
+        reinterpret_cast<const unsigned char *>(data.data()), data.size());
+    root["files"][name] = encoded;
+    auto it = _FileXattrs.find(name);
+    if (it != _FileXattrs.end()) {
+      YAML::Node xn;
+      for (const auto &[k, v] : it->second) {
+        std::string enc = cppcodec::base64_rfc4648::encode(
+            reinterpret_cast<const unsigned char *>(v.data()), v.size());
+        xn[k] = enc;
+      }
+      root["xattrs"][name] = xn;
+    }
   }
+  std::ofstream out(path);
+  if (!out.is_open())
+    return false;
+  out << root;
+  return true;
+}
 
-  std::string rootCid = MerkleTree::hashDirectory(entries, store);
-
-  std::map<std::string, std::vector<std::byte>> orderedChunks;
-  for (const auto &[cid, bytes] : store.getAllChunks()) {
-    orderedChunks[cid] = bytes;
+bool FileSystem::loadState(const std::string &path) {
+  std::lock_guard<std::mutex> lock(_Mutex);
+  std::ifstream in(path);
+  if (!in.is_open())
+    return false;
+  YAML::Node root = YAML::Load(in);
+  _Files.clear();
+  _FileXattrs.clear();
+  if (root["files"]) {
+    for (auto it : root["files"]) {
+      std::string name = it.first.as<std::string>();
+      std::string enc = it.second.as<std::string>();
+      std::string bytes = cppcodec::base64_rfc4648::decode<std::string>(enc);
+      std::vector<std::byte> vec(bytes.size());
+      std::transform(bytes.begin(), bytes.end(), vec.begin(),
+                     [](char c) { return static_cast<std::byte>(c); });
+      _Files[name] = std::move(vec);
+    }
   }
-
-  return write_car_file(orderedChunks, rootCid, carPath);
+  if (root["xattrs"]) {
+    for (auto it : root["xattrs"]) {
+      std::string name = it.first.as<std::string>();
+      for (auto xv : it.second) {
+        std::string enc = xv.second.as<std::string>();
+        std::string dec = cppcodec::base64_rfc4648::decode<std::string>(enc);
+        _FileXattrs[name][xv.first.as<std::string>()] = dec;
+      }
+    }
+  }
+  updateStorageMetric();
+  return true;
 }
 
 void FileSystem::setTier(const std::string &tier) {

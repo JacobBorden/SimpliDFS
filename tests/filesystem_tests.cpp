@@ -360,3 +360,16 @@ TEST_F(FileSystemTestFix, ReadOldFormatFile) {
   // This isn't testing reading old raw data, but rather how it handles missing
   // metadata for new data.
 }
+
+TEST_F(FileSystemTestFix, SaveLoadState) {
+  const std::string filename = "Persist.txt";
+  ASSERT_TRUE(fs.createFile(filename));
+  ASSERT_TRUE(fs.writeFile(filename, "hello"));
+  ASSERT_TRUE(fs.saveState("fs_state.yaml"));
+
+  FileSystem other;
+  simplidfs::KeyManager::getInstance().initialize();
+  ASSERT_TRUE(other.loadState("fs_state.yaml"));
+  EXPECT_EQ(other.readFile(filename), "hello");
+  std::remove("fs_state.yaml");
+}

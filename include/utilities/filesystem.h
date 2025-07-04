@@ -160,12 +160,8 @@ public:
   bool snapshotExportCar(const std::string &name,
                          const std::string &carPath) const;
 
-  /**
-   * @brief Export the current filesystem state to a CAR file.
-   * @param carPath Destination path for the CAR file.
-   * @return True on success.
-   */
-  bool exportCurrentStateCar(const std::string &carPath) const;
+  bool saveState(const std::string &path) const;
+  bool loadState(const std::string &path);
 
 private:
   /**

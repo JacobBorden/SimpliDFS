@@ -52,6 +52,12 @@ the codebase. Treat them as a contract for quality, security, and operational re
 | Coverage ≥ **80 %** | `llvm-cov` | ✅ |
 | Fuzzing (libFuzzer) | Critical parsers & network I/O | ✅ (weekly) |
 
+Do not submit code that does not pass all test.
+There should be a test for every function that returns a value or changes the state
+and can be tested.
+If fuse is unavalible it is okay to skip the fuse tests.
+No test should ever be disabled execept the S3 test which isn't really supported.
+
 ---
 
 ## 4  Commit & PR Workflow

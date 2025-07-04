@@ -1,29 +1,13 @@
 // Unit Tests for MetadataManager
-#include "cluster/NodeHealthCache.h"
+#include "gtest/gtest.h"
 #include "metaserver/metaserver.h"
+#include "cluster/NodeHealthCache.h"
 #include "utilities/blockio.hpp"
-#include "utilities/message.h"
 #include "utilities/metrics.h"
 #include "utilities/server.h"
-#include "gtest/gtest.h"
-#include <netinet/in.h>
-#include <sys/socket.h>
 #include <thread>
-#include <unistd.h>
-
-static int getEphemeralPort() {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  sockaddr_in addr{};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;
-  bind(sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
-  socklen_t len = sizeof(addr);
-  getsockname(sock, reinterpret_cast<sockaddr *>(&addr), &len);
-  int port = ntohs(addr.sin_port);
-  close(sock);
-  return port;
-}
+#include "utilities/message.h"
+#include <thread>
 
 // Test Fixture for MetadataManager
 class MetadataManagerTest : public ::testing::Test {
@@ -34,28 +18,26 @@ protected:
         Networking::Server server;
         std::thread th;
         std::vector<MessageType> received;
-        explicit DummyServer(int port, int expected) : server(port) {
-          server.startListening();
-          th = std::thread([this, expected]() {
-            for (int i = 0; i < expected; i++) {
-              auto conn = server.Accept();
-              auto raw = server.Receive(conn);
-              if (!raw.empty()) {
-                Message msg =
-                    Message::Deserialize(std::string(raw.begin(), raw.end()));
-                received.push_back(msg._Type);
-              }
-              server.Send("", conn);
-              server.DisconnectClient(conn);
-            }
-          });
+        DummyServer(int port, int expected)
+            : server(port) {
+            server.startListening();
+            th = std::thread([this, expected](){
+                for(int i=0;i<expected;i++) {
+                    auto conn = server.Accept();
+                    auto raw = server.Receive(conn);
+                    if(!raw.empty()) {
+                        Message msg = Message::Deserialize(std::string(raw.begin(), raw.end()));
+                        received.push_back(msg._Type);
+                    }
+                    server.Send("", conn);
+                    server.DisconnectClient(conn);
+                }
+            });
         }
         void stop() {
-          server.Shutdown();
-          if (th.joinable())
-            th.join();
+            if(th.joinable()) th.join();
+            server.Shutdown();
         }
-        int port() { return server.GetPort(); }
     };
 };
 
@@ -359,18 +341,14 @@ TEST_F(MetadataManagerTest, ReadFileDataReturnsWrittenContent) {
 }
 
 TEST_F(MetadataManagerTest, TruncateFileUpdatesSize) {
-    if(!std::getenv("SIMPLIDFS_RUN_NETWORK_TESTS")) { GTEST_SKIP() << "Network tests disabled"; }
     std::string filename = "trunc.txt";
     const std::string n1 = "NodeT1";
     const std::string n2 = "NodeT2";
     const std::string n3 = "NodeT3";
-    int p1 = getEphemeralPort();
-    int p2 = getEphemeralPort();
-    int p3 = getEphemeralPort();
-    metadataManager.registerNode(n1, "127.0.0.1", p1);
-    metadataManager.registerNode(n2, "127.0.0.1", p2);
-    metadataManager.registerNode(n3, "127.0.0.1", p3);
-    DummyServer s1(p1, 1), s2(p2, 1), s3(p3, 1);
+    metadataManager.registerNode(n1, "127.0.0.1", 18001);
+    metadataManager.registerNode(n2, "127.0.0.1", 18002);
+    metadataManager.registerNode(n3, "127.0.0.1", 18003);
+    DummyServer s1(18001,1), s2(18002,1), s3(18003,1);
 
     ASSERT_EQ(metadataManager.addFile(filename, {n1, n2, n3}, 0644), 0);
     ASSERT_EQ(metadataManager.truncateFile(filename, 4096), 0);
