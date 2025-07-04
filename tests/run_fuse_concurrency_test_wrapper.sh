@@ -44,7 +44,7 @@ NODE_WRAPPER_PID_FILES=() # Array to store node PID file paths
 # SimpliDFSFuseConcurrencyTest will log to its own stdout/stderr, captured by CTest
 
 # Ensure a shared cluster key for all launched processes. Generate one if not provided.
-if [ -z "$SIMPLIDFS_CLUSTER_KEY" ]; then
+if [ -z "${SIMPLIDFS_CLUSTER_KEY:-}" ]; then
     SIMPLIDFS_CLUSTER_KEY=$(openssl rand -hex 32)
     export SIMPLIDFS_CLUSTER_KEY
     echo "INFO: Generated random SIMPLIDFS_CLUSTER_KEY for wrapper execution."

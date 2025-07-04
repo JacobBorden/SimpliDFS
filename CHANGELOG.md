@@ -1,3 +1,7 @@
+## [0.11.52] - 2025-07-05
+### Fixed
+- FUSE concurrency test wrapper now handles an unset `SIMPLIDFS_CLUSTER_KEY` without failing.
+
 ## [0.11.51] - 2025-07-05
 ### Fixed
 - FUSE tests retry opening the preallocated file to avoid missing file errors.
