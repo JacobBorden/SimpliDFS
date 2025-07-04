@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 echo "INFO: Wrapper script starting..."
 
@@ -27,6 +28,9 @@ fi
 BASE_TMP_DIR=$(mktemp -d /tmp/fuse_concurrency_XXXXXX)
 MOUNT_POINT="${BASE_TMP_DIR}/myfusemount"
 export SIMPLIDFS_CONCURRENCY_MOUNT="${MOUNT_POINT}"
+VAR_DIR="${BASE_TMP_DIR}/var/simplidfs"
+export SIMPLIDFS_VAR_DIR="${VAR_DIR}"
+mkdir -p "${VAR_DIR}"
 METASERVER_PORT=50505 # Changed port
 METASERVER_LOG="${BASE_TMP_DIR}/metaserver_wrapper.log"
 FUSE_ADAPTER_STDOUT_LOG="${BASE_TMP_DIR}/fuse_adapter_wrapper.log"
