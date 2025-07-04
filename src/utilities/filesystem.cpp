@@ -367,14 +367,21 @@ bool FileSystem::verifyFileIntegrity(const std::string &filename) const {
   std::vector<unsigned char> nonce(nonce_str.begin(), nonce_str.end());
   std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES> key;
   simplidfs::KeyManager::getInstance().getClusterKey(key);
-  BlockIO bio(compression_level_, cipher_algo_);
-  std::vector<std::byte> decrypted = bio.decrypt_data(
-      bio.decompress_data(compressedData, encrypted_size), key, nonce);
-  BlockIO verify(compression_level_, cipher_algo_);
-  if (!decrypted.empty())
-    verify.ingest(decrypted.data(), decrypted.size());
-  DigestResult dr = verify.finalize_hashed();
-  return dr.cid == cid;
+  try {
+    BlockIO bio(compression_level_, cipher_algo_);
+    std::vector<std::byte> decrypted = bio.decrypt_data(
+        bio.decompress_data(compressedData, encrypted_size), key, nonce);
+    BlockIO verify(compression_level_, cipher_algo_);
+    if (!decrypted.empty())
+      verify.ingest(decrypted.data(), decrypted.size());
+    DigestResult dr = verify.finalize_hashed();
+    return dr.cid == cid;
+  } catch (const std::exception &e) {
+    Logger::getInstance().log(LogLevel::ERROR,
+                              std::string("verifyFileIntegrity failed for ") +
+                                  filename + ": " + e.what());
+    return false;
+  }
 }
 
 bool FileSystem::snapshotCreate(const std::string &name) {
