@@ -1,3 +1,7 @@
+## [0.11.51] - 2025-07-05
+### Fixed
+- FUSE tests retry opening the preallocated file to avoid missing file errors.
+
 ## [0.11.48] - 2025-07-05
 ### Changed
 - Restored contributor guidelines about testing in `AGENTS.md`.
