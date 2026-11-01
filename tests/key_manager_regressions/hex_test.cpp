@@ -8,6 +8,7 @@ namespace {
 using Key =
     std::array<unsigned char, crypto_aead_xchacha20poly1305_ietf_KEYBYTES>;
 void *live = nullptr;
+bool sodium_startup = false;
 int allocations = 0, frees = 0, random_calls = 0, checks = 0;
 void check(bool ok, const char *label) {
   ++checks;
@@ -24,6 +25,7 @@ void finalCheck() {
 } // namespace
 extern "C" void *__real_sodium_malloc(size_t);
 extern "C" void __real_sodium_free(void *);
+extern "C" void __real_randombytes_buf(void *, size_t);
 extern "C" void *__wrap_sodium_malloc(size_t size) {
   if (live || size != Key{}.size())
     std::abort();
@@ -45,6 +47,10 @@ extern "C" void __wrap_sodium_free(void *p) {
   __real_sodium_free(p);
 }
 extern "C" void __wrap_randombytes_buf(void *p, size_t size) {
+  if (sodium_startup) {
+    __real_randombytes_buf(p, size);
+    return;
+  }
   if (p != live || size != Key{}.size())
     std::abort();
   ++random_calls;
@@ -53,6 +59,11 @@ extern "C" void __wrap_randombytes_buf(void *p, size_t size) {
 int main(int argc, char **argv) {
   std::atexit(finalCheck);
   try {
+    // Static libsodium creates its allocator canary before any test key exists.
+    sodium_startup = true;
+    const int sodium_status = sodium_init();
+    sodium_startup = false;
+    check(sodium_status >= 0, "libsodium initialization");
     check(argc == 4, "input, expected bytes, and validity required");
     const bool missing = std::strcmp(argv[1], "MISSING") == 0;
     check((missing ? unsetenv("SIMPLIDFS_CLUSTER_KEY")

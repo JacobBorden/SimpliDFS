@@ -7,6 +7,7 @@
 
 namespace {
 void *live[32]{};
+bool sodium_startup = false;
 int allocations = 0, frees = 0, checks = 0, random_calls = 0;
 bool failNext = false;
 void check(bool ok, const char *label) {
@@ -27,6 +28,7 @@ using Key =
 } // namespace
 extern "C" void *__real_sodium_malloc(size_t);
 extern "C" void __real_sodium_free(void *);
+extern "C" void __real_randombytes_buf(void *, size_t);
 extern "C" void *__wrap_sodium_malloc(size_t size) {
   if (failNext) {
     failNext = false;
@@ -59,6 +61,10 @@ extern "C" void __wrap_sodium_free(void *p) {
   __real_sodium_free(p);
 }
 extern "C" void __wrap_randombytes_buf(void *p, size_t size) {
+  if (sodium_startup) {
+    __real_randombytes_buf(p, size);
+    return;
+  }
   bool found = false;
   for (auto v : live)
     if (v == p)
@@ -70,6 +76,11 @@ extern "C" void __wrap_randombytes_buf(void *p, size_t size) {
 int main(int argc, char **argv) {
   std::atexit(finalCheck); // Registered before singleton destruction.
   try {
+    // Static libsodium creates its allocator canary before any test key exists.
+    sodium_startup = true;
+    const int sodium_status = sodium_init();
+    sodium_startup = false;
+    check(sodium_status >= 0, "libsodium initialization");
     check(argc == 5, "mode, input, expected, validity required");
     check((std::strcmp(argv[2], "MISSING") == 0
                ? unsetenv("SIMPLIDFS_CLUSTER_KEY")
