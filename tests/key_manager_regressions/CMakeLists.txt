@@ -1,6 +1,6 @@
 # The wrappers inject allocation failures and observe zeroing without changing
 # production APIs. They require GNU-compatible ELF linker wrapping.
-if(UNIX AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   find_program(KEY_MANAGER_PYTHON3 NAMES python3)
   if(NOT KEY_MANAGER_PYTHON3)
     message(FATAL_ERROR "Key-manager regressions require Python 3")
