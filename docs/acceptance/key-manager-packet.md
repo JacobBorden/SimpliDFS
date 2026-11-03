@@ -45,3 +45,51 @@ Malformed configuration still selects a random process key; user and volume gett
 Keep #260 draft. Next useful step is a scoped reproduction of the failed append verification retaining node diagnostics and returned bytes, with a baseline comparison before attributing causality. No public service, host filesystem replacement or real data is authorized.
 
 Merge checklist: formatting unchanged; full CI is not green (FUSE failed); version/changelog already paired at 0.11.53 for this draft; coverage diff unmeasured; reviewer approval remains required. This packet is review evidence, not merge acceptance.
+
+## November 2 static Boost continuation
+
+The same persistent branch was validated against freshly fetched canonical base
+`02aaa408e77b98a252d26e33c5f2973f87b47c25`, task parent
+`1065fb24e828899e02ef16919b4fb19bbcf9502c`. The existing static Boost 1.86.0
+archive matches SHA256 `a56005627c3836648852bde071f3bdb85d9ec1e3f41df81cb4c23f6c3142ef05`.
+The initial-cache argument alone is insufficient in a build directory retaining
+`boost_system_DIR=/lib64/cmake/boost_system-1.86.0`: CMake continues to select
+that cached shared-only component. Clear stale component discovery entries when
+resuming; no dependency reinstall or requirement change is needed.
+
+From the persistent task worktree, set `boost_cache` to the previously recorded
+absolute `boost-cache.cmake` path, then run:
+
+```bash
+cmake -S docs/acceptance/static-boost-probe -B work/static-build-packet/published-probe -G Ninja -C "$boost_cache"
+cmake --build work/static-build-packet/published-probe
+ctest --test-dir work/static-build-packet/published-probe --output-on-failure
+cmake -S . -B work/daily-acceptance/full-build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release -DBUILD_POSIX_TEST_SUITE=ON \
+  -DBUILD_SHARED_LIBS=OFF -DWITH_STATIC_LIBS=ON \
+  -C "$boost_cache" -U 'boost_*_DIR'
+```
+
+The committed standalone probe requires exact Boost 1.86.0, asserts that the
+imported Release target resolves to an `.a`, links it and checks default-success,
+permission-denied and nonempty-message behavior. Configure/build/CTest pass
+(1/1 dependency test); `ldd` has no shared Boost dependency. GCC 15.2.1 and
+CMake 3.31.0 were used. This dependency probe is not a SimpliDFS runtime test or
+a fully static executable; libc, libstdc++ and libm remain dynamic in the probe.
+
+Full configure with cleared component entries exited 1 at `CMakeLists.txt:122`:
+FetchContent's yaml-cpp clone failed three times with `fatal: write error:
+Input/output error` and `fatal: fetch-pack: invalid index-pack output`. The
+failing destination is `work/daily-acceptance/full-build/_deps/yaml-cpp-src`
+inside this persistent worktree. No permission changes or repository substitution
+were attempted. No full-project build or runtime tests followed. Discovery also
+reported gRPC 1.73.0 with Protobuf 3.21.12 (`/usr/lib/libprotobuf.a`); matching
+compiler/header/runtime qualification remains required, as in the historical
+baseline adapters. These observations do not establish compatible static linking.
+
+Resume this same branch by resolving the yaml-cpp fetch I/O failure, rerun the
+recorded configure, qualify matched dependency versions, then build and run the
+required tests. Existing FUSE failure and all durability gates remain open.
+The prior head's CMake/Fuzz/Raft success and FUSE failure were reread; subsequent
+packet-head CI must be checked separately. Machine-readable hashes and captured
+failure output are in `static-boost-validation.json`.
