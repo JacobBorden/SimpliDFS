@@ -93,3 +93,48 @@ required tests. Existing FUSE failure and all durability gates remain open.
 The prior head's CMake/Fuzz/Raft success and FUSE failure were reread; subsequent
 packet-head CI must be checked separately. Machine-readable hashes and captured
 failure output are in `static-boost-validation.json`.
+
+## November 3 protocol dependency checkpoint
+
+Canonical development fetched again remains
+`02aaa408e77b98a252d26e33c5f2973f87b47c25`; task parent is
+`83a8e3c9a7c0d0462d29493ea569f2a4755c1bc2`. This bounded continuation adds
+`protobuf-probe/run.py` and `main.cpp`; production source and dependencies are
+unchanged. Acceptance for this increment is a reproducible generation, syntax,
+link and disposable round-trip checkpoint with runtime-library evidence and
+explicit qualification limits. It does not accept the full dependency stack.
+
+From this task worktree, choose a fresh output path and run:
+
+```bash
+python3 docs/acceptance/protobuf-probe/run.py --output work/protobuf-packet/final
+```
+
+GCC 15.2.1 generated the actual `proto/filesystem.proto` using protoc 3.21.12
+and the installed gRPC plugin. Both generated translation units passed C++17
+syntax checks. The probe linked the same `/usr/lib/libprotobuf.a` selected by
+project discovery, plus pkg-config's gRPC libraries, and passed one process
+checking serialization/parsing with an embedded NUL, field preservation and
+client-stub construction. No RPC is sent or service started. This is one
+component runtime execution, not a SimpliDFS suite or distributed test.
+
+The recorded toolchain is mixed: pkg-config advertises Protobuf 31.1.0, whereas
+protoc/default headers and the static archive are 3.21.12. Runtime `ldd` shows
+gRPC 1.73 and both Abseil 2501 and 2505 families; no dynamic Protobuf is loaded.
+A successful small round trip does not qualify that mixed Abseil closure or
+full-static compatibility. Preserve the earlier matched-version adapter evidence;
+a later full-build continuation must deliberately select and verify one matched
+compiler/header/runtime closure. This probe intentionally records the current
+discovery without changing system libraries or project requirements.
+
+All command statuses, complete outputs and source hashes are recorded in
+`protobuf-validation.json`. The previous parent CI has CMake/Fuzz/Raft success
+and FUSE failure; the steward reports CMake/FUSE used synthetic merge
+`424042fa9206f77aeb9883bed04f1ba12a4a6290`. Those results are not acceptance
+of this new commit. The prior yaml-cpp fetch I/O failure is retained. This run
+observed only 1.1 GB free on C:; it did not retry a large fetch, delete files or
+attribute the earlier I/O error conclusively to capacity. Full-project runtime
+executions this run: zero. Existing disabled-test, FUSE, provisioning, durability,
+recovery and three-node gates stay open. Keep PR260 draft. Next: resolve the
+fetch/storage prerequisite and select a matched dependency closure before the
+full configure/build/CTest gates.
