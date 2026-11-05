@@ -138,3 +138,39 @@ executions this run: zero. Existing disabled-test, FUSE, provisioning, durabilit
 recovery and three-node gates stay open. Keep PR260 draft. Next: resolve the
 fetch/storage prerequisite and select a matched dependency closure before the
 full configure/build/CTest gates.
+
+## November 4 configure checkpoint (November 5 UTC)
+
+This continues the same unfinished build packet on the persistent task branch.
+Fresh canonical development is `02aaa408e77b98a252d26e33c5f2973f87b47c25`;
+tested task parent is `d1f3bb5b15701c59b93955d6169b7693ea348151`.
+The parent contains the canonical base; no integration conflict or branch rewrite
+was needed. Acceptance for this increment is a repeatable configure checkpoint
+with exact input hashes, raw output and explicit dependency gaps.
+
+Run the full configure command from the November 2 subsection, in this task
+worktree, with the same static Boost cache and cleared `boost_*_DIR` entries.
+The retry now passes the yaml-cpp population point and reaches utility-library
+configuration. The prior I/O failure remains historical evidence; this result
+neither identifies its cause nor qualifies yaml-cpp compilation.
+
+Configuration fails at `src/utilities/CMakeLists.txt:5`: FindOpenSSL reports
+`missing: OPENSSL_CRYPTO_LIBRARY`, with headers reporting version 3.5.3.
+The utility library explicitly sets `OPENSSL_USE_STATIC_LIBS ON`. Neither
+libcrypto.a nor libssl.a exists at the inspected `/usr/lib` and `/usr/lib64`
+paths. pkg-config finds shared libraries and its static flags additionally name
+`libjitterentropy.so`; those flags do not prove a usable static dependency
+closure. No shared-library substitution or requirement change was made.
+GCC 15.2.1 / CMake 3.31.0 were used. Complete command exits, raw configure
+outputs, fetched yaml-cpp revision, source hashes and standard-path archive
+observations are in `configure-validation.json`. Zero full-project builds or
+runtime tests ran because generation did not complete.
+
+Parent-head workflow metadata reports CMake, Fuzz and Raft success, FUSE stress
+failure; those statuses are not validation of this documentation head. The fuzz
+workflow's failure suppression remains a qualification limit. Keep PR260 draft.
+Next continue this same task by providing and qualifying the required static
+OpenSSL closure, then rerun configure/build/CTest with matched protocol
+compiler/header/runtime dependencies. Existing FUSE, disabled-test, coverage,
+provisioning, acknowledged-write, recovery and disposable three-node gates stay
+open. No service, mount, real data or consumer migration is included.
