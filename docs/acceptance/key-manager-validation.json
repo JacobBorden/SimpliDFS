@@ -1,0 +1,119 @@
+{
+  "time": "2026-11-02T00:22:51.046008+00:00",
+  "head": "dabc9b3874f60d79a3489b631d9a85c074bfbbf5",
+  "sources": {
+    "src/utilities/key_manager.cpp": "16bf9c75342cbb16a14526dbdc3b577b21d4b434730474cc5c231eb246ca0ffb",
+    "tests/key_manager_regressions/cases.json": "965ccf883475d987fd2eeabd3ba24d5dbb267b6c775ea92a852552178fbd4a5e",
+    "tests/key_manager_regressions/CMakeLists.txt": "331794022b6918c04fde29d591051c22f5e98207da2149d47dd30141dca008bd",
+    "tests/key_manager_regressions/combined_test.cpp": "6ab5eacd3dae62d76ff7c594eda13b9ae348d7c181506968d2fbfc6574058bbb",
+    "tests/key_manager_regressions/hex_test.cpp": "2f758edc4d2f9e0239252c395706d30a75805b1545ccab26f5de1e7c0c0db98b",
+    "tests/key_manager_regressions/rotation_test.cpp": "ff8f6cecc6a08e31ee2c7e3215bca856bb1a47d8b6709a0f232e07027144debb",
+    "tests/key_manager_regressions/run_regressions.py": "1b487d257a6951c622a6daad6a9c3dbae74ab37031805b8917fd6436f22f7872"
+  },
+  "results": [
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-g",
+        "-O0",
+        "-pthread",
+        "-Iinclude",
+        "tests/key_manager_regressions/hex_test.cpp",
+        "src/utilities/key_manager.cpp",
+        "-lsodium",
+        "-Wl,--wrap=sodium_malloc",
+        "-Wl,--wrap=sodium_free",
+        "-o",
+        "<worktree>/work/daily-acceptance/hex",
+        "-Wl,--wrap=randombytes_buf"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tests/key_manager_regressions/run_regressions.py",
+        "--suite",
+        "hex",
+        "--executable",
+        "<worktree>/work/daily-acceptance/hex"
+      ],
+      "exit": 0,
+      "stdout": "PASS hex: 55 cases; all secure allocations freed and zeroed\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-g",
+        "-O0",
+        "-pthread",
+        "-Iinclude",
+        "tests/key_manager_regressions/rotation_test.cpp",
+        "src/utilities/key_manager.cpp",
+        "-lsodium",
+        "-Wl,--wrap=sodium_malloc",
+        "-Wl,--wrap=sodium_free",
+        "-o",
+        "<worktree>/work/daily-acceptance/rotation"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tests/key_manager_regressions/run_regressions.py",
+        "--suite",
+        "rotation",
+        "--executable",
+        "<worktree>/work/daily-acceptance/rotation"
+      ],
+      "exit": 0,
+      "stdout": "PASS rotation: 4 cases; all secure allocations freed and zeroed\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-g",
+        "-O0",
+        "-pthread",
+        "-Iinclude",
+        "tests/key_manager_regressions/combined_test.cpp",
+        "src/utilities/key_manager.cpp",
+        "-lsodium",
+        "-Wl,--wrap=sodium_malloc",
+        "-Wl,--wrap=sodium_free",
+        "-o",
+        "<worktree>/work/daily-acceptance/combined",
+        "-Wl,--wrap=randombytes_buf"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "-B",
+        "tests/key_manager_regressions/run_regressions.py",
+        "--suite",
+        "combined",
+        "--executable",
+        "<worktree>/work/daily-acceptance/combined"
+      ],
+      "exit": 0,
+      "stdout": "PASS combined: 55 cases; all secure allocations freed and zeroed\n",
+      "stderr": ""
+    }
+  ]
+}

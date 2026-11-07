@@ -1,3 +1,8 @@
+## [0.11.53] - 2026-11-01
+### Fixed
+- Require complete hexadecimal cluster-key input and preserve current/previous keys when replacement allocation fails during rotation.
+- Add parser, secure-allocation cleanup and rotation-failure regression cases against the production key manager.
+
 ## [0.11.52] - 2025-07-05
 ### Fixed
 - FUSE concurrency test wrapper now handles an unset `SIMPLIDFS_CLUSTER_KEY` without failing.
