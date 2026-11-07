@@ -174,3 +174,16 @@ OpenSSL closure, then rerun configure/build/CTest with matched protocol
 compiler/header/runtime dependencies. Existing FUSE, disabled-test, coverage,
 provisioning, acknowledged-write, recovery and disposable three-node gates stay
 open. No service, mount, real data or consumer migration is included.
+
+## OpenSSL contract checkpoint, November 6, 2026
+
+Canonical development remains `02aaa408e77b98a252d26e33c5f2973f87b47c25`;
+source parent is `fcb86c0cbc22e64c0e4e4c809b1a6bb05e3f0e4c` on the same
+persistent task branch. `openssl-probe/` adds a reproducible C++20 dependency
+contract with RAII contexts, an active SHA-256 known-answer check and a deliberate
+wrong-digest control. Default static discovery fails because OpenSSL archives
+are unavailable. No full-project or static runtime tests pass by implication.
+See `openssl-validation.json` for exact results; shared-mode results are only a
+probe diagnostic. Production sources and dependency requirements are unchanged.
+Continue by qualifying static OpenSSL and the matched protocol closure, then
+full build/CTest. All previously recorded FUSE/storage acceptance gaps remain.
