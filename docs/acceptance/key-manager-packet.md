@@ -187,3 +187,27 @@ See `openssl-validation.json` for exact results; shared-mode results are only a
 probe diagnostic. Production sources and dependency requirements are unchanged.
 Continue by qualifying static OpenSSL and the matched protocol closure, then
 full build/CTest. All previously recorded FUSE/storage acceptance gaps remain.
+
+## FUSE returned-byte diagnostics, November 7, 2026
+
+Base `02aaa408e77b98a252d26e33c5f2973f87b47c25`, tested parent
+`3f07f75825027adb1e6f78c2cbe6f0d6e0b86533`, same persistent branch.
+One bounded build/test-inventory continuation: preserve the append verifier's
+returned byte count, at most 64 bytes as hex, and stream error status. Existing
+line and content assertions remain; a stream I/O error explicitly fails. Logs
+contain only disposable test content. No additional read or mount is performed.
+
+Acceptance for this diagnostic slice: C++17 and C++20 probes cover empty input,
+trailing and missing newlines, embedded NUL/high bytes and the bounded prefix.
+Both builds use -Wall -Wextra -Werror and both processes pass; the full changed
+translation unit passes C++20 -fsyntax-only. Formatting and diff checks pass.
+Exact commands, source hashes, GCC15.2.1/CMake3.31.0 and the corrected initial
+probe compilation failure are in fuse-diagnostics/validation.json.
+
+Upstream-associated FUSE run42317989262 failed at expected200/got1; CMake,
+Fuzz and Raft metadata succeeded for the parent. No causal conclusion follows.
+No fresh mounted FUSE or full-project runtime was executed. The earlier static
+OpenSSL configure failure, matched protocol closure, disabled tests, fuzz exit
+suppression, coverage, storage/recovery and three-node gates remain open.
+Next: collect this diagnostic on disposable FUSE CI and compare canonical base
+before changing storage semantics; qualify static dependencies for local builds.

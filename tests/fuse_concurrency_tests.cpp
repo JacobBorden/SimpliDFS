@@ -1,4 +1,5 @@
 #include "fuse_concurrency_tests.hpp"
+#include "fuse_read_diagnostics.hpp"
 #include "fuse_concurrency_test_utils.hpp"
 #include <algorithm> // For std::sort
 #include <chrono>    // For timestamps
@@ -828,15 +829,23 @@ bool run_append_test() {
   // Read all lines from the append test file into a vector of strings.
   std::vector<std::string> lines_read;
   std::string current_line;
+  FuseReadDiagnostics read_diagnostics;
   while (std::getline(infile, current_line)) {
+    read_diagnostics.observe(current_line);
+    if (!infile.eof())
+      read_diagnostics.observe("\n");
     lines_read.push_back(current_line);
   }
+  const bool read_failed = infile.bad() || (infile.fail() && !infile.eof());
+  std::cerr << "AppendTest: returned_bytes=" << read_diagnostics.bytes
+            << " prefix_hex=" << read_diagnostics.prefix_hex
+            << " read_failed=" << read_failed << std::endl;
   infile.close(); // Close the file after reading.
 
   // Calculate the total number of lines expected to be in the file.
   size_t expected_total_append_lines =
       static_cast<size_t>(NUM_APPEND_THREADS) * NUM_LINES_PER_APPEND_THREAD;
-  bool append_test_success = true; // Assume success initially.
+  bool append_test_success = !read_failed;
 
   // Line Count Check: Verify if the number of lines read matches the expected
   // total. This is a basic check for data completeness (no lost lines).
