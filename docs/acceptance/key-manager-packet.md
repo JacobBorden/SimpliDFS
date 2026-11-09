@@ -211,3 +211,29 @@ OpenSSL configure failure, matched protocol closure, disabled tests, fuzz exit
 suppression, coverage, storage/recovery and three-node gates remain open.
 Next: collect this diagnostic on disposable FUSE CI and compare canonical base
 before changing storage semantics; qualify static dependencies for local builds.
+
+### November 8 wrapper failure-log continuation
+
+Canonical development remains `02aaa408e77b98a252d26e33c5f2973f87b47c25`;
+parent task head is `cbf80dccf8b0822c0f47b2bd1c38383a3f09a21b`.
+FUSE workflow 42429137242 returned 13 bytes, hex
+`4163636573732064656e696564` (Access denied), before expected200/got1.
+This establishes returned error text, not the runtime authorization cause.
+
+The wrapper now captures a failed test in an explicit conditional, preserving
+its exit code under errexit and quoting executable paths. Cleanup disables
+errexit so a raced process kill cannot suppress the existing failure-log dump
+or replace the captured status. Existing cleanup targets and skip behavior
+are unchanged; broad initial process cleanup remains an inherited limitation.
+
+Acceptance command: `python3 tests/fuse_wrapper_regressions/run.py`.
+Four disposable shell fixtures pass: success, exit1, exit37, and exit37 with a
+simulated failed kill. They execute the actual cleanup function/test tail,
+intercept all process/unmount operations, verify diagnostics and temporary
+removal, and never start services or mount FUSE. The original-source control
+rejects as expected. Shell syntax and diff checks pass; exact hashes, toolchain,
+commands and output are in `fuse-wrapper-validation.json`.
+No full-project or mounted-FUSE validation is claimed. Next inspect retained
+node/metaserver logs for actual policy loading and request identity, then
+qualify structured error propagation without weakening access control.
+Static OpenSSL, protocol closure, recovery and three-node gates remain open.

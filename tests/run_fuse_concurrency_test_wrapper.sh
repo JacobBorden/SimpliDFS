@@ -79,6 +79,8 @@ done
 rm -f file_metadata.dat node_registry.dat
 
 cleanup_and_exit() {
+    # Cleanup failures must not hide the test status or suppress failure logs.
+    set +e
     echo "INFO: Cleanup and exit called with status $1"
     EXIT_STATUS=$1
     PIDS_TO_WAIT_ON=()
@@ -384,8 +386,11 @@ echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_P
 
 # Run the actual test
 echo "INFO: Running ${TEST_EXEC}..."
-${TEST_EXEC}
-TEST_EXIT_CODE=$?
+if "${TEST_EXEC}"; then
+    TEST_EXIT_CODE=0
+else
+    TEST_EXIT_CODE=$?
+fi
 echo "INFO: Test executable finished with exit code: ${TEST_EXIT_CODE}"
 
 # Normal cleanup and exit
