@@ -53,6 +53,14 @@ else
     echo "INFO: Using existing SIMPLIDFS_CLUSTER_KEY for wrapper execution."
 fi
 
+# Stage the repository test policy in the disposable node working directory.
+# Node resolves rbac_policy.yaml relative to its working directory.
+POLICY_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/rbac_policy.yaml"
+NODE_WORK_DIR="${BASE_TMP_DIR}/nodes"
+mkdir -p "${NODE_WORK_DIR}"
+cp -- "${POLICY_SOURCE}" "${NODE_WORK_DIR}/rbac_policy.yaml"
+NODE_EXEC=$(realpath -- "${NODE_EXEC}")
+
 # Clean up any previous instances or remnants
 echo "INFO: Initial cleanup..."
 # Use pkill to be more robust in finding processes by name
@@ -281,7 +289,7 @@ do
     echo "INFO: Starting $NODE_NAME on port $NODE_PORT, logging to $NODE_LOG_FILE, metaserver 127.0.0.1:${METASERVER_PORT}"
     # Assuming node takes <NodeName> <NodePort> <MetaIP> <MetaPort>
     # If node only takes <NodeName> <NodePort>, then the metaserver part needs to be configured differently (e.g. config file)
-    ${NODE_EXEC} ${NODE_NAME} ${NODE_PORT} 127.0.0.1 ${METASERVER_PORT} > "${NODE_LOG_FILE}" 2>&1 &
+    (cd -- "${NODE_WORK_DIR}" && exec "${NODE_EXEC}" "${NODE_NAME}" "${NODE_PORT}" 127.0.0.1 "${METASERVER_PORT}") > "${NODE_LOG_FILE}" 2>&1 &
     # If node only takes <NodeName> <NodePort>:
     # ${NODE_EXEC} ${NODE_NAME} ${NODE_PORT} > "${NODE_LOG_FILE}" 2>&1 &
 

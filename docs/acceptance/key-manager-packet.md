@@ -237,3 +237,6 @@ No full-project or mounted-FUSE validation is claimed. Next inspect retained
 node/metaserver logs for actual policy loading and request identity, then
 qualify structured error propagation without weakening access control.
 Static OpenSSL, protocol closure, recovery and three-node gates remain open.
+
+
+November 10 disposable FUSE policy fixture: wrapper nodes now launch from a disposable directory containing an exact copy of the repository test RBAC policy. Real RBAC C++17/C++20 launch probes pass admin and denial checks; missing source policy stops setup. See fuse-policy-validation.json. No mounted FUSE or storage acceptance; parent CI stress42727622129 failed with policy loaded=0 and Access denied bytes. Production policy/authorization unchanged.

@@ -1,0 +1,34 @@
+{
+  "time": "2026-11-11T00:20:23.457170+00:00",
+  "canonical_base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "257ffaa6129b67aa6e4a6a426390eec09ba98b92",
+  "hashes": {
+    "tests/run_fuse_concurrency_test_wrapper.sh": "805297d2054c39ba8ac5d93a173e7fce30ab5accfbf15fe07db4648474898d63",
+    "tests/fuse_policy/run.py": "6b55c2a058c9dc94fb7019ca2df7acc1dfc341699bad630f2c3b1b000ecffa93",
+    "rbac_policy.yaml": "6d2b346da0c39d947fdd231b6f5ef56641bcd1099c4d5723e0f56b1f17d35f2a",
+    "src/utilities/rbac.cpp": "d44f83e85520111c060e11e9d72cba1e4b87925858cebb552d06fc385d20c7a1"
+  },
+  "command": "python3 tests/fuse_policy/run.py",
+  "results": {
+    "passed": 2,
+    "results": [
+      {
+        "standard": "c++17",
+        "launch_exit": 0,
+        "missing_policy_exit": 1
+      },
+      {
+        "standard": "c++20",
+        "launch_exit": 0,
+        "missing_policy_exit": 1
+      }
+    ]
+  },
+  "checks": [
+    "bash -n tests/run_fuse_concurrency_test_wrapper.sh: exit 0",
+    "git diff --check: exit 0"
+  ],
+  "toolchain": "g++ (SUSE Linux) 15.2.1 20251006",
+  "ci_evidence": "42727622129: policy loaded=0 on three wrapper nodes; UID0 write/read denied; append returned 13 bytes Access denied",
+  "limits": "Inert node launch with real RBAC parser only; no sockets, mounts or full-project build. Production authorization unchanged. Existing FUSE, static OpenSSL/protocol, coverage and storage gates open."
+}
