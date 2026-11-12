@@ -7,7 +7,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
 wrapper = (root / 'tests/run_fuse_concurrency_test_wrapper.sh').read_text()
-staging = wrapper.split('# Stage the repository test policy', 1)[1].split('# Clean up any previous', 1)[0]
+staging = wrapper.split('# Stage the repository test policy', 1)[1].split('# The mount and data directories', 1)[0]
 staging = '# Stage the repository test policy' + staging
 launch = next(line.strip() for line in wrapper.splitlines() if '(cd -- "${NODE_WORK_DIR}" && exec' in line)
 probe = r'''

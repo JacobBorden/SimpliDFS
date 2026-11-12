@@ -61,19 +61,17 @@ mkdir -p "${NODE_WORK_DIR}"
 cp -- "${POLICY_SOURCE}" "${NODE_WORK_DIR}/rbac_policy.yaml"
 NODE_EXEC=$(realpath -- "${NODE_EXEC}")
 
-# Clean up any previous instances or remnants
-echo "INFO: Initial cleanup..."
-# Use pkill to be more robust in finding processes by name
-pkill -f metaserver > /dev/null 2>&1 || true
-pkill -f simpli_fuse_adapter > /dev/null 2>&1 || true
-pkill -f "${NODE_EXEC}" > /dev/null 2>&1 || true # Cleanup any lingering nodes by executable name
+# The mount and data directories belong to this fresh mktemp invocation.
+# Never kill processes by executable name: other test runs may share binaries.
+# cleanup_and_exit stops only the child PIDs recorded by this invocation.
+echo "INFO: Preparing disposable mount point..."
 
 # Try fusermount3 first, then fusermount, then umount
-fusermount3 -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-   fusermount -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-   umount ${MOUNT_POINT} > /dev/null 2>&1 || true
-rm -rf ${MOUNT_POINT}
-mkdir -p ${MOUNT_POINT}
+fusermount3 -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+   fusermount -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+   umount "${MOUNT_POINT}" > /dev/null 2>&1 || true
+rm -rf "${MOUNT_POINT}"
+mkdir -p "${MOUNT_POINT}"
 
 # Clear logs and PID files
 rm -f ${METASERVER_LOG} ${FUSE_ADAPTER_STDOUT_LOG} /tmp/fuse_adapter_main.log
