@@ -240,3 +240,6 @@ Static OpenSSL, protocol closure, recovery and three-node gates remain open.
 
 
 November 10 disposable FUSE policy fixture: wrapper nodes now launch from a disposable directory containing an exact copy of the repository test RBAC policy. Real RBAC C++17/C++20 launch probes pass admin and denial checks; missing source policy stops setup. See fuse-policy-validation.json. No mounted FUSE or storage acceptance; parent CI stress42727622129 failed with policy loaded=0 and Access denied bytes. Production policy/authorization unchanged.
+
+
+November 12 caller metadata isolation: removed wrapper startup deletion of caller-relative file_metadata.dat and node_registry.dat. The metaserver already loads metadata through SIMPLIDFS_VAR_DIR, which the wrapper sets to its fresh temporary directory. Acceptance: `python3 tests/fuse_metadata_cleanup/run.py` preserves two sentinel files, and the parent-source control fails as expected. Existing four cleanup/status fixtures, startup process-isolation fixture, shell syntax and diff checks pass. Exact hashes, commands and output: fuse-metadata-cleanup-validation.json. No mounted FUSE or full-project validation this run; shared adapter log, fixed ports and shutdown isolation remain open.

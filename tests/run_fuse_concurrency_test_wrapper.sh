@@ -81,8 +81,8 @@ do
     NODE_NAME="NodeWrapper$i"
     rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
-# Remove stale metadata files to avoid persistence between runs
-rm -f file_metadata.dat node_registry.dat
+# Metadata is isolated by SIMPLIDFS_VAR_DIR in this fresh temporary directory.
+# Never remove metadata from the caller's working directory.
 
 cleanup_and_exit() {
     # Cleanup failures must not hide the test status or suppress failure logs.
