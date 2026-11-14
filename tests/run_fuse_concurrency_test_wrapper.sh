@@ -74,7 +74,7 @@ rm -rf "${MOUNT_POINT}"
 mkdir -p "${MOUNT_POINT}"
 
 # Clear logs and PID files
-rm -f ${METASERVER_LOG} ${FUSE_ADAPTER_STDOUT_LOG} /tmp/fuse_adapter_main.log
+rm -f "${METASERVER_LOG}" "${FUSE_ADAPTER_STDOUT_LOG}"
 rm -f ${BASE_TMP_DIR}/metaserver_wrapper.pid ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid
 for i in $(seq 1 $NUM_NODES)
 do
@@ -203,11 +203,7 @@ cleanup_and_exit() {
         echo "--- FUSE Adapter Stdout/Stderr Log (${FUSE_ADAPTER_STDOUT_LOG}) on failure ---"
         cat ${FUSE_ADAPTER_STDOUT_LOG} || echo "FUSE adapter stdout log not found."
         echo "--------------------------------------------------------------------"
-        if [ -f /tmp/fuse_adapter_main.log ]; then
-           echo "--- FUSE Adapter Main Log (/tmp/fuse_adapter_main.log) on failure ---"
-           cat /tmp/fuse_adapter_main.log || echo "FUSE adapter main log not found."
-           echo "-----------------------------------------------------------"
-        fi
+        # The adapter main log is shared; only report invocation-owned output.
     for log_file in "${NODE_WRAPPER_LOGS[@]}"; do
         echo "--- Node Log (${log_file}) on failure ---"
         cat "${log_file}" || echo "Node log ${log_file} not found."

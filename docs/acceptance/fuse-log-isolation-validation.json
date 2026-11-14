@@ -1,0 +1,65 @@
+{
+  "run_utc": "2026-11-14T00:23:08.789691+00:00",
+  "base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "8309a4f7bd1493ec62c25a3783dac16ffcf090df",
+  "toolchain": {
+    "python": "3.13.9",
+    "bash": "GNU bash, version 5.2.37(1)-release (x86_64-suse-linux)"
+  },
+  "source_hashes": {
+    "tests/run_fuse_concurrency_test_wrapper.sh": "f5f87d0270a034b76f1b22b78bd3c1d4e7433b8f613d58949575823d7f239abe",
+    "tests/fuse_log_isolation/run.py": "9b92c9b3c5ec2f287f61bb7d9a858cc3aef15986d66abd5b21603e56deee1a53"
+  },
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tests/fuse_log_isolation/run.py"
+      ],
+      "exit": 0,
+      "stdout": "{\"passed\": 1, \"exit\": 37, \"shared_log_preserved\": true, \"shared_log_disclosed\": false}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tests/fuse_log_isolation/run.py",
+        "--source",
+        "work/log-isolation/original.sh"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_log_isolation/run.py\", line 46, in <module>\n    assert sentinel.exists(), 'shared log deleted'\n           ~~~~~~~~~~~~~~~^^\nAssertionError: shared log deleted\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/fuse_wrapper_regressions/run.py"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"cases_passed\": 4,\n  \"results\": [\n    {\n      \"test_exit\": 0,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 0,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-iffph002/test with spaces...\\nINFO: Test executable finished with exit code: 0\\nINFO: Cleanup and exit called with status 0\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-iffph002/mount...\\nINFO: Removing PID files...\\nINFO: Wrapper script finished. Exiting with status: 0\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 1,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 1,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-kr0apizk/test with spaces...\\nINFO: Test executable finished with exit code: 1\\nINFO: Cleanup and exit called with status 1\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-kr0apizk/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-kr0apizk/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-kr0apizk/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-kr0apizk/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 1\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 37,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 37,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-z5enu4ra/test with spaces...\\nINFO: Test executable finished with exit code: 37\\nINFO: Cleanup and exit called with status 37\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-z5enu4ra/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-z5enu4ra/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-z5enu4ra/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-z5enu4ra/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 37\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 37,\n      \"cleanup_kill_failure\": true,\n      \"exit\": 37,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-59qg8dp7/test with spaces...\\nINFO: Test executable finished with exit code: 37\\nINFO: Cleanup and exit called with status 37\\nWARN: FUSE adapter PID file missing, using global PID 12345 for cleanup.\\nINFO: Attempting to kill FUSE adapter PID 12345...\\nsimulated-kill-failure\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: Waiting for PIDs: 12345 to terminate...\\nWARN: Process 12345 may not have terminated cleanly or was already dead.\\nINFO: Finished waiting for PIDs.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-59qg8dp7/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-59qg8dp7/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-59qg8dp7/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-59qg8dp7/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 37\\n\",\n      \"stderr\": \"\"\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bash",
+        "-n",
+        "tests/run_fuse_concurrency_test_wrapper.sh"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limits": "Shell fragment qualification only; no mounted FUSE/full-project acceptance. Adapter internal shared logger, fixed ports and shutdown isolation remain open. Parent CMake CI failed during networking large-message test; FUSE/fuzz/Raft passed. Coverage/static dependency/recovery/three-node gates remain open."
+}
