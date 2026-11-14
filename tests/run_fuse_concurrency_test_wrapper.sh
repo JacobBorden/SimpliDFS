@@ -53,32 +53,40 @@ else
     echo "INFO: Using existing SIMPLIDFS_CLUSTER_KEY for wrapper execution."
 fi
 
-# Clean up any previous instances or remnants
-echo "INFO: Initial cleanup..."
-# Use pkill to be more robust in finding processes by name
-pkill -f metaserver > /dev/null 2>&1 || true
-pkill -f simpli_fuse_adapter > /dev/null 2>&1 || true
-pkill -f "${NODE_EXEC}" > /dev/null 2>&1 || true # Cleanup any lingering nodes by executable name
+# Stage the repository test policy in the disposable node working directory.
+# Node resolves rbac_policy.yaml relative to its working directory.
+POLICY_SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/rbac_policy.yaml"
+NODE_WORK_DIR="${BASE_TMP_DIR}/nodes"
+mkdir -p "${NODE_WORK_DIR}"
+cp -- "${POLICY_SOURCE}" "${NODE_WORK_DIR}/rbac_policy.yaml"
+NODE_EXEC=$(realpath -- "${NODE_EXEC}")
+
+# The mount and data directories belong to this fresh mktemp invocation.
+# Never kill processes by executable name: other test runs may share binaries.
+# cleanup_and_exit stops only the child PIDs recorded by this invocation.
+echo "INFO: Preparing disposable mount point..."
 
 # Try fusermount3 first, then fusermount, then umount
-fusermount3 -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-   fusermount -u ${MOUNT_POINT} > /dev/null 2>&1 || \
-   umount ${MOUNT_POINT} > /dev/null 2>&1 || true
-rm -rf ${MOUNT_POINT}
-mkdir -p ${MOUNT_POINT}
+fusermount3 -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+   fusermount -u "${MOUNT_POINT}" > /dev/null 2>&1 || \
+   umount "${MOUNT_POINT}" > /dev/null 2>&1 || true
+rm -rf "${MOUNT_POINT}"
+mkdir -p "${MOUNT_POINT}"
 
 # Clear logs and PID files
-rm -f ${METASERVER_LOG} ${FUSE_ADAPTER_STDOUT_LOG} /tmp/fuse_adapter_main.log
+rm -f "${METASERVER_LOG}" "${FUSE_ADAPTER_STDOUT_LOG}"
 rm -f ${BASE_TMP_DIR}/metaserver_wrapper.pid ${BASE_TMP_DIR}/fuse_adapter_wrapper.pid
 for i in $(seq 1 $NUM_NODES)
 do
     NODE_NAME="NodeWrapper$i"
     rm -f "${BASE_TMP_DIR}/${NODE_NAME}.log" "${BASE_TMP_DIR}/${NODE_NAME}.pid"
 done
-# Remove stale metadata files to avoid persistence between runs
-rm -f file_metadata.dat node_registry.dat
+# Metadata is isolated by SIMPLIDFS_VAR_DIR in this fresh temporary directory.
+# Never remove metadata from the caller's working directory.
 
 cleanup_and_exit() {
+    # Cleanup failures must not hide the test status or suppress failure logs.
+    set +e
     echo "INFO: Cleanup and exit called with status $1"
     EXIT_STATUS=$1
     PIDS_TO_WAIT_ON=()
@@ -195,11 +203,7 @@ cleanup_and_exit() {
         echo "--- FUSE Adapter Stdout/Stderr Log (${FUSE_ADAPTER_STDOUT_LOG}) on failure ---"
         cat ${FUSE_ADAPTER_STDOUT_LOG} || echo "FUSE adapter stdout log not found."
         echo "--------------------------------------------------------------------"
-        if [ -f /tmp/fuse_adapter_main.log ]; then
-           echo "--- FUSE Adapter Main Log (/tmp/fuse_adapter_main.log) on failure ---"
-           cat /tmp/fuse_adapter_main.log || echo "FUSE adapter main log not found."
-           echo "-----------------------------------------------------------"
-        fi
+        # The adapter main log is shared; only report invocation-owned output.
     for log_file in "${NODE_WRAPPER_LOGS[@]}"; do
         echo "--- Node Log (${log_file}) on failure ---"
         cat "${log_file}" || echo "Node log ${log_file} not found."
@@ -279,7 +283,7 @@ do
     echo "INFO: Starting $NODE_NAME on port $NODE_PORT, logging to $NODE_LOG_FILE, metaserver 127.0.0.1:${METASERVER_PORT}"
     # Assuming node takes <NodeName> <NodePort> <MetaIP> <MetaPort>
     # If node only takes <NodeName> <NodePort>, then the metaserver part needs to be configured differently (e.g. config file)
-    ${NODE_EXEC} ${NODE_NAME} ${NODE_PORT} 127.0.0.1 ${METASERVER_PORT} > "${NODE_LOG_FILE}" 2>&1 &
+    (cd -- "${NODE_WORK_DIR}" && exec "${NODE_EXEC}" "${NODE_NAME}" "${NODE_PORT}" 127.0.0.1 "${METASERVER_PORT}") > "${NODE_LOG_FILE}" 2>&1 &
     # If node only takes <NodeName> <NodePort>:
     # ${NODE_EXEC} ${NODE_NAME} ${NODE_PORT} > "${NODE_LOG_FILE}" 2>&1 &
 
@@ -384,8 +388,11 @@ echo "INFO: FUSE adapter started and mounted successfully. PID: ${FUSE_ADAPTER_P
 
 # Run the actual test
 echo "INFO: Running ${TEST_EXEC}..."
-${TEST_EXEC}
-TEST_EXIT_CODE=$?
+if "${TEST_EXEC}"; then
+    TEST_EXIT_CODE=0
+else
+    TEST_EXIT_CODE=$?
+fi
 echo "INFO: Test executable finished with exit code: ${TEST_EXIT_CODE}"
 
 # Normal cleanup and exit

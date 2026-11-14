@@ -165,7 +165,10 @@ public:
            BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
         fileSystem(compression_level, cipher_algo) {
-    rbacPolicy.loadFromFile("rbac_policy.yaml");
+    const bool policyLoaded = rbacPolicy.loadFromFile("rbac_policy.yaml");
+    std::cerr << "Node " << nodeName
+              << " RBAC policy path=rbac_policy.yaml loaded=" << policyLoaded
+              << std::endl;
   }
 
   /**
@@ -315,6 +318,9 @@ public:
 
       auto allowed = [&](const std::string &op) {
         if (!rbacPolicy.isAllowed(message._Uid, op)) {
+          std::cerr << "Node " << nodeName
+                    << " RBAC denied uid=" << message._Uid
+                    << " operation=" << op << std::endl;
           server.Send("Access denied", client);
           return false;
         }

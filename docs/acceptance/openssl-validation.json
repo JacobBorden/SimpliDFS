@@ -1,0 +1,124 @@
+{
+  "run_time": "2026-11-07T00:23:10.770767+00:00",
+  "results": [
+    {
+      "command": [
+        "cmake",
+        "-S",
+        "docs/acceptance/openssl-probe",
+        "-B",
+        "work/openssl-packet/static",
+        "-G",
+        "Ninja"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "output": "CMake Error at /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:233 (message):\n  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the\n  system variable OPENSSL_ROOT_DIR (missing: OPENSSL_CRYPTO_LIBRARY Crypto\n  SSL) (found version \"3.5.3\")\nCall Stack (most recent call first):\n  /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:603 (_FPHSA_FAILURE_MESSAGE)\n  /usr/share/cmake/Modules/FindOpenSSL.cmake:691 (find_package_handle_standard_args)\n  CMakeLists.txt:7 (find_package)\n\n\n-- Configuring incomplete, errors occurred!\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "-S",
+        "docs/acceptance/openssl-probe",
+        "-B",
+        "work/openssl-packet/shared",
+        "-G",
+        "Ninja",
+        "-DPROBE_STATIC_OPENSSL=OFF",
+        "-DCMAKE_BUILD_TYPE=Release"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "-- The CXX compiler identification is GNU 15.2.1\n-- Detecting CXX compiler ABI info\n-- Detecting CXX compiler ABI info - done\n-- Check for working CXX compiler: /bin/c++ - skipped\n-- Detecting CXX compile features\n-- Detecting CXX compile features - done\n-- Found OpenSSL: /usr/lib64/libcrypto.so (found version \"3.5.3\") found components: Crypto SSL\n-- OpenSSL headers: /usr/include; version: 3.5.3\n-- Crypto: /usr/lib64/libcrypto.so; SSL: /usr/lib64/libssl.so\n-- Configuring done (6.5s)\n-- Generating done (0.2s)\n-- Build files have been written to: /mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/openssl-packet/shared\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "--build",
+        "work/openssl-packet/shared"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "[1/2] Building CXX object CMakeFiles/openssl-probe.dir/main.cpp.o\n[2/2] Linking CXX executable openssl-probe\n"
+    },
+    {
+      "command": [
+        "ctest",
+        "--test-dir",
+        "work/openssl-packet/shared",
+        "--output-on-failure"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "Internal ctest changing into directory: /mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/openssl-packet/shared\nTest project /mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/openssl-packet/shared\n    Start 1: openssl-api-contract\n1/1 Test #1: openssl-api-contract .............   Passed    0.06 sec\n\n100% tests passed, 0 tests failed out of 1\n\nTotal Test time (real) =   0.12 sec\n"
+    },
+    {
+      "command": [
+        "work/openssl-packet/shared/openssl-probe",
+        "--wrong-digest"
+      ],
+      "exit_code": 1,
+      "expected_exit": 1,
+      "output": ""
+    },
+    {
+      "command": [
+        "ldd",
+        "work/openssl-packet/shared/openssl-probe"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "\tlinux-vdso.so.1 (0x000070ee8f73d000)\n\tlibssl.so.3 => /lib64/libssl.so.3 (0x000070ee8f601000)\n\tlibcrypto.so.3 => /lib64/libcrypto.so.3 (0x000070ee8ee00000)\n\tlibstdc++.so.6 => /lib64/libstdc++.so.6 (0x000070ee8ea00000)\n\tlibm.so.6 => /lib64/libm.so.6 (0x000070ee8f4e3000)\n\tlibgcc_s.so.1 => /lib64/libgcc_s.so.1 (0x000070ee8f4b6000)\n\tlibc.so.6 => /lib64/libc.so.6 (0x000070ee8e600000)\n\tlibjitterentropy.so.3 => /lib64/libjitterentropy.so.3 (0x000070ee8f4ac000)\n\tlibz.so.1 => /usr/lib64/zlib-ng-compat/libz.so.1 (0x000070ee8f48a000)\n\t/lib64/ld-linux-x86-64.so.2 (0x000070ee8f73f000)\n"
+    },
+    {
+      "command": [
+        "c++",
+        "--version"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "c++ (SUSE Linux) 15.2.1 20251006\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "cmake version 3.31.0\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "fcb86c0cbc22e64c0e4e4c809b1a6bb05e3f0e4c\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "origin/development"
+      ],
+      "exit_code": 0,
+      "expected_exit": 0,
+      "output": "02aaa408e77b98a252d26e33c5f2973f87b47c25\n"
+    }
+  ],
+  "sha256": {
+    "docs/acceptance/openssl-probe/CMakeLists.txt": "e9316a7e2f3e53cac4b85db7538fc921c7b28935f0abe10f5d1848c583d2126c",
+    "docs/acceptance/openssl-probe/main.cpp": "19f1d4fde71c02ac786161a615529aec087c9fedefcfb04bce440c69c358f0f3",
+    "CMakeLists.txt": "3ea4d1a0a485967196b4c87e8540c88997576d2df4268425c1c909acb3b7a735",
+    "src/utilities/CMakeLists.txt": "ab8ce245072904fa7184ae8de9ded05c3ed0b977f9f47a54747cb913ac3074a1"
+  },
+  "expected_outcomes_match": true,
+  "limits": [
+    "Static configure fails: missing archives; zero static build/runtime tests.",
+    "Shared diagnostic: one CTest and one expected exit-1 digest control, not static acceptance.",
+    "No network connections; no TLS handshake, FIPS, storage, key recovery or full-project acceptance."
+  ]
+}

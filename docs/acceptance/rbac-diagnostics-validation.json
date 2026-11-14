@@ -1,0 +1,73 @@
+{
+  "time": "2026-11-10T00:20:46.362684+00:00",
+  "base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "5ca527e9f127bb599bb253f20284b6b94ccec3f4",
+  "acceptance": "Record policy load result and denied UID/operation, preserving access decision and response.",
+  "toolchain": "GCC 15.2.1; Python 3.13.9; yaml-cpp 0.8.0",
+  "hashes": {
+    "include/node/node.h": "35afdbcc0fb0e96c76468539308ecb9f462566530d8f132b52aee4364d40644f",
+    "tests/rbac_diagnostics/run.py": "54f94c082ad9de33a6c5d220599f2319147b8685c2e15acefc5b26900631a7c2",
+    "src/utilities/rbac.cpp": "d44f83e85520111c060e11e9d72cba1e4b87925858cebb552d06fc385d20c7a1",
+    "rbac_policy.yaml": "6d2b346da0c39d947fdd231b6f5ef56641bcd1099c4d5723e0f56b1f17d35f2a"
+  },
+  "regressions": {
+    "passed": 8,
+    "results": [
+      {
+        "standard": "c++17",
+        "case": "missing",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=0\nNode disposable-node RBAC denied uid=1000 operation=read\n"
+      },
+      {
+        "standard": "c++17",
+        "case": "malformed",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=0\nNode disposable-node RBAC denied uid=1000 operation=read\n"
+      },
+      {
+        "standard": "c++17",
+        "case": "authorized",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=1\n"
+      },
+      {
+        "standard": "c++17",
+        "case": "unknown-user",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=1\nNode disposable-node RBAC denied uid=9999 operation=read\n"
+      },
+      {
+        "standard": "c++20",
+        "case": "missing",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=0\nNode disposable-node RBAC denied uid=1000 operation=read\n"
+      },
+      {
+        "standard": "c++20",
+        "case": "malformed",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=0\nNode disposable-node RBAC denied uid=1000 operation=read\n"
+      },
+      {
+        "standard": "c++20",
+        "case": "authorized",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=1\n"
+      },
+      {
+        "standard": "c++20",
+        "case": "unknown-user",
+        "exit": 0,
+        "stderr": "Node disposable-node RBAC policy path=rbac_policy.yaml loaded=1\nNode disposable-node RBAC denied uid=9999 operation=read\n"
+      }
+    ]
+  },
+  "checks": {
+    "python3 tests/rbac_diagnostics/run.py": 0,
+    "g++ -std=c++17 -include cstdint -Iinclude -Ithird_party/blake3 -fsyntax-only work/rbac-diagnostics/probe.cpp": 0,
+    "g++ -std=c++20 -include cstdint -Iinclude -Ithird_party/blake3 -fsyntax-only work/rbac-diagnostics/probe.cpp": 0,
+    "git diff --check": 0
+  },
+  "limits": "Actual Node fragments with real RBAC parser, inert transport. No full Node construction, mounted FUSE or full-project runtime. cstdint preinclude qualifies inherited header reliance. Static OpenSSL/protocol closure, storage, coverage and CI gates remain open. Prior head FUSE42539776027 failed; CMake/Fuzz/Raft succeeded. No runtime causality established."
+}
