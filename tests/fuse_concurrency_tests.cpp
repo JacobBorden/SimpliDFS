@@ -956,7 +956,7 @@ bool run_random_write_test() {
   // Verify the FUSE mount point is ready before proceeding.
   if (!check_mount_point_ready()) {
     // check_mount_point_ready() already logs the error details.
-    return 1; // Exit if mount point isn't ready.
+    return false; // Exit if mount point isn't ready.
   }
 
   // Initialize the libsodium library, which is used for SHA-256 hashing during
@@ -965,7 +965,7 @@ bool run_random_write_test() {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
               << "] Failed to initialize libsodium." << std::endl;
-    return 1; // Exit if libsodium cannot be initialized.
+    return false; // Exit if libsodium cannot be initialized.
   }
 
   // Create or truncate the main test file for the Random Write Test.
@@ -981,7 +981,7 @@ bool run_random_write_test() {
               << " TID: " << std::this_thread::get_id()
               << "] Main: Failed to create/truncate test file: "
               << FULL_TEST_FILE_PATH << std::endl;
-    return 1; // Exit if file creation/truncation fails.
+    return false; // Exit if file creation/truncation fails.
   }
   // Write a header line to the test file. This helps in identifying the file
   // and also serves as a non-payload part for offset calculations.
@@ -1019,7 +1019,7 @@ bool run_random_write_test() {
     std::cerr << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
               << " TID: " << std::this_thread::get_id()
               << "] Main: Failed to preallocate test file." << std::endl;
-    return 1; // Exit if preallocation fails.
+    return false; // Exit if preallocation fails.
   }
   std::cout << "[FUSE CONCURRENCY LOG " << getFuseTestTimestamp()
             << " TID: " << std::this_thread::get_id() << "] Main: Test file "
@@ -1060,7 +1060,7 @@ bool run_random_write_test() {
               << " TID: " << std::this_thread::get_id()
               << "] Main: Failed to open file for verification after retries: "
               << FULL_TEST_FILE_PATH << std::endl;
-    return 1; // Cannot proceed with verification if the file can't be opened.
+    return false; // Cannot proceed with verification if the file can't be opened.
   }
 
   // Read and verify the header line.
