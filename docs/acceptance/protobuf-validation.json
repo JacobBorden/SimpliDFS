@@ -1,0 +1,248 @@
+{
+  "source_head": "83a8e3c9a7c0d0462d29493ea569f2a4755c1bc2",
+  "canonical_base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "results": [
+    {
+      "command": [
+        "c++",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "c++ (SUSE Linux) 15.2.1 20251006\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    {
+      "command": [
+        "protoc",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "libprotoc 3.21.12\n"
+    },
+    {
+      "command": [
+        "pkg-config",
+        "--modversion",
+        "protobuf",
+        "grpc++"
+      ],
+      "exit_code": 0,
+      "output": "31.1.0\n1.73.0\n"
+    },
+    {
+      "command": [
+        "pkg-config",
+        "--cflags",
+        "grpc++"
+      ],
+      "exit_code": 0,
+      "output": "-DOPENSSL_LOAD_CONF -pthread -DNOMINMAX -DNOMINMAX -DWITH_GZFILEOP\n"
+    },
+    {
+      "command": [
+        "protoc",
+        "-I.",
+        "--cpp_out=/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final",
+        "--grpc_out=/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final",
+        "--plugin=protoc-gen-grpc=/bin/grpc_cpp_plugin",
+        "proto/filesystem.proto"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-fsyntax-only",
+        "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final",
+        "-DOPENSSL_LOAD_CONF",
+        "-pthread",
+        "-DNOMINMAX",
+        "-DNOMINMAX",
+        "-DWITH_GZFILEOP",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/proto/filesystem.pb.cc"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-fsyntax-only",
+        "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final",
+        "-DOPENSSL_LOAD_CONF",
+        "-pthread",
+        "-DNOMINMAX",
+        "-DNOMINMAX",
+        "-DWITH_GZFILEOP",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/proto/filesystem.grpc.pb.cc"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "pkg-config",
+        "--libs",
+        "grpc++"
+      ],
+      "exit_code": 0,
+      "output": "-lgrpc++ -lgrpc -labsl_statusor -lgpr -labsl_log_internal_check_op -labsl_flags_internal -labsl_flags_reflection -labsl_flags_private_handle_accessor -labsl_flags_commandlineflag -labsl_flags_commandlineflag_internal -labsl_flags_config -labsl_flags_program_name -labsl_raw_hash_set -labsl_hashtablez_sampler -labsl_flags_marshalling -labsl_log_internal_conditions -labsl_log_internal_message -labsl_examine_stack -labsl_log_internal_format -labsl_log_internal_nullguard -labsl_log_internal_structured_proto -labsl_log_internal_proto -labsl_log_internal_log_sink_set -labsl_log_internal_globals -labsl_log_sink -labsl_log_entry -labsl_log_globals -labsl_hash -labsl_city -labsl_bad_variant_access -labsl_low_level_hash -labsl_vlog_config_internal -labsl_log_internal_fnmatch -labsl_random_distributions -labsl_random_seed_sequences -labsl_random_internal_pool_urbg -labsl_random_internal_randen -labsl_random_internal_randen_hwaes -labsl_random_internal_randen_hwaes_impl -labsl_random_internal_randen_slow -labsl_random_internal_platform -labsl_random_internal_seed_material -labsl_random_seed_gen_exception -labsl_status -labsl_cord -labsl_cordz_info -labsl_cord_internal -labsl_cordz_functions -labsl_exponential_biased -labsl_cordz_handle -labsl_crc_cord_state -labsl_crc32c -labsl_crc_internal -labsl_crc_cpu_detect -labsl_leak_check -labsl_bad_optional_access -labsl_strerror -labsl_str_format_internal -labsl_synchronization -labsl_graphcycles_internal -labsl_kernel_timeout_internal -labsl_stacktrace -labsl_symbolize -labsl_debugging_internal -labsl_demangle_internal -labsl_demangle_rust -labsl_decode_rust_punycode -labsl_utf8_for_code_point -labsl_malloc_internal -labsl_tracing_internal -labsl_time -labsl_civil_time -labsl_strings -labsl_strings_internal -labsl_string_view -labsl_base -lrt -labsl_spinlock_wait -labsl_int128 -labsl_throw_delegate -labsl_raw_logging_internal -labsl_log_severity -labsl_time_zone\n"
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final",
+        "-DOPENSSL_LOAD_CONF",
+        "-pthread",
+        "-DNOMINMAX",
+        "-DNOMINMAX",
+        "-DWITH_GZFILEOP",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/docs/acceptance/protobuf-probe/main.cpp",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/proto/filesystem.pb.cc",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/proto/filesystem.grpc.pb.cc",
+        "/usr/lib/libprotobuf.a",
+        "-lgrpc++",
+        "-lgrpc",
+        "-labsl_statusor",
+        "-lgpr",
+        "-labsl_log_internal_check_op",
+        "-labsl_flags_internal",
+        "-labsl_flags_reflection",
+        "-labsl_flags_private_handle_accessor",
+        "-labsl_flags_commandlineflag",
+        "-labsl_flags_commandlineflag_internal",
+        "-labsl_flags_config",
+        "-labsl_flags_program_name",
+        "-labsl_raw_hash_set",
+        "-labsl_hashtablez_sampler",
+        "-labsl_flags_marshalling",
+        "-labsl_log_internal_conditions",
+        "-labsl_log_internal_message",
+        "-labsl_examine_stack",
+        "-labsl_log_internal_format",
+        "-labsl_log_internal_nullguard",
+        "-labsl_log_internal_structured_proto",
+        "-labsl_log_internal_proto",
+        "-labsl_log_internal_log_sink_set",
+        "-labsl_log_internal_globals",
+        "-labsl_log_sink",
+        "-labsl_log_entry",
+        "-labsl_log_globals",
+        "-labsl_hash",
+        "-labsl_city",
+        "-labsl_bad_variant_access",
+        "-labsl_low_level_hash",
+        "-labsl_vlog_config_internal",
+        "-labsl_log_internal_fnmatch",
+        "-labsl_random_distributions",
+        "-labsl_random_seed_sequences",
+        "-labsl_random_internal_pool_urbg",
+        "-labsl_random_internal_randen",
+        "-labsl_random_internal_randen_hwaes",
+        "-labsl_random_internal_randen_hwaes_impl",
+        "-labsl_random_internal_randen_slow",
+        "-labsl_random_internal_platform",
+        "-labsl_random_internal_seed_material",
+        "-labsl_random_seed_gen_exception",
+        "-labsl_status",
+        "-labsl_cord",
+        "-labsl_cordz_info",
+        "-labsl_cord_internal",
+        "-labsl_cordz_functions",
+        "-labsl_exponential_biased",
+        "-labsl_cordz_handle",
+        "-labsl_crc_cord_state",
+        "-labsl_crc32c",
+        "-labsl_crc_internal",
+        "-labsl_crc_cpu_detect",
+        "-labsl_leak_check",
+        "-labsl_bad_optional_access",
+        "-labsl_strerror",
+        "-labsl_str_format_internal",
+        "-labsl_synchronization",
+        "-labsl_graphcycles_internal",
+        "-labsl_kernel_timeout_internal",
+        "-labsl_stacktrace",
+        "-labsl_symbolize",
+        "-labsl_debugging_internal",
+        "-labsl_demangle_internal",
+        "-labsl_demangle_rust",
+        "-labsl_decode_rust_punycode",
+        "-labsl_utf8_for_code_point",
+        "-labsl_malloc_internal",
+        "-labsl_tracing_internal",
+        "-labsl_time",
+        "-labsl_civil_time",
+        "-labsl_strings",
+        "-labsl_strings_internal",
+        "-labsl_string_view",
+        "-labsl_base",
+        "-lrt",
+        "-labsl_spinlock_wait",
+        "-labsl_int128",
+        "-labsl_throw_delegate",
+        "-labsl_raw_logging_internal",
+        "-labsl_log_severity",
+        "-labsl_time_zone",
+        "-o",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/probe"
+      ],
+      "exit_code": 0,
+      "output": "/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_check_op.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_log_internal_check_op.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_statusor.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_statusor.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_message.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_log_internal_message.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_nullguard.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_log_internal_nullguard.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_vlog_config_internal.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_vlog_config_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_status.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_status.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_str_format_internal.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_str_format_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_synchronization.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_synchronization.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_strings.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc++.so, may conflict with libabsl_strings.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_raw_hash_set.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_raw_hash_set.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_cord.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_cord.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_cordz_info.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_cordz_info.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_conditions.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_log_internal_conditions.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_globals.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_log_globals.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_hash.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_hash.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_kernel_timeout_internal.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_kernel_timeout_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_randen.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_random_internal_randen.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_randen_hwaes_impl.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_random_internal_randen_hwaes_impl.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_randen_slow.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_random_internal_randen_slow.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_time.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_time.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_throw_delegate.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_throw_delegate.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_time_zone.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgrpc.so, may conflict with libabsl_time_zone.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_internal.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgpr.so, may conflict with libabsl_flags_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_marshalling.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgpr.so, may conflict with libabsl_flags_marshalling.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_reflection.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgpr.so, may conflict with libabsl_flags_reflection.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_spinlock_wait.so.2505.0.0, needed by /usr/lib64/gcc/x86_64-suse-linux/15/../../../../lib64/libgpr.so, may conflict with libabsl_spinlock_wait.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_leak_check.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_check_op.so.2505.0.0, may conflict with libabsl_leak_check.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_raw_logging_internal.so.2505.0.0, needed by /usr/lib64/libabsl_statusor.so.2505.0.0, may conflict with libabsl_raw_logging_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_examine_stack.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_examine_stack.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_format.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_log_internal_format.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_structured_proto.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_log_internal_structured_proto.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_strerror.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_strerror.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_proto.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_log_internal_proto.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_log_sink_set.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_log_internal_log_sink_set.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_globals.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_log_internal_globals.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_strings_internal.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_strings_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_base.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_message.so.2505.0.0, may conflict with libabsl_base.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_internal_fnmatch.so.2505.0.0, needed by /usr/lib64/libabsl_vlog_config_internal.so.2505.0.0, may conflict with libabsl_log_internal_fnmatch.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_int128.so.2505.0.0, needed by /usr/lib64/libabsl_str_format_internal.so.2505.0.0, may conflict with libabsl_int128.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_stacktrace.so.2505.0.0, needed by /usr/lib64/libabsl_synchronization.so.2505.0.0, may conflict with libabsl_stacktrace.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_tracing_internal.so.2505.0.0, needed by /usr/lib64/libabsl_synchronization.so.2505.0.0, may conflict with libabsl_tracing_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_malloc_internal.so.2505.0.0, needed by /usr/lib64/libabsl_synchronization.so.2505.0.0, may conflict with libabsl_malloc_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_hashtablez_sampler.so.2505.0.0, needed by /usr/lib64/libabsl_raw_hash_set.so.2505.0.0, may conflict with libabsl_hashtablez_sampler.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_cord_internal.so.2505.0.0, needed by /usr/lib64/libabsl_cord.so.2505.0.0, may conflict with libabsl_cord_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_crc_cord_state.so.2505.0.0, needed by /usr/lib64/libabsl_cord.so.2505.0.0, may conflict with libabsl_crc_cord_state.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_cordz_functions.so.2505.0.0, needed by /usr/lib64/libabsl_cord.so.2505.0.0, may conflict with libabsl_cordz_functions.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_cordz_handle.so.2505.0.0, needed by /usr/lib64/libabsl_cordz_info.so.2505.0.0, may conflict with libabsl_cordz_handle.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_city.so.2505.0.0, needed by /usr/lib64/libabsl_hash.so.2505.0.0, may conflict with libabsl_city.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_low_level_hash.so.2505.0.0, needed by /usr/lib64/libabsl_hash.so.2505.0.0, may conflict with libabsl_low_level_hash.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_seed_material.so.2505.0.0, needed by /usr/lib64/libabsl_random_internal_entropy_pool.so.2505.0.0, may conflict with libabsl_random_internal_seed_material.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_seed_gen_exception.so.2505.0.0, needed by /usr/lib64/libabsl_random_internal_entropy_pool.so.2505.0.0, may conflict with libabsl_random_seed_gen_exception.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_randen_hwaes.so.2505.0.0, needed by /usr/lib64/libabsl_random_internal_randen.so.2505.0.0, may conflict with libabsl_random_internal_randen_hwaes.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_random_internal_platform.so.2505.0.0, needed by /usr/lib64/libabsl_random_internal_randen_slow.so.2505.0.0, may conflict with libabsl_random_internal_platform.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_commandlineflag.so.2505.0.0, needed by /usr/lib64/libabsl_flags_internal.so.2505.0.0, may conflict with libabsl_flags_commandlineflag.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_commandlineflag_internal.so.2505.0.0, needed by /usr/lib64/libabsl_flags_internal.so.2505.0.0, may conflict with libabsl_flags_commandlineflag_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_config.so.2505.0.0, needed by /usr/lib64/libabsl_flags_internal.so.2505.0.0, may conflict with libabsl_flags_config.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_private_handle_accessor.so.2505.0.0, needed by /usr/lib64/libabsl_flags_reflection.so.2505.0.0, may conflict with libabsl_flags_private_handle_accessor.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_symbolize.so.2505.0.0, needed by /usr/lib64/libabsl_examine_stack.so.2505.0.0, may conflict with libabsl_symbolize.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_log_sink.so.2505.0.0, needed by /usr/lib64/libabsl_log_internal_log_sink_set.so.2505.0.0, may conflict with libabsl_log_sink.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_debugging_internal.so.2505.0.0, needed by /usr/lib64/libabsl_stacktrace.so.2505.0.0, may conflict with libabsl_debugging_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_crc32c.so.2505.0.0, needed by /usr/lib64/libabsl_crc_cord_state.so.2505.0.0, may conflict with libabsl_crc32c.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_exponential_biased.so.2505.0.0, needed by /usr/lib64/libabsl_cordz_functions.so.2505.0.0, may conflict with libabsl_exponential_biased.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_flags_program_name.so.2505.0.0, needed by /usr/lib64/libabsl_flags_config.so.2505.0.0, may conflict with libabsl_flags_program_name.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_demangle_internal.so.2505.0.0, needed by /usr/lib64/libabsl_symbolize.so.2505.0.0, may conflict with libabsl_demangle_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_crc_internal.so.2505.0.0, needed by /usr/lib64/libabsl_crc32c.so.2505.0.0, may conflict with libabsl_crc_internal.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_demangle_rust.so.2505.0.0, needed by /usr/lib64/libabsl_demangle_internal.so.2505.0.0, may conflict with libabsl_demangle_rust.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_decode_rust_punycode.so.2505.0.0, needed by /usr/lib64/libabsl_demangle_rust.so.2505.0.0, may conflict with libabsl_decode_rust_punycode.so.2501.0.0\n/usr/lib64/gcc/x86_64-suse-linux/15/../../../../x86_64-suse-linux/bin/ld: warning: libabsl_utf8_for_code_point.so.2505.0.0, needed by /usr/lib64/libabsl_decode_rust_punycode.so.2505.0.0, may conflict with libabsl_utf8_for_code_point.so.2501.0.0\n"
+    },
+    {
+      "command": [
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/probe"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "ldd",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/protobuf-packet/final/probe"
+      ],
+      "exit_code": 0,
+      "output": "\tlinux-vdso.so.1 (0x00007044a3722000)\n\tlibgrpc++.so.1.73 => /lib64/libgrpc++.so.1.73 (0x00007044a365f000)\n\tlibgrpc.so.48 => /lib64/libgrpc.so.48 (0x00007044a2a00000)\n\tlibabsl_statusor.so.2501.0.0 => /lib64/libabsl_statusor.so.2501.0.0 (0x00007044a3659000)\n\tlibgpr.so.48 => /lib64/libgpr.so.48 (0x00007044a3639000)\n\tlibabsl_log_internal_check_op.so.2501.0.0 => /lib64/libabsl_log_internal_check_op.so.2501.0.0 (0x00007044a3630000)\n\tlibabsl_flags_internal.so.2501.0.0 => /lib64/libabsl_flags_internal.so.2501.0.0 (0x00007044a3625000)\n\tlibabsl_flags_reflection.so.2501.0.0 => /lib64/libabsl_flags_reflection.so.2501.0.0 (0x00007044a3619000)\n\tlibabsl_flags_private_handle_accessor.so.2501.0.0 => /lib64/libabsl_flags_private_handle_accessor.so.2501.0.0 (0x00007044a3614000)\n\tlibabsl_flags_commandlineflag.so.2501.0.0 => /lib64/libabsl_flags_commandlineflag.so.2501.0.0 (0x00007044a360d000)\n\tlibabsl_flags_commandlineflag_internal.so.2501.0.0 => /lib64/libabsl_flags_commandlineflag_internal.so.2501.0.0 (0x00007044a3608000)\n\tlibabsl_flags_config.so.2501.0.0 => /lib64/libabsl_flags_config.so.2501.0.0 (0x00007044a3601000)\n\tlibabsl_flags_program_name.so.2501.0.0 => /lib64/libabsl_flags_program_name.so.2501.0.0 (0x00007044a35fc000)\n\tlibabsl_raw_hash_set.so.2501.0.0 => /lib64/libabsl_raw_hash_set.so.2501.0.0 (0x00007044a35f6000)\n\tlibabsl_hashtablez_sampler.so.2501.0.0 => /lib64/libabsl_hashtablez_sampler.so.2501.0.0 (0x00007044a35ee000)\n\tlibabsl_flags_marshalling.so.2501.0.0 => /lib64/libabsl_flags_marshalling.so.2501.0.0 (0x00007044a35e3000)\n\tlibabsl_log_internal_conditions.so.2501.0.0 => /lib64/libabsl_log_internal_conditions.so.2501.0.0 (0x00007044a35de000)\n\tlibabsl_log_internal_message.so.2501.0.0 => /lib64/libabsl_log_internal_message.so.2501.0.0 (0x00007044a35d0000)\n\tlibabsl_examine_stack.so.2501.0.0 => /lib64/libabsl_examine_stack.so.2501.0.0 (0x00007044a35cb000)\n\tlibabsl_log_internal_format.so.2501.0.0 => /lib64/libabsl_log_internal_format.so.2501.0.0 (0x00007044a35c4000)\n\tlibabsl_log_internal_nullguard.so.2501.0.0 => /lib64/libabsl_log_internal_nullguard.so.2501.0.0 (0x00007044a35bf000)\n\tlibabsl_log_internal_structured_proto.so.2501.0.0 => /lib64/libabsl_log_internal_structured_proto.so.2501.0.0 (0x00007044a35ba000)\n\tlibabsl_log_internal_proto.so.2501.0.0 => /lib64/libabsl_log_internal_proto.so.2501.0.0 (0x00007044a35b5000)\n\tlibabsl_log_internal_log_sink_set.so.2501.0.0 => /lib64/libabsl_log_internal_log_sink_set.so.2501.0.0 (0x00007044a35ae000)\n\tlibabsl_log_internal_globals.so.2501.0.0 => /lib64/libabsl_log_internal_globals.so.2501.0.0 (0x00007044a35a7000)\n\tlibabsl_log_sink.so.2501.0.0 => /lib64/libabsl_log_sink.so.2501.0.0 (0x00007044a35a2000)\n\tlibabsl_log_entry.so.2501.0.0 => /lib64/libabsl_log_entry.so.2501.0.0 (0x00007044a359d000)\n\tlibabsl_log_globals.so.2501.0.0 => /lib64/libabsl_log_globals.so.2501.0.0 (0x00007044a3597000)\n\tlibabsl_hash.so.2501.0.0 => /lib64/libabsl_hash.so.2501.0.0 (0x00007044a3592000)\n\tlibabsl_city.so.2501.0.0 => /lib64/libabsl_city.so.2501.0.0 (0x00007044a358d000)\n\tlibabsl_bad_variant_access.so.2501.0.0 => /lib64/libabsl_bad_variant_access.so.2501.0.0 (0x00007044a3586000)\n\tlibabsl_low_level_hash.so.2501.0.0 => /lib64/libabsl_low_level_hash.so.2501.0.0 (0x00007044a3581000)\n\tlibabsl_vlog_config_internal.so.2501.0.0 => /lib64/libabsl_vlog_config_internal.so.2501.0.0 (0x00007044a3578000)\n\tlibabsl_log_internal_fnmatch.so.2501.0.0 => /lib64/libabsl_log_internal_fnmatch.so.2501.0.0 (0x00007044a3573000)\n\tlibabsl_random_distributions.so.2501.0.0 => /lib64/libabsl_random_distributions.so.2501.0.0 (0x00007044a356e000)\n\tlibabsl_random_seed_sequences.so.2501.0.0 => /lib64/libabsl_random_seed_sequences.so.2501.0.0 (0x00007044a3567000)\n\tlibabsl_random_internal_pool_urbg.so.2501.0.0 => /lib64/libabsl_random_internal_pool_urbg.so.2501.0.0 (0x00007044a3561000)\n\tlibabsl_random_internal_randen.so.2501.0.0 => /lib64/libabsl_random_internal_randen.so.2501.0.0 (0x00007044a355c000)\n\tlibabsl_random_internal_randen_hwaes.so.2501.0.0 => /lib64/libabsl_random_internal_randen_hwaes.so.2501.0.0 (0x00007044a3557000)\n\tlibabsl_random_internal_randen_hwaes_impl.so.2501.0.0 => /lib64/libabsl_random_internal_randen_hwaes_impl.so.2501.0.0 (0x00007044a3552000)\n\tlibabsl_random_internal_randen_slow.so.2501.0.0 => /lib64/libabsl_random_internal_randen_slow.so.2501.0.0 (0x00007044a354a000)\n\tlibabsl_random_internal_platform.so.2501.0.0 => /lib64/libabsl_random_internal_platform.so.2501.0.0 (0x00007044a3544000)\n\tlibabsl_random_internal_seed_material.so.2501.0.0 => /lib64/libabsl_random_internal_seed_material.so.2501.0.0 (0x00007044a353f000)\n\tlibabsl_random_seed_gen_exception.so.2501.0.0 => /lib64/libabsl_random_seed_gen_exception.so.2501.0.0 (0x00007044a353a000)\n\tlibabsl_status.so.2501.0.0 => /lib64/libabsl_status.so.2501.0.0 (0x00007044a352e000)\n\tlibabsl_cord.so.2501.0.0 => /lib64/libabsl_cord.so.2501.0.0 (0x00007044a3515000)\n\tlibabsl_cordz_info.so.2501.0.0 => /lib64/libabsl_cordz_info.so.2501.0.0 (0x00007044a350e000)\n\tlibabsl_cord_internal.so.2501.0.0 => /lib64/libabsl_cord_internal.so.2501.0.0 (0x00007044a3500000)\n\tlibabsl_cordz_functions.so.2501.0.0 => /lib64/libabsl_cordz_functions.so.2501.0.0 (0x00007044a34fb000)\n\tlibabsl_exponential_biased.so.2501.0.0 => /lib64/libabsl_exponential_biased.so.2501.0.0 (0x00007044a34f6000)\n\tlibabsl_cordz_handle.so.2501.0.0 => /lib64/libabsl_cordz_handle.so.2501.0.0 (0x00007044a29fb000)\n\tlibabsl_crc_cord_state.so.2501.0.0 => /lib64/libabsl_crc_cord_state.so.2501.0.0 (0x00007044a29f4000)\n\tlibabsl_crc32c.so.2501.0.0 => /lib64/libabsl_crc32c.so.2501.0.0 (0x00007044a29ee000)\n\tlibabsl_crc_internal.so.2501.0.0 => /lib64/libabsl_crc_internal.so.2501.0.0 (0x00007044a29e8000)\n\tlibabsl_crc_cpu_detect.so.2501.0.0 => /lib64/libabsl_crc_cpu_detect.so.2501.0.0 (0x00007044a29e3000)\n\tlibabsl_leak_check.so.2501.0.0 => /lib64/libabsl_leak_check.so.2501.0.0 (0x00007044a29de000)\n\tlibabsl_bad_optional_access.so.2501.0.0 => /lib64/libabsl_bad_optional_access.so.2501.0.0 (0x00007044a29d9000)\n\tlibabsl_strerror.so.2501.0.0 => /lib64/libabsl_strerror.so.2501.0.0 (0x00007044a29d4000)\n\tlibabsl_str_format_internal.so.2501.0.0 => /lib64/libabsl_str_format_internal.so.2501.0.0 (0x00007044a29ba000)\n\tlibabsl_synchronization.so.2501.0.0 => /lib64/libabsl_synchronization.so.2501.0.0 (0x00007044a29a9000)\n\tlibabsl_graphcycles_internal.so.2501.0.0 => /lib64/libabsl_graphcycles_internal.so.2501.0.0 (0x00007044a29a1000)\n\tlibabsl_kernel_timeout_internal.so.2501.0.0 => /lib64/libabsl_kernel_timeout_internal.so.2501.0.0 (0x00007044a2999000)\n\tlibabsl_stacktrace.so.2501.0.0 => /lib64/libabsl_stacktrace.so.2501.0.0 (0x00007044a2994000)\n\tlibabsl_symbolize.so.2501.0.0 => /lib64/libabsl_symbolize.so.2501.0.0 (0x00007044a298c000)\n\tlibabsl_debugging_internal.so.2501.0.0 => /lib64/libabsl_debugging_internal.so.2501.0.0 (0x00007044a2985000)\n\tlibabsl_demangle_internal.so.2501.0.0 => /lib64/libabsl_demangle_internal.so.2501.0.0 (0x00007044a2977000)\n\tlibabsl_demangle_rust.so.2501.0.0 => /lib64/libabsl_demangle_rust.so.2501.0.0 (0x00007044a296e000)\n\tlibabsl_decode_rust_punycode.so.2501.0.0 => /lib64/libabsl_decode_rust_punycode.so.2501.0.0 (0x00007044a2969000)\n\tlibabsl_utf8_for_code_point.so.2501.0.0 => /lib64/libabsl_utf8_for_code_point.so.2501.0.0 (0x00007044a2964000)\n\tlibabsl_malloc_internal.so.2501.0.0 => /lib64/libabsl_malloc_internal.so.2501.0.0 (0x00007044a295d000)\n\tlibabsl_tracing_internal.so.2501.0.0 => /lib64/libabsl_tracing_internal.so.2501.0.0 (0x00007044a2958000)\n\tlibabsl_time.so.2501.0.0 => /lib64/libabsl_time.so.2501.0.0 (0x00007044a2944000)\n\tlibabsl_civil_time.so.2501.0.0 => /lib64/libabsl_civil_time.so.2501.0.0 (0x00007044a293a000)\n\tlibabsl_strings.so.2501.0.0 => /lib64/libabsl_strings.so.2501.0.0 (0x00007044a291c000)\n\tlibabsl_strings_internal.so.2501.0.0 => /lib64/libabsl_strings_internal.so.2501.0.0 (0x00007044a2916000)\n\tlibabsl_string_view.so.2501.0.0 => /lib64/libabsl_string_view.so.2501.0.0 (0x00007044a2911000)\n\tlibabsl_base.so.2501.0.0 => /lib64/libabsl_base.so.2501.0.0 (0x00007044a290b000)\n\tlibabsl_spinlock_wait.so.2501.0.0 => /lib64/libabsl_spinlock_wait.so.2501.0.0 (0x00007044a2906000)\n\tlibabsl_int128.so.2501.0.0 => /lib64/libabsl_int128.so.2501.0.0 (0x00007044a28fd000)\n\tlibabsl_throw_delegate.so.2501.0.0 => /lib64/libabsl_throw_delegate.so.2501.0.0 (0x00007044a28f6000)\n\tlibabsl_raw_logging_internal.so.2501.0.0 => /lib64/libabsl_raw_logging_internal.so.2501.0.0 (0x00007044a28f1000)\n\tlibabsl_log_severity.so.2501.0.0 => /lib64/libabsl_log_severity.so.2501.0.0 (0x00007044a28ec000)\n\tlibabsl_time_zone.so.2501.0.0 => /lib64/libabsl_time_zone.so.2501.0.0 (0x00007044a28d3000)\n\tlibstdc++.so.6 => /lib64/libstdc++.so.6 (0x00007044a2600000)\n\tlibm.so.6 => /lib64/libm.so.6 (0x00007044a24e4000)\n\tlibgcc_s.so.1 => /lib64/libgcc_s.so.1 (0x00007044a28a4000)\n\tlibc.so.6 => /lib64/libc.so.6 (0x00007044a2200000)\n\tlibupb_wire_lib.so.48 => /lib64/libupb_wire_lib.so.48 (0x00007044a2899000)\n\tlibupb_mem_lib.so.48 => /lib64/libupb_mem_lib.so.48 (0x00007044a2894000)\n\tlibabsl_log_internal_check_op.so.2505.0.0 => /lib64/libabsl_log_internal_check_op.so.2505.0.0 (0x00007044a288b000)\n\tlibabsl_statusor.so.2505.0.0 => /lib64/libabsl_statusor.so.2505.0.0 (0x00007044a2883000)\n\tlibabsl_log_internal_message.so.2505.0.0 => /lib64/libabsl_log_internal_message.so.2505.0.0 (0x00007044a2875000)\n\tlibabsl_log_internal_nullguard.so.2505.0.0 => /lib64/libabsl_log_internal_nullguard.so.2505.0.0 (0x00007044a2870000)\n\tlibabsl_vlog_config_internal.so.2505.0.0 => /lib64/libabsl_vlog_config_internal.so.2505.0.0 (0x00007044a24db000)\n\tlibabsl_status.so.2505.0.0 => /lib64/libabsl_status.so.2505.0.0 (0x00007044a24cf000)\n\tlibabsl_str_format_internal.so.2505.0.0 => /lib64/libabsl_str_format_internal.so.2505.0.0 (0x00007044a24b5000)\n\tlibabsl_synchronization.so.2505.0.0 => /lib64/libabsl_synchronization.so.2505.0.0 (0x00007044a24a4000)\n\tlibabsl_strings.so.2505.0.0 => /lib64/libabsl_strings.so.2505.0.0 (0x00007044a2485000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007044a3724000)\n\tlibupb_json_lib.so.48 => /lib64/libupb_json_lib.so.48 (0x00007044a2479000)\n\tlibupb_textformat_lib.so.48 => /lib64/libupb_textformat_lib.so.48 (0x00007044a246d000)\n\tlibre2.so.11 => /lib64/libre2.so.11 (0x00007044a2186000)\n\tlibz.so.1 => /usr/lib64/zlib-ng-compat/libz.so.1 (0x00007044a244b000)\n\tlibcares.so.2 => /lib64/libcares.so.2 (0x00007044a240c000)\n\tlibssl.so.3 => /lib64/libssl.so.3 (0x00007044a2062000)\n\tlibcrypto.so.3 => /lib64/libcrypto.so.3 (0x00007044a1800000)\n\tlibaddress_sorting.so.48 => /lib64/libaddress_sorting.so.48 (0x00007044a2407000)\n\tlibupb_reflection_lib.so.48 => /lib64/libupb_reflection_lib.so.48 (0x00007044a2042000)\n\tlibupb_message_lib.so.48 => /lib64/libupb_message_lib.so.48 (0x00007044a2039000)\n\tlibupb_hash_lib.so.48 => /lib64/libupb_hash_lib.so.48 (0x00007044a2033000)\n\tlibupb_base_lib.so.48 => /lib64/libupb_base_lib.so.48 (0x00007044a202e000)\n\tlibabsl_raw_hash_set.so.2505.0.0 => /lib64/libabsl_raw_hash_set.so.2505.0.0 (0x00007044a2026000)\n\tlibabsl_cord.so.2505.0.0 => /lib64/libabsl_cord.so.2505.0.0 (0x00007044a2010000)\n\tlibabsl_cordz_info.so.2505.0.0 => /lib64/libabsl_cordz_info.so.2505.0.0 (0x00007044a2007000)\n\tlibabsl_log_internal_conditions.so.2505.0.0 => /lib64/libabsl_log_internal_conditions.so.2505.0.0 (0x00007044a2002000)\n\tlibabsl_log_globals.so.2505.0.0 => /lib64/libabsl_log_globals.so.2505.0.0 (0x00007044a1ffc000)\n\tlibabsl_hash.so.2505.0.0 => /lib64/libabsl_hash.so.2505.0.0 (0x00007044a1ff7000)\n\tlibabsl_random_internal_entropy_pool.so.2505.0.0 => /lib64/libabsl_random_internal_entropy_pool.so.2505.0.0 (0x00007044a1ff2000)\n\tlibabsl_kernel_timeout_internal.so.2505.0.0 => /lib64/libabsl_kernel_timeout_internal.so.2505.0.0 (0x00007044a1fea000)\n\tlibabsl_random_internal_randen.so.2505.0.0 => /lib64/libabsl_random_internal_randen.so.2505.0.0 (0x00007044a1fe5000)\n\tlibabsl_random_internal_randen_hwaes_impl.so.2505.0.0 => /lib64/libabsl_random_internal_randen_hwaes_impl.so.2505.0.0 (0x00007044a1fe0000)\n\tlibabsl_random_internal_randen_slow.so.2505.0.0 => /lib64/libabsl_random_internal_randen_slow.so.2505.0.0 (0x00007044a1fda000)\n\tlibabsl_time.so.2505.0.0 => /lib64/libabsl_time.so.2505.0.0 (0x00007044a1fc7000)\n\tlibabsl_throw_delegate.so.2505.0.0 => /lib64/libabsl_throw_delegate.so.2505.0.0 (0x00007044a1fbe000)\n\tlibabsl_time_zone.so.2505.0.0 => /lib64/libabsl_time_zone.so.2505.0.0 (0x00007044a1fa5000)\n\tlibabsl_flags_internal.so.2505.0.0 => /lib64/libabsl_flags_internal.so.2505.0.0 (0x00007044a1f9a000)\n\tlibabsl_flags_marshalling.so.2505.0.0 => /lib64/libabsl_flags_marshalling.so.2505.0.0 (0x00007044a1f8f000)\n\tlibabsl_flags_reflection.so.2505.0.0 => /lib64/libabsl_flags_reflection.so.2505.0.0 (0x00007044a1f83000)\n\tlibabsl_spinlock_wait.so.2505.0.0 => /lib64/libabsl_spinlock_wait.so.2505.0.0 (0x00007044a1f7c000)\n\tlibutf8_range_lib.so.48 => /lib64/libutf8_range_lib.so.48 (0x00007044a1f75000)\n\tlibupb_mini_table_lib.so.48 => /lib64/libupb_mini_table_lib.so.48 (0x00007044a1f70000)\n\tlibabsl_leak_check.so.2505.0.0 => /lib64/libabsl_leak_check.so.2505.0.0 (0x00007044a1f6b000)\n\tlibabsl_raw_logging_internal.so.2505.0.0 => /lib64/libabsl_raw_logging_internal.so.2505.0.0 (0x00007044a1f66000)\n\tlibabsl_examine_stack.so.2505.0.0 => /lib64/libabsl_examine_stack.so.2505.0.0 (0x00007044a1f5f000)\n\tlibabsl_log_internal_format.so.2505.0.0 => /lib64/libabsl_log_internal_format.so.2505.0.0 (0x00007044a1f5a000)\n\tlibabsl_log_internal_structured_proto.so.2505.0.0 => /lib64/libabsl_log_internal_structured_proto.so.2505.0.0 (0x00007044a1f55000)\n\tlibabsl_strerror.so.2505.0.0 => /lib64/libabsl_strerror.so.2505.0.0 (0x00007044a1f50000)\n\tlibabsl_log_internal_proto.so.2505.0.0 => /lib64/libabsl_log_internal_proto.so.2505.0.0 (0x00007044a1f4b000)\n\tlibabsl_log_internal_log_sink_set.so.2505.0.0 => /lib64/libabsl_log_internal_log_sink_set.so.2505.0.0 (0x00007044a1f42000)\n\tlibabsl_log_internal_globals.so.2505.0.0 => /lib64/libabsl_log_internal_globals.so.2505.0.0 (0x00007044a1f3d000)\n\tlibabsl_strings_internal.so.2505.0.0 => /lib64/libabsl_strings_internal.so.2505.0.0 (0x00007044a1f37000)\n\tlibabsl_base.so.2505.0.0 => /lib64/libabsl_base.so.2505.0.0 (0x00007044a1f31000)\n\tlibabsl_log_internal_fnmatch.so.2505.0.0 => /lib64/libabsl_log_internal_fnmatch.so.2505.0.0 (0x00007044a1f2c000)\n\tlibabsl_int128.so.2505.0.0 => /lib64/libabsl_int128.so.2505.0.0 (0x00007044a1f23000)\n\tlibabsl_stacktrace.so.2505.0.0 => /lib64/libabsl_stacktrace.so.2505.0.0 (0x00007044a1f1d000)\n\tlibabsl_tracing_internal.so.2505.0.0 => /lib64/libabsl_tracing_internal.so.2505.0.0 (0x00007044a1f18000)\n\tlibabsl_malloc_internal.so.2505.0.0 => /lib64/libabsl_malloc_internal.so.2505.0.0 (0x00007044a1f11000)\n\tlibupb_lex_lib.so.48 => /lib64/libupb_lex_lib.so.48 (0x00007044a1f0c000)\n\tlibicuuc.so.77 => /lib64/libicuuc.so.77 (0x00007044a1400000)\n\tlibjitterentropy.so.3 => /lib64/libjitterentropy.so.3 (0x00007044a1f00000)\n\tlibupb_mini_descriptor_lib.so.48 => /lib64/libupb_mini_descriptor_lib.so.48 (0x00007044a1ef9000)\n\tlibabsl_hashtablez_sampler.so.2505.0.0 => /lib64/libabsl_hashtablez_sampler.so.2505.0.0 (0x00007044a1ef3000)\n\tlibabsl_cord_internal.so.2505.0.0 => /lib64/libabsl_cord_internal.so.2505.0.0 (0x00007044a1ee5000)\n\tlibabsl_crc_cord_state.so.2505.0.0 => /lib64/libabsl_crc_cord_state.so.2505.0.0 (0x00007044a1edc000)\n\tlibabsl_cordz_functions.so.2505.0.0 => /lib64/libabsl_cordz_functions.so.2505.0.0 (0x00007044a1ed7000)\n\tlibabsl_cordz_handle.so.2505.0.0 => /lib64/libabsl_cordz_handle.so.2505.0.0 (0x00007044a1ed2000)\n\tlibabsl_city.so.2505.0.0 => /lib64/libabsl_city.so.2505.0.0 (0x00007044a1ecd000)\n\tlibabsl_low_level_hash.so.2505.0.0 => /lib64/libabsl_low_level_hash.so.2505.0.0 (0x00007044a1ec8000)\n\tlibabsl_random_internal_seed_material.so.2505.0.0 => /lib64/libabsl_random_internal_seed_material.so.2505.0.0 (0x00007044a1ec1000)\n\tlibabsl_random_seed_gen_exception.so.2505.0.0 => /lib64/libabsl_random_seed_gen_exception.so.2505.0.0 (0x00007044a1ebc000)\n\tlibabsl_random_internal_randen_hwaes.so.2505.0.0 => /lib64/libabsl_random_internal_randen_hwaes.so.2505.0.0 (0x00007044a1eb7000)\n\tlibabsl_random_internal_platform.so.2505.0.0 => /lib64/libabsl_random_internal_platform.so.2505.0.0 (0x00007044a1eb1000)\n\tlibabsl_flags_commandlineflag.so.2505.0.0 => /lib64/libabsl_flags_commandlineflag.so.2505.0.0 (0x00007044a1eac000)\n\tlibabsl_flags_commandlineflag_internal.so.2505.0.0 => /lib64/libabsl_flags_commandlineflag_internal.so.2505.0.0 (0x00007044a1ea5000)\n\tlibabsl_flags_config.so.2505.0.0 => /lib64/libabsl_flags_config.so.2505.0.0 (0x00007044a1e9e000)\n\tlibabsl_flags_private_handle_accessor.so.2505.0.0 => /lib64/libabsl_flags_private_handle_accessor.so.2505.0.0 (0x00007044a1e99000)\n\tlibabsl_symbolize.so.2505.0.0 => /lib64/libabsl_symbolize.so.2505.0.0 (0x00007044a1e91000)\n\tlibabsl_log_sink.so.2505.0.0 => /lib64/libabsl_log_sink.so.2505.0.0 (0x00007044a1e8c000)\n\tlibabsl_debugging_internal.so.2505.0.0 => /lib64/libabsl_debugging_internal.so.2505.0.0 (0x00007044a17f9000)\n\tlibicudata.so.77 => /lib64/libicudata.so.77 (0x00007044a1e87000)\n\tlibabsl_crc32c.so.2505.0.0 => /lib64/libabsl_crc32c.so.2505.0.0 (0x00007044a17f3000)\n\tlibabsl_exponential_biased.so.2505.0.0 => /lib64/libabsl_exponential_biased.so.2505.0.0 (0x00007044a17ee000)\n\tlibabsl_flags_program_name.so.2505.0.0 => /lib64/libabsl_flags_program_name.so.2505.0.0 (0x00007044a17e7000)\n\tlibabsl_demangle_internal.so.2505.0.0 => /lib64/libabsl_demangle_internal.so.2505.0.0 (0x00007044a17d9000)\n\tlibabsl_crc_internal.so.2505.0.0 => /lib64/libabsl_crc_internal.so.2505.0.0 (0x00007044a17d3000)\n\tlibabsl_demangle_rust.so.2505.0.0 => /lib64/libabsl_demangle_rust.so.2505.0.0 (0x00007044a17cc000)\n\tlibabsl_decode_rust_punycode.so.2505.0.0 => /lib64/libabsl_decode_rust_punycode.so.2505.0.0 (0x00007044a17c7000)\n\tlibabsl_utf8_for_code_point.so.2505.0.0 => /lib64/libabsl_utf8_for_code_point.so.2505.0.0 (0x00007044a17c0000)\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "output": "83a8e3c9a7c0d0462d29493ea569f2a4755c1bc2\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "origin/development"
+      ],
+      "exit_code": 0,
+      "output": "02aaa408e77b98a252d26e33c5f2973f87b47c25\n"
+    }
+  ],
+  "sha256": {
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/CMakeLists.txt": "3ea4d1a0a485967196b4c87e8540c88997576d2df4268425c1c909acb3b7a735",
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/proto/filesystem.proto": "0b27f8cc48457e55a40b59c16a32c33386bc7d21aff3b9a524adc92d3da5d85c",
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/docs/acceptance/protobuf-probe/run.py": "88d00a4c445ece0c83615b5b3f1dddfcfd358e55e0eae447670db664ccfd1bd0",
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/docs/acceptance/protobuf-probe/main.cpp": "d5d60ce4890132a57416daa15c96d32801fc336a8d0ab0f3da8924e4704a0bca",
+    "/usr/include/google/protobuf/stubs/common.h": "0d67264d1da8cf32ba1a8fa2b86bb1d483d88388c0599766ab338add777b24f8",
+    "/usr/lib/libprotobuf.a": "f05faf6199f68a72b8d3066df3ce638ef6a0d426120abd0167f8b92b0e7e4aa7",
+    "/bin/protoc": "7c3efd508d2d309d0c7f647a067b58a7d0a7df11b2d2e1118d79492f3d05d416",
+    "/bin/grpc_cpp_plugin": "55383af8de89900ba071fc225b0623bfda86713c6ed33cf9c1fd128cc4c5893d"
+  },
+  "limits": [
+    "One dependency probe only; not full-static or project acceptance",
+    "No full-project build, FUSE or storage acceptance",
+    "Mixed Abseil 2501/2505 runtime families unqualified",
+    "pkg-config Protobuf metadata differs from compiler/default headers",
+    "One successful runtime; zero full-project runtime executions"
+  ],
+  "time_utc": "2026-11-04T00:25:37.884010+00:00"
+}

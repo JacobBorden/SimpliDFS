@@ -1,0 +1,332 @@
+[
+  {
+    "name": "valid-all-bytes-0",
+    "input": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "expected": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-32",
+    "input": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "expected": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-64",
+    "input": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "expected": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-96",
+    "input": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "expected": "606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-128",
+    "input": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "expected": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-160",
+    "input": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "expected": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-192",
+    "input": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+    "expected": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+    "valid": true
+  },
+  {
+    "name": "valid-all-bytes-224",
+    "input": "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "expected": "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+    "valid": true
+  },
+  {
+    "name": "valid-upper",
+    "input": "000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F",
+    "expected": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "valid": true
+  },
+  {
+    "name": "valid-mixed",
+    "input": "000102030405060708090A0b0c0D0e0f101112131415161718191a1b1C1d1e1F",
+    "expected": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "valid": true
+  },
+  {
+    "name": "valid-zero",
+    "input": "0000000000000000000000000000000000000000000000000000000000000000",
+    "expected": "0000000000000000000000000000000000000000000000000000000000000000",
+    "valid": true
+  },
+  {
+    "name": "valid-ff",
+    "input": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "expected": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "valid": true
+  },
+  {
+    "name": "invalid-pair-12",
+    "input": "1g12121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-13",
+    "input": "121212121212121212121212121212121g121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-14",
+    "input": "121212121212121212121212121212121212121212121212121212121212121g",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-15",
+    "input": "g112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-16",
+    "input": "12121212121212121212121212121212g1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-17",
+    "input": "12121212121212121212121212121212121212121212121212121212121212g1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-18",
+    "input": "+112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-19",
+    "input": "12121212121212121212121212121212+1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-20",
+    "input": "12121212121212121212121212121212121212121212121212121212121212+1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-21",
+    "input": "-112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-22",
+    "input": "12121212121212121212121212121212-1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-23",
+    "input": "12121212121212121212121212121212121212121212121212121212121212-1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-24",
+    "input": " 112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-25",
+    "input": "12121212121212121212121212121212 1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-26",
+    "input": "12121212121212121212121212121212121212121212121212121212121212 1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-27",
+    "input": "1 12121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-28",
+    "input": "121212121212121212121212121212121 121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-29",
+    "input": "121212121212121212121212121212121212121212121212121212121212121 ",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-30",
+    "input": "\t112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-31",
+    "input": "12121212121212121212121212121212\t1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-32",
+    "input": "12121212121212121212121212121212121212121212121212121212121212\t1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-33",
+    "input": "1\n12121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-34",
+    "input": "121212121212121212121212121212121\n121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-35",
+    "input": "121212121212121212121212121212121212121212121212121212121212121\n",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-36",
+    "input": "0x12121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-37",
+    "input": "121212121212121212121212121212120x121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-38",
+    "input": "121212121212121212121212121212121212121212121212121212121212120x",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-39",
+    "input": "zz12121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-40",
+    "input": "12121212121212121212121212121212zz121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-41",
+    "input": "12121212121212121212121212121212121212121212121212121212121212zz",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-42",
+    "input": "/112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-43",
+    "input": "12121212121212121212121212121212/1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-44",
+    "input": "12121212121212121212121212121212121212121212121212121212121212/1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-45",
+    "input": ":112121212121212121212121212121212121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-46",
+    "input": "12121212121212121212121212121212:1121212121212121212121212121212",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "invalid-pair-47",
+    "input": "12121212121212121212121212121212121212121212121212121212121212:1",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "missing",
+    "input": "MISSING",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "empty",
+    "input": "",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "short",
+    "input": "111111111111111111111111111111111111111111111111111111111111111",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "long",
+    "input": "11111111111111111111111111111111111111111111111111111111111111111",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "prefix",
+    "input": "0x1111111111111111111111111111111111111111111111111111111111111111",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "trailing",
+    "input": "1111111111111111111111111111111111111111111111111111111111111111 ",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  },
+  {
+    "name": "all-space",
+    "input": "                                                                ",
+    "expected": "a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5",
+    "valid": false
+  }
+]

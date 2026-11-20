@@ -1,0 +1,21 @@
+{
+  "time": "2026-11-12T00:20:19.034175+00:00",
+  "base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "f01beb255c677a188765acfefa0a79ada5f0871b",
+  "hashes": {
+    "tests/run_fuse_concurrency_test_wrapper.sh": "91cf6ae9f5310824ec0ed7bddd82818b2d2e3d4fa670dd938d646759e3bbb11c",
+    "tests/fuse_policy/run.py": "6d20f8e14d1447eb65dc8553c3ae9546d435397625d7b8e0d3af671161d75170",
+    "tests/fuse_startup_cleanup/run.py": "b81d837b1b723601d18482eec801dfedae18f678b351fcb2557a0d08cf47f1a2"
+  },
+  "checks": {
+    "python3 tests/fuse_startup_cleanup/run.py": "exit 0; unrelated child survives; no pkill; spaced path and three unmount fallbacks",
+    "original-source control": "exit 1; pkill calls rejected with inert pkill tool",
+    "python3 tests/fuse_policy/run.py": "exit 0; C++17/C++20 policy checks and missing-policy rejection",
+    "python3 tests/fuse_wrapper_regressions/run.py": "exit 0; four status/logging fixtures",
+    "bash -n tests/run_fuse_concurrency_test_wrapper.sh": "exit 0",
+    "git diff --check": "exit 0"
+  },
+  "toolchain": "Bash 5.2.37; Python 3.13.9; GCC 15.2.1",
+  "initial_failure": "Spaced disposable path exposed unquoted startup MOUNT_POINT; corrected and passed.",
+  "limits": "Startup fragment with inert unmount/pkill tools only. No mounted FUSE/full build or storage acceptance. Shared /tmp log, fixed ports, metadata cleanup and shutdown timeout remain unqualified. Prior head CI build/fuzz/rebootstrap pass; FUSE42930581772 failed."
+}

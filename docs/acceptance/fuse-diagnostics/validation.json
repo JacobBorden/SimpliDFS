@@ -1,0 +1,118 @@
+{
+  "time": "2026-11-08T00:17:47.689068+00:00",
+  "initial_failure": "Probe range loop copy rejected by -Werror; changed to const reference before final matrix.",
+  "results": [
+    {
+      "command": [
+        "c++",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "c++ (SUSE Linux) 15.2.1 20251006\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "cmake version 3.31.0\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "output": "3f07f75825027adb1e6f78c2cbe6f0d6e0b86533\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "origin/development"
+      ],
+      "exit_code": 0,
+      "output": "02aaa408e77b98a252d26e33c5f2973f87b47c25\n"
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++17",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "docs/acceptance/fuse-diagnostics/probe.cpp",
+        "-o",
+        "work/fuse-diagnostic-c++17"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "work/fuse-diagnostic-c++17"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++20",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "docs/acceptance/fuse-diagnostics/probe.cpp",
+        "-o",
+        "work/fuse-diagnostic-c++20"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "work/fuse-diagnostic-c++20"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "c++",
+        "-std=c++20",
+        "-fsyntax-only",
+        "-Itests",
+        "tests/fuse_concurrency_tests.cpp"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "clang-format",
+        "--dry-run",
+        "--Werror",
+        "tests/fuse_read_diagnostics.hpp",
+        "docs/acceptance/fuse-diagnostics/probe.cpp"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "sha256": {
+    "tests/fuse_concurrency_tests.cpp": "d0c79bc801dc28290ac15fbcd2141fc20741ca1695a84a89a0145a7450ce7b07",
+    "tests/fuse_read_diagnostics.hpp": "74bdf07cd48f8734acca998d98a85f929c938b39c26ff25237048ffed06e696d",
+    "docs/acceptance/fuse-diagnostics/probe.cpp": "d54bf646f535c7d9aca30f090023216b38ec8c8276bc032635d1a2b62be29df7"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "run_utc": "2026-11-13T00:24:25.221444+00:00",
+  "base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "0ed536c622f837636cf44ccc879559ec9bb13db7",
+  "toolchain": {
+    "python": "3.13.9",
+    "bash": "GNU bash, version 5.2.37(1)-release (x86_64-suse-linux)"
+  },
+  "source_hashes": {
+    "tests/run_fuse_concurrency_test_wrapper.sh": "66416b926f1e7125fec55f3bdca48e18e43e884e938eebd6ebe879a9ceb2e538",
+    "tests/fuse_metadata_cleanup/run.py": "83dd95f20aad9b8679aa5b0f50a9492a3ff5386d30154d5eb8e2d024e8d330df",
+    "src/utilities/var_dir.cpp": "7199a248344278cdc29b7606380c9a1bf25caeea6f18ede0015509d1cd2686fd",
+    "src/main_metaserver.cpp": "4df1a66d5d1260c355f57db0c43e465da76dd9a89271c6279889c523bef17cd9"
+  },
+  "results": [
+    {
+      "command": [
+        "python3",
+        "tests/fuse_metadata_cleanup/run.py"
+      ],
+      "exit": 0,
+      "stdout": "{\"cases_passed\": 1, \"caller_metadata_files_preserved\": 2, \"exit\": 0, \"stdout\": \"\", \"stderr\": \"\"}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tests/fuse_metadata_cleanup/run.py",
+        "--source",
+        "work/metadata-cleanup/original.sh"
+      ],
+      "exit": 1,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_metadata_cleanup/run.py\", line 42, in <module>\n    assert (caller / name).exists(), name + ' was deleted'\n           ~~~~~~~~~~~~~~~~~~~~~~^^\nAssertionError: file_metadata.dat was deleted\n"
+    },
+    {
+      "command": [
+        "python3",
+        "tests/fuse_wrapper_regressions/run.py"
+      ],
+      "exit": 0,
+      "stdout": "{\n  \"cases_passed\": 4,\n  \"results\": [\n    {\n      \"test_exit\": 0,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 0,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-3tlsjxyd/test with spaces...\\nINFO: Test executable finished with exit code: 0\\nINFO: Cleanup and exit called with status 0\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-3tlsjxyd/mount...\\nINFO: Removing PID files...\\nINFO: Wrapper script finished. Exiting with status: 0\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 1,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 1,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-l02zoemm/test with spaces...\\nINFO: Test executable finished with exit code: 1\\nINFO: Cleanup and exit called with status 1\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-l02zoemm/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-l02zoemm/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-l02zoemm/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-l02zoemm/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 1\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 37,\n      \"cleanup_kill_failure\": false,\n      \"exit\": 37,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-eq4ej29y/test with spaces...\\nINFO: Test executable finished with exit code: 37\\nINFO: Cleanup and exit called with status 37\\nINFO: FUSE adapter process not found or PID file missing, skipping kill.\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: No PIDs were marked for waiting.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-eq4ej29y/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-eq4ej29y/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-eq4ej29y/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-eq4ej29y/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 37\\n\",\n      \"stderr\": \"\"\n    },\n    {\n      \"test_exit\": 37,\n      \"cleanup_kill_failure\": true,\n      \"exit\": 37,\n      \"stdout\": \"INFO: Running /tmp/simplidfs-wrapper-lb5ooi1o/test with spaces...\\nINFO: Test executable finished with exit code: 37\\nINFO: Cleanup and exit called with status 37\\nWARN: FUSE adapter PID file missing, using global PID 12345 for cleanup.\\nINFO: Attempting to kill FUSE adapter PID 12345...\\nsimulated-kill-failure\\nINFO: Metaserver process not found or PID file missing, skipping kill.\\nINFO: Waiting for PIDs: 12345 to terminate...\\nWARN: Process 12345 may not have terminated cleanly or was already dead.\\nINFO: Finished waiting for PIDs.\\nINFO: Attempting to unmount /tmp/simplidfs-wrapper-lb5ooi1o/mount...\\nINFO: Removing PID files...\\n--- Metaserver Log (/tmp/simplidfs-wrapper-lb5ooi1o/meta) on failure ---\\nmeta-diagnostic\\n-------------------------------------------\\n--- FUSE Adapter Stdout/Stderr Log (/tmp/simplidfs-wrapper-lb5ooi1o/adapter) on failure ---\\nadapter-diagnostic\\n--------------------------------------------------------------------\\n--- Node Log (/tmp/simplidfs-wrapper-lb5ooi1o/node) on failure ---\\nnode-diagnostic\\n-------------------------------------\\nINFO: Wrapper script finished. Exiting with status: 37\\n\",\n      \"stderr\": \"\"\n    }\n  ]\n}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "python3",
+        "tests/fuse_startup_cleanup/run.py"
+      ],
+      "exit": 0,
+      "stdout": "{\"passed\": 1, \"startup_exit\": 0, \"unmount_fallbacks\": [\"fusermount3\", \"fusermount\", \"umount\"], \"unrelated_process_alive\": true}\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "bash",
+        "-n",
+        "tests/run_fuse_concurrency_test_wrapper.sh"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "limits": "Disposable shell fragments only; no mounted FUSE or full-project runtime. Parent CI green does not qualify this new candidate. Full static dependency, coverage, recovery and three-node gates remain open."
+}
