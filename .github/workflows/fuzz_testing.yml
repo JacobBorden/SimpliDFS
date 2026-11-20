@@ -40,35 +40,41 @@ jobs:
       run: |
         cmake --build build
 
-    - name: List Fuzzers
-      id: list_fuzzers
-      run: |
-        # Find all executable files in build/tests that end with _fuzzer
-        # and store them in a GitHub Actions output variable
-        fuzzer_list=$(find build/tests -type f -executable -name '*_fuzzer' -printf '%f\n')
-        echo "::set-output name=fuzzers::${fuzzer_list}"
-        echo "Found fuzzers:"
-        echo "${fuzzer_list}"
-
     - name: Run Fuzzers
+      shell: bash
       run: |
-        # Create a directory for crash artifacts
+        shopt -s nullglob
+        fuzzers=(build/tests/*_fuzzer)
+        if (( ${#fuzzers[@]} == 0 )); then
+          echo "No fuzz targets found in build/tests" >&2
+          exit 1
+        fi
+
         mkdir -p fuzz_artifacts
-        # Loop through the fuzzers found by the previous step
-        for fuzzer_name in ${{ steps.list_fuzzers.outputs.fuzzers }}; do
-          echo "Running fuzzer: ${fuzzer_name}"
-          # Create an empty corpus directory if it doesn't exist for the fuzzer to use as input/output
-          mkdir -p ./fuzz_artifacts/corpus_${fuzzer_name}/
-          # Run each fuzzer for a short duration. -max_total_time is in seconds.
-          # -rss_limit_mb sets a memory limit.
-          # Crashes will be saved in the current directory (fuzz_artifacts)
-          # The -artifact_prefix=./fuzz_artifacts/ will ensure crashes are stored there.
-          # Use timeout to ensure the command does not run indefinitely if libFuzzer's -max_total_time is ignored or too long.
-          timeout 60s build/tests/${fuzzer_name} -max_total_time=50 -rss_limit_mb=2048 -artifact_prefix=./fuzz_artifacts/ ./fuzz_artifacts/corpus_${fuzzer_name}/ -seed=1 || true
-          # '|| true' ensures the workflow continues even if a fuzzer exits with non-zero (e.g. on crash)
+        failed=0
+        for fuzzer in "${fuzzers[@]}"; do
+          fuzzer_name=${fuzzer##*/}
+          if [[ ! -f "$fuzzer" || ! -x "$fuzzer" ]]; then
+            echo "Fuzz target is not an executable file: $fuzzer" >&2
+            failed=1
+            continue
+          fi
+          echo "Running fuzzer: $fuzzer_name"
+          corpus="./fuzz_artifacts/corpus_${fuzzer_name}/"
+          mkdir -p "$corpus"
+          # Keep a hard timeout in case libFuzzer exceeds its time limit.
+          if timeout 60s "$fuzzer" -max_total_time=50 -rss_limit_mb=2048 -artifact_prefix=./fuzz_artifacts/ "$corpus" -seed=1; then
+            echo "Fuzzer passed: $fuzzer_name"
+          else
+            status=$?
+            echo "Fuzzer failed: $fuzzer_name (exit $status)" >&2
+            failed=1
+          fi
         done
+        exit "$failed"
 
     - name: Upload Fuzzing Artifacts
+      if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
         name: fuzz-artifacts
