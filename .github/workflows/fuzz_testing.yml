@@ -45,13 +45,23 @@ jobs:
       run: |
         shopt -s nullglob
         fuzzers=(build/tests/*_fuzzer)
-        if (( ${#fuzzers[@]} == 0 )); then
-          echo "No fuzz targets found in build/tests" >&2
-          exit 1
-        fi
+        # Check by name so an extra binary cannot mask a missing required target.
+        required_fuzzers=(
+          blockio_fuzzer
+          filesystem_fuzzer
+          message_fuzzer
+          metaserver_load_fuzzer
+          node_logic_fuzzer
+        )
+        failed=0
+        for fuzzer_name in "${required_fuzzers[@]}"; do
+          if [[ ! -e "build/tests/$fuzzer_name" ]]; then
+            echo "Missing required fuzz target: build/tests/$fuzzer_name" >&2
+            failed=1
+          fi
+        done
 
         mkdir -p fuzz_artifacts
-        failed=0
         for fuzzer in "${fuzzers[@]}"; do
           fuzzer_name=${fuzzer##*/}
           if [[ ! -f "$fuzzer" || ! -x "$fuzzer" ]]; then
