@@ -22,6 +22,7 @@
 #include <chrono> // Required for std::chrono
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -306,6 +307,17 @@ public:
    * included.
    */
   void handleClient(Networking::ClientConnection client) {
+    auto disconnect = [this](Networking::ClientConnection *connection) {
+      try {
+        server.DisconnectClient(*connection);
+      } catch (const std::exception &e) {
+        std::cerr << "Error disconnecting client: " << e.what() << std::endl;
+      }
+    };
+    // The server also disconnects on transport errors, so cleanup must be
+    // safe for an already closed connection.
+    std::unique_ptr<Networking::ClientConnection, decltype(disconnect)>
+        closeOnExit(&client, disconnect);
     try {
       std::vector<char> request_vector = server.Receive(client);
       if (request_vector.empty()) {

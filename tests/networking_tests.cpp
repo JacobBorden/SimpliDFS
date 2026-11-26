@@ -2460,3 +2460,28 @@ TEST_F(NetworkingTest, IsClientConnectedTracksClients) {
     client.Disconnect();
     server.Shutdown();
 }
+
+TEST_F(NetworkingTest, StaleDisconnectPreservesCurrentConnection) {
+  const int testPort = 12413;
+  Networking::Server server(testPort);
+  ASSERT_TRUE(server.startListening());
+
+  Networking::Client first("127.0.0.1", testPort);
+  auto oldConnection = server.Accept();
+  server.DisconnectClient(oldConnection);
+
+  Networking::Client second("127.0.0.1", testPort);
+  const auto currentConnection = server.Accept();
+  // Model descriptor reuse independently of the operating system allocator.
+  oldConnection.clientSocket = currentConnection.clientSocket;
+  EXPECT_FALSE(server.isClientConnected(oldConnection));
+  server.DisconnectClient(oldConnection);
+  EXPECT_TRUE(server.isClientConnected(currentConnection));
+  if (server.isClientConnected(currentConnection)) {
+    server.Send("still connected", currentConnection);
+    const auto response = second.Receive();
+    EXPECT_EQ(std::string(response.begin(), response.end()), "still connected");
+  }
+
+  server.Shutdown();
+}
