@@ -2,6 +2,7 @@
 #include "fuse_read_diagnostics.hpp"
 #include "fuse_concurrency_test_utils.hpp"
 #include <algorithm> // For std::sort
+#include <array>
 #include <chrono>    // For timestamps
 #include <condition_variable>
 #include <cstdio>  // For std::remove
@@ -943,6 +944,117 @@ bool run_append_test() {
   return append_test_success;
 }
 
+static constexpr std::streamsize OVERLAP_FILE_SIZE = 4096;
+static constexpr int OVERLAP_STRIDE = 8;
+
+static bool verify_overlapping_extents(const std::string &path) {
+  std::ifstream input(path, std::ios::binary);
+  if (!input.is_open()) {
+    std::cerr << "Overlapping extent verification open failed: " << path
+              << std::endl;
+    return false;
+  }
+
+  std::string contents(OVERLAP_FILE_SIZE + 1, '\0');
+  input.read(contents.data(), contents.size());
+  const auto bytes = input.gcount();
+  if (input.bad() || !input.eof() || bytes != OVERLAP_FILE_SIZE) {
+    FuseReadDiagnostics diagnostics;
+    diagnostics.observe(std::string_view(contents.data(), bytes));
+    std::cerr << "Overlapping extent read failed: " << path
+              << " expected=" << OVERLAP_FILE_SIZE
+              << " read=" << diagnostics.bytes << " eof=" << input.eof()
+              << " fail=" << input.fail() << " bad=" << input.bad()
+              << " prefix_hex=" << diagnostics.prefix_hex << std::endl;
+    return false;
+  }
+  contents.resize(bytes);
+
+  for (int tid = 0; tid < NUM_THREADS; ++tid) {
+    const auto offset = static_cast<std::size_t>(tid) * OVERLAP_STRIDE;
+    const std::string expected = "block" + std::to_string(tid);
+    if (offset > contents.size() ||
+        contents.compare(offset, expected.size(), expected) != 0) {
+      std::cerr << "Overlapping extent data mismatch: " << path
+                << " thread=" << tid << " offset=" << offset
+                << " expected=" << expected << std::endl;
+      return false;
+    }
+  }
+
+  std::cout << "Overlapping extent verification passed: " << path
+            << " bytes=" << bytes << std::endl;
+  return true;
+}
+
+static bool run_overlapping_extent_test(const std::string &path) {
+  std::ofstream pre(path, std::ios::binary | std::ios::trunc);
+  if (!pre.is_open()) {
+    std::cerr << "Overlapping extent setup open failed: " << path << std::endl;
+    return false;
+  }
+  const bool seek_ok = static_cast<bool>(pre.seekp(OVERLAP_FILE_SIZE - 1));
+  const bool write_ok = seek_ok && static_cast<bool>(pre.put('\0'));
+  pre.close();
+  if (!write_ok || !pre) {
+    std::cerr << "Overlapping extent setup failed: " << path
+              << " seek=" << seek_ok << " write=" << write_ok
+              << " stream_after_close=" << static_cast<bool>(pre) << std::endl;
+    return false;
+  }
+
+  {
+    std::unique_lock<std::mutex> lk(start_mutex);
+    start_count = 0;
+  }
+
+  // Each worker owns one result slot. Read the results only after joining.
+  std::array<const char *, NUM_THREADS> failures{};
+  auto worker = [&](int tid) {
+    std::fstream file(path, std::ios::in | std::ios::out | std::ios::binary);
+    {
+      std::unique_lock<std::mutex> lk(start_mutex);
+      if (++start_count == NUM_THREADS)
+        start_cv.notify_all();
+      else
+        start_cv.wait(lk, [] { return start_count == NUM_THREADS; });
+    }
+
+    if (!file.is_open()) {
+      failures[tid] = "open";
+    } else if (!file.seekp(static_cast<std::streamoff>(tid) * OVERLAP_STRIDE)) {
+      failures[tid] = "seek";
+    } else {
+      const std::string data = "block" + std::to_string(tid);
+      if (!file.write(data.data(), data.size()))
+        failures[tid] = "write";
+      file.close();
+      if (!file && !failures[tid])
+        failures[tid] = "close";
+    }
+  };
+
+  std::vector<std::thread> threads;
+  for (int tid = 0; tid < NUM_THREADS; ++tid)
+    threads.emplace_back(worker, tid);
+  for (auto &thread : threads)
+    thread.join();
+
+  bool writes_ok = true;
+  for (int tid = 0; tid < NUM_THREADS; ++tid) {
+    if (failures[tid]) {
+      std::cerr << "Overlapping extent worker failed: " << path
+                << " thread=" << tid << " offset="
+                << static_cast<std::streamoff>(tid) * OVERLAP_STRIDE
+                << " operation=" << failures[tid] << std::endl;
+      writes_ok = false;
+    }
+  }
+
+  const bool verified = verify_overlapping_extents(path);
+  return writes_ok && verified;
+}
+
 bool run_random_write_test() {
   // Main function: Entry point for the FUSE concurrency test program.
   // Orchestrates the execution of different test scenarios (Random Write,
@@ -1321,60 +1433,7 @@ bool run_random_write_test() {
             << " TID: " << std::this_thread::get_id()
             << "] Main: Random write test part finished." << std::endl;
 
-  bool overall_success = main_test_success;
-
-  // --- Overlapping Extent Test ---
-  const std::string overlap_file = FULL_TEST_FILE_PATH + ".overlap";
-  {
-    std::ofstream pre(overlap_file, std::ios::binary | std::ios::trunc);
-    pre.seekp(4096 - 1);
-    pre.write("", 1);
-  }
-
-  {
-    std::unique_lock<std::mutex> lk(start_mutex);
-    start_count = 0;
-  }
-
-  auto overlap_worker = [&](int tid) {
-    std::fstream f(overlap_file,
-                   std::ios::in | std::ios::out | std::ios::binary);
-    {
-      std::unique_lock<std::mutex> lk(start_mutex);
-      start_count++;
-      if (start_count == NUM_THREADS)
-        start_cv.notify_all();
-      else
-        start_cv.wait(lk, [] { return start_count == NUM_THREADS; });
-    }
-    off_t off = tid * 8;
-    std::string data = "block" + std::to_string(tid);
-    f.seekp(off);
-    f.write(data.c_str(), data.size());
-    f.close();
-  };
-
-  std::vector<std::thread> overlap_threads;
-  for (int i = 0; i < NUM_THREADS; ++i)
-    overlap_threads.emplace_back(overlap_worker, i);
-  for (auto &t : overlap_threads)
-    t.join();
-
-  std::ifstream verify(overlap_file, std::ios::binary);
-  std::string contents((std::istreambuf_iterator<char>(verify)),
-                       std::istreambuf_iterator<char>());
-  verify.close();
-
-  bool overlap_ok = true;
-  for (int i = 0; i < NUM_THREADS; ++i) {
-    std::string expected = "block" + std::to_string(i);
-    if (contents.substr(i * 8, expected.size()) != expected) {
-      overlap_ok = false;
-      break;
-    }
-  }
-
-  overall_success = overall_success && overlap_ok;
-
-  return overall_success;
+  const bool overlap_ok =
+      run_overlapping_extent_test(FULL_TEST_FILE_PATH + ".overlap");
+  return main_test_success && overlap_ok;
 }
