@@ -6,6 +6,7 @@
 #include <chrono>    // For timestamp components (used by getNetworkTimestamp)
 #include <iomanip>   // For std::put_time (used by getNetworkTimestamp)
 #include <iostream>  // For std::cout (verbose logging)
+#include <limits>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
@@ -577,12 +578,21 @@ static bool send_all_server(SOCKET sock, const char *buffer, size_t length,
 // Send data to the client (modified for length-prefixing)
 int Networking::Server::Send(PCSTR _pSendBuffer,
                              Networking::ClientConnection _pClient) {
+  return Send(std::string_view(_pSendBuffer), _pClient);
+}
+
+int Networking::Server::Send(std::string_view payload,
+                             Networking::ClientConnection _pClient) {
   // Note: _pClient is a copy. Operations on its socket are fine, but state
   // changes to _pClient itself won't persist outside. The current
   // DisconnectClient takes a ClientConnection copy too. This design might need
   // review for state management.
 
-  size_t payloadLength = strlen(_pSendBuffer);
+  const size_t payloadLength = payload.size();
+  // The frame length is unsigned on the wire, but socket writes and our
+  // return value must also represent the byte count as an int.
+  if (payloadLength > static_cast<size_t>((std::numeric_limits<int>::max)()))
+    throw std::length_error("Server::Send payload exceeds maximum size");
   uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
 
   Logger::getInstance().log(
@@ -603,7 +613,7 @@ int Networking::Server::Send(PCSTR _pSendBuffer,
 
     // Send the actual payload
     if (payloadLength > 0) {
-      send_all_server(_pClient.clientSocket, _pSendBuffer, payloadLength,
+      send_all_server(_pClient.clientSocket, payload.data(), payloadLength,
                       useTLS, _pClient.ssl, this, _pClient);
     }
     Logger::getInstance().log(

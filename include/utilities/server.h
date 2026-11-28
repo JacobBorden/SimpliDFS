@@ -47,6 +47,7 @@ typedef const char *PCSTR;
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -114,6 +115,8 @@ public:
 
   // Sends data to a specific client
   int Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient);
+  // Send the complete payload, including any embedded NUL bytes.
+  int Send(std::string_view payload, Networking::ClientConnection client);
 
   // Sends data to a specific address and port
   int SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort);
