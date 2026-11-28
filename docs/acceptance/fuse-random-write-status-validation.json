@@ -1,0 +1,317 @@
+{
+  "source_sha256": "0135b18d36712cde26966501de8d431cac2bae0fa7b5128f38fa6ef3bacbb8a6",
+  "main_sha256": "6d9d3b139fe06d08afcfe130a26a442099996812ce8ac37aeae4deb70453ae69",
+  "compiler": "g++ (SUSE Linux) 15.2.1 20251006",
+  "results": [
+    {
+      "standard": "c++17",
+      "case": "mount",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++17",
+      "case": "sodium",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++17",
+      "case": "create",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++17",
+      "case": "preallocate",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++17",
+      "case": "verification-open",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++17",
+      "case": "success",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "standard": "c++17",
+      "build_command": [
+        "g++",
+        "-std=c++17",
+        "-pthread",
+        "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests",
+        "/tmp/simplidfs-status-wh92j6sz/candidate.cpp",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_random_write_main.cpp",
+        "-lsodium",
+        "-o",
+        "/tmp/simplidfs-status-wh92j6sz/c++17"
+      ],
+      "build_exit": 0
+    },
+    {
+      "standard": "c++20",
+      "case": "mount",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++20",
+      "case": "sodium",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++20",
+      "case": "create",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++20",
+      "case": "preallocate",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++20",
+      "case": "verification-open",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "standard": "c++20",
+      "case": "success",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "standard": "c++20",
+      "build_command": [
+        "g++",
+        "-std=c++20",
+        "-pthread",
+        "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests",
+        "/tmp/simplidfs-status-wh92j6sz/candidate.cpp",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_random_write_main.cpp",
+        "-lsodium",
+        "-o",
+        "/tmp/simplidfs-status-wh92j6sz/c++20"
+      ],
+      "build_exit": 0
+    }
+  ],
+  "canonical_base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "parent": "0ef108913bcdb553b851794b8976a97643469ff5",
+  "time": "2026-11-17T21:25:36.550678+00:00",
+  "command": "python3 tests/fuse_random_write_status/run.py --output work/random-write-status/candidate",
+  "limitations": "Ordinary disposable filesystem with helper fault seams; no mounted FUSE or full-project acceptance. CI, static dependency closure, recovery and three-node gates remain open.",
+  "logs": {
+    "c++17-create.log": {
+      "sha256": "01ac346dd5b4485250927b7010419be8c56eafe24ef49014f3599259b55b46ac",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:57.044 TID: 126494865702528] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:23:57.045 TID: 126494865702528] Main: Creating/truncating test file /tmp/simplidfs-status-wh92j6sz/c++17-create/concurrent_write_test.txt",
+        "[FUSE CONCURRENCY LOG 17:23:57.047 TID: 126494865702528] Main: Failed to create/truncate test file: /tmp/simplidfs-status-wh92j6sz/c++17-create/concurrent_write_test.txt"
+      ]
+    },
+    "c++17-mount.log": {
+      "sha256": "ffc6532584f35f44f358da64dcdd2e9520757a1eedc000a68b632ec0422f5e58",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:56.806 TID: 132078196051584] Main: Test starting."
+      ]
+    },
+    "c++17-preallocate.log": {
+      "sha256": "4e0326007cc23e60b24a9cccd0d6ea61044b95f492df23702438cd1d4834255e",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:57.156 TID: 132435906875008] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:23:57.157 TID: 132435906875008] Main: Creating/truncating test file /tmp/simplidfs-status-wh92j6sz/c++17-preallocate/concurrent_write_test.txt",
+        "[FUSE CONCURRENCY LOG 17:23:57.157 TID: 132435906875008] Main: Failed to preallocate test file."
+      ]
+    },
+    "c++17-sodium.log": {
+      "sha256": "e1bf351cb3ae1a835ff412500bd1ad07aad4bc31a3c7f38aa9119c36311e3068",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:56.948 TID: 128692370476672] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:23:56.948 TID: 128692370476672] Failed to initialize libsodium."
+      ]
+    },
+    "c++17-success.log": {
+      "sha256": "cf511b2602adfde33df3c5b523d2cbcdc40f84b64727f97320b64c4730badb3c",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:57.744 TID: 132050190343808] Hash verification successful.",
+        "[FUSE CONCURRENCY LOG 17:23:57.744 TID: 132050190343808] Main: Overall RANDOM WRITE verification PASSED.",
+        "[FUSE CONCURRENCY LOG 17:23:57.744 TID: 132050190343808] Main: Random write test part finished."
+      ]
+    },
+    "c++17-verification-open.log": {
+      "sha256": "6bead35379100c99cdc561b0965f53d7253031fdd13f3f8a8bddf643ca767f3b",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:23:57.358 TID: 136733152063104] Main: All writer threads finished.",
+        "[FUSE CONCURRENCY LOG 17:23:57.358 TID: 136733152063104] Main: Starting verification phase.",
+        "[FUSE CONCURRENCY LOG 17:23:57.358 TID: 136733152063104] Main: Failed to open file for verification after retries: /tmp/simplidfs-status-wh92j6sz/c++17-verification-open/concurrent_write_test.txt"
+      ]
+    },
+    "c++20-create.log": {
+      "sha256": "4d852e024329a4a6ee31ce0077a2366a85eb09f922b73a0b7bc35e4572825128",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:34.750 TID: 139548403723904] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:24:34.750 TID: 139548403723904] Main: Creating/truncating test file /tmp/simplidfs-status-wh92j6sz/c++20-create/concurrent_write_test.txt",
+        "[FUSE CONCURRENCY LOG 17:24:34.750 TID: 139548403723904] Main: Failed to create/truncate test file: /tmp/simplidfs-status-wh92j6sz/c++20-create/concurrent_write_test.txt"
+      ]
+    },
+    "c++20-mount.log": {
+      "sha256": "2c47a50ea4c7a928d02fb8c812acad498a893e7fff34ea9e93c5ad5f28584c20",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:34.247 TID: 136091301908096] Main: Test starting."
+      ]
+    },
+    "c++20-preallocate.log": {
+      "sha256": "7202c8558801e1f4e3b765b3a23693a2058496e3063ffb93da95358a0f68153e",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:35.080 TID: 127293729529472] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:24:35.080 TID: 127293729529472] Main: Creating/truncating test file /tmp/simplidfs-status-wh92j6sz/c++20-preallocate/concurrent_write_test.txt",
+        "[FUSE CONCURRENCY LOG 17:24:35.081 TID: 127293729529472] Main: Failed to preallocate test file."
+      ]
+    },
+    "c++20-sodium.log": {
+      "sha256": "9ed8f981655bce6b306eed6de50001bbdbb97af47b497eed7e551990d36eecdd",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:34.467 TID: 123156292509312] Main: Test starting.",
+        "[FUSE CONCURRENCY LOG 17:24:34.467 TID: 123156292509312] Failed to initialize libsodium."
+      ]
+    },
+    "c++20-success.log": {
+      "sha256": "96aa2376ebf2bdb62d9febf365fbd9e2f3a37c75b0f1678a0c10b08a5131b2d9",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:36.053 TID: 133571744362112] Hash verification successful.",
+        "[FUSE CONCURRENCY LOG 17:24:36.053 TID: 133571744362112] Main: Overall RANDOM WRITE verification PASSED.",
+        "[FUSE CONCURRENCY LOG 17:24:36.053 TID: 133571744362112] Main: Random write test part finished."
+      ]
+    },
+    "c++20-verification-open.log": {
+      "sha256": "5143601ad8935d748207dc24217b11d5ca545c917535cac6e23be8c0ac9e2559",
+      "tail": [
+        "[FUSE CONCURRENCY LOG 17:24:35.410 TID: 124547337080448] Main: All writer threads finished.",
+        "[FUSE CONCURRENCY LOG 17:24:35.410 TID: 124547337080448] Main: Starting verification phase.",
+        "[FUSE CONCURRENCY LOG 17:24:35.410 TID: 124547337080448] Main: Failed to open file for verification after retries: /tmp/simplidfs-status-wh92j6sz/c++20-verification-open/concurrent_write_test.txt"
+      ]
+    }
+  },
+  "original_control": {
+    "source_sha256": "d0c79bc801dc28290ac15fbcd2141fc20741ca1695a84a89a0145a7450ce7b07",
+    "main_sha256": "6d9d3b139fe06d08afcfe130a26a442099996812ce8ac37aeae4deb70453ae69",
+    "compiler": "g++ (SUSE Linux) 15.2.1 20251006",
+    "results": [
+      {
+        "standard": "c++17",
+        "case": "mount",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "case": "sodium",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "case": "create",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "case": "preallocate",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "case": "verification-open",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "case": "success",
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "standard": "c++17",
+        "build_command": [
+          "g++",
+          "-std=c++17",
+          "-pthread",
+          "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests",
+          "/tmp/simplidfs-status-49a19ugb/candidate.cpp",
+          "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_random_write_main.cpp",
+          "-lsodium",
+          "-o",
+          "/tmp/simplidfs-status-49a19ugb/c++17"
+        ],
+        "build_exit": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "mount",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "sodium",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "create",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "preallocate",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "verification-open",
+        "expected": 1,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "case": "success",
+        "expected": 0,
+        "actual": 0
+      },
+      {
+        "standard": "c++20",
+        "build_command": [
+          "g++",
+          "-std=c++20",
+          "-pthread",
+          "-I/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests",
+          "/tmp/simplidfs-status-49a19ugb/candidate.cpp",
+          "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/tests/fuse_random_write_main.cpp",
+          "-lsodium",
+          "-o",
+          "/tmp/simplidfs-status-49a19ugb/c++20"
+        ],
+        "build_exit": 0
+      }
+    ]
+  },
+  "original_control_expected_runner_exit": 1,
+  "runner_sha256": "87b8d820c3c55d7e4f3d2502bfc5a2600486d8323b3dd376318ae7b67ccbb281"
+}

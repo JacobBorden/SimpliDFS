@@ -41,11 +41,13 @@ typedef const char *PCSTR;
 #include "utilities/logger.h"
 #include "utilities/networkexception.h"
 #include <chrono>
+#include <cstdint>
 #include <iostream>
 #include <mutex> // Added for std::mutex
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -58,10 +60,11 @@ struct ClientConnection {
   SOCKET clientSocket;
   sockaddr_in clientInfo;
   sockaddr_in6 clientInfo6;
-  SSL *ssl = nullptr; ///< TLS session for this client
+  SSL *ssl = nullptr;             ///< TLS session for this client
+  std::uint64_t connectionId = 0; ///< Identity assigned by Accept.
   bool operator==(const ClientConnection &other) const {
-    // Compare the clientSocket member variables of the two objects
-    return clientSocket == other.clientSocket;
+    return clientSocket == other.clientSocket &&
+           connectionId == other.connectionId;
   }
 };
 
@@ -112,6 +115,8 @@ public:
 
   // Sends data to a specific client
   int Send(PCSTR _pSendBuffer, Networking::ClientConnection _pClient);
+  // Send the complete payload, including any embedded NUL bytes.
+  int Send(std::string_view payload, Networking::ClientConnection client);
 
   // Sends data to a specific address and port
   int SendTo(PCSTR _pBuffer, PCSTR _pAddress, int _pPort);
@@ -141,8 +146,8 @@ public:
   // Shut down the server
   void Shutdown();
 
-  // Disconnects a specific client
-  void DisconnectClient(Networking::ClientConnection _pClient);
+  // Close an accepted connection once, even if the descriptor is later reused.
+  void DisconnectClient(Networking::ClientConnection client);
 
   // Returns a vector of Networking::ClientConnection objects representing all
   // currently connected clients

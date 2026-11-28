@@ -2,11 +2,13 @@
 #ifndef _SIMPLIDFS_MESSAGE_H
 #define _SIMPLIDFS_MESSAGE_H
 
-#include <string>
-#include <vector>   // Not strictly needed for these specific implementations, but good for general message handling
-#include <sstream>  // For std::ostringstream, std::istringstream
+#include <algorithm>
+#include <cstdint> // For fixed-width integer types
+#include <sstream> // For std::ostringstream, std::istringstream
 #include <stdexcept> // For std::runtime_error, std::invalid_argument, std::out_of_range
-#include <cstdint>   // For fixed-width integer types
+#include <string>
+#include <string_view>
+#include <vector> // Not strictly needed for these specific implementations, but good for general message handling
 
 /**
  * @brief Defines the types of messages that can be exchanged within the SimpliDFS system.
@@ -129,31 +131,101 @@ struct Message{
     std::string _Path;          // Alternative to _Filename, for clarity
     std::string _NewPath;       // For rename operations
 
-public: 
+  private:
+    static constexpr std::string_view escapedPrefix = "escaped1|";
+
+    static bool needsEscaping(std::string_view field) {
+      return field.find_first_of(std::string_view("|\0", 2)) !=
+             std::string_view::npos;
+    }
+
+    static std::string escapeField(std::string_view field) {
+      std::string encoded;
+      encoded.reserve(field.size());
+      for (char ch : field) {
+        switch (ch) {
+        case '\0':
+          encoded += "%00";
+          break;
+        case '\n':
+          encoded += "%0A";
+          break;
+        case '|':
+          encoded += "%7C";
+          break;
+        case '%':
+          encoded += "%25";
+          break;
+        default:
+          encoded += ch;
+          break;
+        }
+      }
+      return encoded;
+    }
+
+    static void unescapeField(std::string &field) {
+      std::size_t write = 0;
+      for (std::size_t read = 0; read < field.size(); ++read) {
+        char ch = field[read];
+        if (ch == '%') {
+          const auto escape = std::string_view(field).substr(read, 3);
+          if (escape == "%00")
+            ch = '\0';
+          else if (escape == "%0A")
+            ch = '\n';
+          else if (escape == "%7C")
+            ch = '|';
+          else if (escape != "%25")
+            throw std::runtime_error("Deserialize error: Invalid field escape");
+          read += 2;
+        }
+        field[write++] = ch;
+      }
+      field.resize(write);
+    }
+
+  public:
     /**
      * @brief Serializes a Message object into a string representation.
-     * The format is: Type|Filename|Content|NodeAddress|NodePort|_ErrorCode|_Mode|_Uid|_Gid|_Offset|_Size|_Data|_Path|_NewPath
+     * The format is:
+     * Type|Filename|Content|NodeAddress|NodePort|_ErrorCode|_Mode|_Uid|_Gid|_Offset|_Size|_Data|_Path|_NewPath
      * @param msg The Message object to serialize.
      * @return A string representing the serialized message.
-     * @note Fields are separated by '|'. Empty fields will result in consecutive delimiters.
+     * @note Messages containing NUL, pipe, or a newline in the final field use
+     * the escaped1 prefix. This form escapes NUL, LF, pipe and percent in
+     * string fields. Peers must support escaped1 to exchange these messages.
      */
-    inline static std::string Serialize(const Message& msg) {
-        std::ostringstream oss;
-        oss << static_cast<int>(msg._Type) << '|'
-            << msg._Filename << '|'
-            << msg._Content << '|'
-            << msg._NodeAddress << '|'
-            << msg._NodePort << '|'
-            << msg._ErrorCode << '|'
-            << msg._Mode << '|'
-            << msg._Uid << '|'
-            << msg._Gid << '|'
-            << msg._Offset << '|'
-            << msg._Size << '|'
-            << msg._Data << '|'
-            << msg._Path << '|'
-            << msg._NewPath;
-        return oss.str();
+    inline static std::string Serialize(const Message &msg) {
+      const bool escaped =
+          needsEscaping(msg._Filename) || needsEscaping(msg._Content) ||
+          needsEscaping(msg._NodeAddress) || needsEscaping(msg._Data) ||
+          needsEscaping(msg._Path) || needsEscaping(msg._NewPath) ||
+          msg._NewPath.find('\n') != std::string::npos;
+      std::ostringstream oss;
+      const auto writeField = [&](const std::string &field) {
+        if (escaped)
+          oss << escapeField(field);
+        else
+          oss << field;
+      };
+      if (escaped)
+        oss << escapedPrefix;
+      oss << static_cast<int>(msg._Type) << '|';
+      writeField(msg._Filename);
+      oss << '|';
+      writeField(msg._Content);
+      oss << '|';
+      writeField(msg._NodeAddress);
+      oss << '|' << msg._NodePort << '|' << msg._ErrorCode << '|' << msg._Mode
+          << '|' << msg._Uid << '|' << msg._Gid << '|' << msg._Offset << '|'
+          << msg._Size << '|';
+      writeField(msg._Data);
+      oss << '|';
+      writeField(msg._Path);
+      oss << '|';
+      writeField(msg._NewPath);
+      return oss.str();
     }
 
     /**
@@ -165,25 +237,51 @@ public:
      *        or if the data string is fundamentally malformed.
      * @note Fields are parsed sequentially. Assumes all fields are present, even if empty for strings or zero for numeric types.
      */
-    inline static Message Deserialize(const std::string& data) {
-        std::istringstream iss(data);
+    inline static Message Deserialize(const std::string &data) {
+      const bool escaped =
+          data.compare(0, escapedPrefix.size(), escapedPrefix) == 0;
+      std::string_view fields(data);
+      if (escaped) {
+        fields.remove_prefix(escapedPrefix.size());
+        if (std::count(fields.begin(), fields.end(), '|') != 13 ||
+            fields.find_first_of(std::string_view("\0\n", 2)) !=
+                std::string_view::npos)
+          throw std::runtime_error(
+              "Deserialize error: Invalid escaped message fields");
+      }
+      Message msg = deserializeFields(fields);
+      if (escaped) {
+        unescapeField(msg._Filename);
+        unescapeField(msg._Content);
+        unescapeField(msg._NodeAddress);
+        unescapeField(msg._Data);
+        unescapeField(msg._Path);
+        unescapeField(msg._NewPath);
+      }
+      return msg;
+    }
+
+  private:
+    static Message deserializeFields(std::string_view data) {
+        std::istringstream iss{std::string(data)};
+        const bool trailingDelimiter = !data.empty() && data.back() == '|';
         std::string token;
         Message msg{}; // Value-initialize
         int msg_type_int;
 
         auto get_token = [&](const std::string& field_name) {
             if (!std::getline(iss, token, '|')) {
-                 if (iss.eof() && iss.str().back() == '|') { // if data ends with delimiter, it means the last field is empty
+                 if (iss.eof() && trailingDelimiter) { // if data ends with delimiter, it means the last field is empty
                     token.clear(); // Treat as empty
                     return;
                 }
-                throw std::runtime_error("Deserialize error: Stream ended prematurely or missing delimiter. Expected " + field_name + ". Data: '" + data + "'");
+                throw std::runtime_error("Deserialize error: Stream ended prematurely or missing delimiter. Expected " + field_name + ". Data: '" + std::string(data) + "'");
             }
         };
 
         auto get_last_token = [&](const std::string& field_name) {
             if (!std::getline(iss, token)) { // Read the rest of the stream for the last field
-                if (iss.eof() && iss.str().back() == '|') { // if data ends with delimiter, it means the last field is empty
+                if (iss.eof() && trailingDelimiter) { // if data ends with delimiter, it means the last field is empty
                      token.clear(); // Treat as empty
                      return;
                 }
@@ -192,12 +290,12 @@ public:
                 // If token is not empty, it's a valid last field.
                 // If token is empty and eof is not true (e.g. badbit or failbit), then it's an error.
                 // For robustness, if getline fails and token is empty, assume it's an empty last field if eof is set.
-                if (iss.eof() && token.empty() && iss.str().back() != '|') {
+                if (iss.eof() && token.empty() && !trailingDelimiter) {
                     // This case means stream ended, and there was no final delimiter, and no content for the last field.
                     // This is ambiguous. Could be a malformed message missing its last field or an empty last field without a trailing delimiter.
                     // Given current logic, if it's the very last field, an empty token is acceptable.
                 } else if (!iss.eof() && !iss.good()) { // Check for other stream errors
-                     throw std::runtime_error("Deserialize error: Stream error while reading " + field_name + ". Data: '" + data + "'");
+                     throw std::runtime_error("Deserialize error: Stream error while reading " + field_name + ". Data: '" + std::string(data) + "'");
                 }
             }
         };

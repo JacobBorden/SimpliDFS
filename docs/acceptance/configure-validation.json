@@ -1,0 +1,123 @@
+{
+  "run_time": "2026-11-05T00:19:52.608989+00:00",
+  "canonical_base": "02aaa408e77b98a252d26e33c5f2973f87b47c25",
+  "tested_task_head": "d1f3bb5b15701c59b93955d6169b7693ea348151",
+  "results": [
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "origin/development"
+      ],
+      "exit_code": 0,
+      "output": "02aaa408e77b98a252d26e33c5f2973f87b47c25\n"
+    },
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "output": "d1f3bb5b15701c59b93955d6169b7693ea348151\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "cmake version 3.31.0\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n"
+    },
+    {
+      "command": [
+        "c++",
+        "--version"
+      ],
+      "exit_code": 0,
+      "output": "c++ (SUSE Linux) 15.2.1 20251006\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\n"
+    },
+    {
+      "command": [
+        "pkg-config",
+        "--modversion",
+        "openssl"
+      ],
+      "exit_code": 0,
+      "output": "3.5.3\n"
+    },
+    {
+      "command": [
+        "pkg-config",
+        "--static",
+        "--libs",
+        "openssl"
+      ],
+      "exit_code": 0,
+      "output": "-lssl -lcrypto -l:libjitterentropy.so -lz -ldl -pthread\n"
+    },
+    {
+      "command": [
+        "cmake",
+        "-S",
+        ".",
+        "-B",
+        "work/daily-acceptance/full-build",
+        "-G",
+        "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_POSIX_TEST_SUITE=ON",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DWITH_STATIC_LIBS=ON",
+        "-C",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-08/task-3/projects/SimpliDFS/work/simplidfs-boost-install-20261011-manual-01/boost-cache.cmake",
+        "-U",
+        "boost_*_DIR"
+      ],
+      "exit_code": 1,
+      "output": "loading initial cache file /mnt/c/Users/jacob/Documents/Codex/2026-10-08/task-3/projects/SimpliDFS/work/simplidfs-boost-install-20261011-manual-01/boost-cache.cmake\n-- Fetching zstd from source to ensure consistent version v1.5.5...\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/zstd-src/build/cmake/CMakeLists.txt:10 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- ZSTD VERSION: 1.5.5\n-- CMAKE_INSTALL_PREFIX: /usr/local\n-- CMAKE_INSTALL_LIBDIR: lib64\n-- ZSTD_LEGACY_SUPPORT defined!\n-- ZSTD_MULTITHREAD_SUPPORT is enabled\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/cppcodec-src/CMakeLists.txt:1 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- Using pkg-config to locate gRPC static libraries\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/yaml-cpp-src/CMakeLists.txt:2 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- CMAKE_CXX_COMPILER_ID: GNU\n-- CMAKE_CXX_FLAGS: \n-- _GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEFINITIONS:_GLIBCXX_USE_CXX11_ABI>\nCMake Error at /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:233 (message):\n  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the\n  system variable OPENSSL_ROOT_DIR (missing: OPENSSL_CRYPTO_LIBRARY) (found\n  version \"3.5.3\")\nCall Stack (most recent call first):\n  /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:603 (_FPHSA_FAILURE_MESSAGE)\n  /usr/share/cmake/Modules/FindOpenSSL.cmake:691 (find_package_handle_standard_args)\n  src/utilities/CMakeLists.txt:5 (find_package)\n\n\n-- Configuring incomplete, errors occurred!\n"
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/daily-acceptance/full-build/_deps/yaml-cpp-src",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "output": "f7320141120f720aecc4c32be25586e7da9eb978\n"
+    },
+    {
+      "command": [
+        "git",
+        "-C",
+        "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/daily-acceptance/full-build/_deps/yaml-cpp-src",
+        "status",
+        "--porcelain"
+      ],
+      "exit_code": 0,
+      "output": ""
+    }
+  ],
+  "sha256": {
+    "CMakeLists.txt": "3ea4d1a0a485967196b4c87e8540c88997576d2df4268425c1c909acb3b7a735",
+    "src/utilities/CMakeLists.txt": "ab8ce245072904fa7184ae8de9ded05c3ed0b977f9f47a54747cb913ac3074a1",
+    "src/utilities/key_manager.cpp": "16bf9c75342cbb16a14526dbdc3b577b21d4b434730474cc5c231eb246ca0ffb",
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-31/task/four-publication-repair/candidate-worktrees/simplidfs/work/daily-acceptance/full-build/_deps/yaml-cpp-src/CMakeLists.txt": "d0c3194e276f87e99af788a641c4c7c39f1c831b3139e9178d1e789103bb70fb",
+    "/mnt/c/Users/jacob/Documents/Codex/2026-10-08/task-3/projects/SimpliDFS/work/simplidfs-boost-install-20261011-manual-01/boost-cache.cmake": "6aac32789b6b40e157aaca7822d9fe52afa15ea56e31a001de0b7a0e81ffa0b2"
+  },
+  "archive_presence_at_standard_paths": {
+    "/usr/lib/libcrypto.a": false,
+    "/usr/lib64/libcrypto.a": false,
+    "/usr/lib/libssl.a": false,
+    "/usr/lib64/libssl.a": false
+  },
+  "initial_retry_log": "loading initial cache file /mnt/c/Users/jacob/Documents/Codex/2026-10-08/task-3/projects/SimpliDFS/work/simplidfs-boost-install-20261011-manual-01/boost-cache.cmake\n-- Fetching zstd from source to ensure consistent version v1.5.5...\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/zstd-src/build/cmake/CMakeLists.txt:10 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- ZSTD VERSION: 1.5.5\n-- CMAKE_INSTALL_PREFIX: /usr/local\n-- CMAKE_INSTALL_LIBDIR: lib64\n-- ZSTD_LEGACY_SUPPORT defined!\n-- ZSTD_MULTITHREAD_SUPPORT is enabled\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/cppcodec-src/CMakeLists.txt:1 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- Using pkg-config to locate gRPC static libraries\nCMake Deprecation Warning at work/daily-acceptance/full-build/_deps/yaml-cpp-src/CMakeLists.txt:2 (cmake_minimum_required):\n  Compatibility with CMake < 3.10 will be removed from a future version of\n  CMake.\n\n  Update the VERSION argument <min> value or use a ...<max> suffix to tell\n  CMake that the project does not need compatibility with older versions.\n\n\n-- CMAKE_CXX_COMPILER_ID: GNU\n-- CMAKE_CXX_FLAGS: \n-- _GLIBCXX_USE_CXX11_ABI (Compile Definition Check): $<COMPILE_DEFINITIONS:_GLIBCXX_USE_CXX11_ABI>\nCMake Error at /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:233 (message):\n  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the\n  system variable OPENSSL_ROOT_DIR (missing: OPENSSL_CRYPTO_LIBRARY) (found\n  version \"3.5.3\")\nCall Stack (most recent call first):\n  /usr/share/cmake/Modules/FindPackageHandleStandardArgs.cmake:603 (_FPHSA_FAILURE_MESSAGE)\n  /usr/share/cmake/Modules/FindOpenSSL.cmake:691 (find_package_handle_standard_args)\n  src/utilities/CMakeLists.txt:5 (find_package)\n\n\n-- Configuring incomplete, errors occurred!\n",
+  "limits": [
+    "Configure fails; zero full project builds or runtime tests",
+    "yaml-cpp fetch point passed; no dependency build acceptance",
+    "Mixed Protobuf/gRPC closure remains unqualified",
+    "No static dependency requirements weakened; no services or real data"
+  ]
+}

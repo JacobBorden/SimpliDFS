@@ -250,3 +250,6 @@ endif()
 if(BUILD_POSIX_TEST_SUITE)
     add_subdirectory(posix)
 endif()
+
+# Focused strict-parser and allocation-failure regressions.
+add_subdirectory(key_manager_regressions)

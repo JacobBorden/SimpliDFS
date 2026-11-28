@@ -2,9 +2,11 @@
 #include "utilities/logger.h" // Ensure logger is included for Logger::getInstance()
 #include "utilities/svid_fetcher.h"
 #include <algorithm> // For std::find
+#include <atomic>
 #include <chrono>    // For timestamp components (used by getNetworkTimestamp)
 #include <iomanip>   // For std::put_time (used by getNetworkTimestamp)
 #include <iostream>  // For std::cout (verbose logging)
+#include <limits>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <sstream>  // For std::ostringstream (used by getNetworkTimestamp)
@@ -502,6 +504,11 @@ Networking::ClientConnection Networking::Server::Accept() {
     }
   }
 
+  // A socket descriptor may be reused before a stale handle is cleaned up.
+  static std::atomic<std::uint64_t> nextConnectionId{1};
+  client.connectionId =
+      nextConnectionId.fetch_add(1, std::memory_order_relaxed);
+
   // Add the client connection to the list of clients
   { // Scope for lock_guard
     std::lock_guard<std::mutex> lock(clients_mutex_);
@@ -571,12 +578,21 @@ static bool send_all_server(SOCKET sock, const char *buffer, size_t length,
 // Send data to the client (modified for length-prefixing)
 int Networking::Server::Send(PCSTR _pSendBuffer,
                              Networking::ClientConnection _pClient) {
+  return Send(std::string_view(_pSendBuffer), _pClient);
+}
+
+int Networking::Server::Send(std::string_view payload,
+                             Networking::ClientConnection _pClient) {
   // Note: _pClient is a copy. Operations on its socket are fine, but state
   // changes to _pClient itself won't persist outside. The current
   // DisconnectClient takes a ClientConnection copy too. This design might need
   // review for state management.
 
-  size_t payloadLength = strlen(_pSendBuffer);
+  const size_t payloadLength = payload.size();
+  // The frame length is unsigned on the wire, but socket writes and our
+  // return value must also represent the byte count as an int.
+  if (payloadLength > static_cast<size_t>((std::numeric_limits<int>::max)()))
+    throw std::length_error("Server::Send payload exceeds maximum size");
   uint32_t netPayloadLength = htonl(static_cast<uint32_t>(payloadLength));
 
   Logger::getInstance().log(
@@ -597,7 +613,7 @@ int Networking::Server::Send(PCSTR _pSendBuffer,
 
     // Send the actual payload
     if (payloadLength > 0) {
-      send_all_server(_pClient.clientSocket, _pSendBuffer, payloadLength,
+      send_all_server(_pClient.clientSocket, payload.data(), payloadLength,
                       useTLS, _pClient.ssl, this, _pClient);
     }
     Logger::getInstance().log(
@@ -1101,45 +1117,40 @@ void Networking::Server::ReceiveFile(const std::string &_pFilePath,
 
 bool Networking::Server::ServerIsRunning() { return serverIsConnected; }
 
-void Networking::Server::DisconnectClient(Networking::ClientConnection _pClient)
+void Networking::Server::DisconnectClient(Networking::ClientConnection client) {
+  {
+    std::lock_guard<std::mutex> lock(clients_mutex_);
+    const auto entry = std::find(clients.begin(), clients.end(), client);
+    if (entry == clients.end())
+      return;
+    client = *entry;
+    clients.erase(entry);
+  }
 
-{
-  try {
-    // Disconnect the client from the server
-    // Shut down the server socket
 #ifdef _WIN32
-    int shutdownResult = shutdown(_pClient.clientSocket, SD_BOTH);
+  const int shutdownResult = shutdown(client.clientSocket, SD_BOTH);
 #else
-    int shutdownResult = shutdown(_pClient.clientSocket, SHUT_RDWR);
+  const int shutdownResult = shutdown(client.clientSocket, SHUT_RDWR);
 #endif
-    // If there was an error, throw an exception
-    if (shutdownResult == SOCKET_ERROR) {
-      // Get the error code
-      int errorCode = GETERROR();
+  const int shutdownError = shutdownResult == SOCKET_ERROR ? GETERROR() : 0;
+  if (client.ssl) {
+    SSL_shutdown(client.ssl);
+    SSL_free(client.ssl);
+  }
+  CLOSESOCKET(client.clientSocket);
 
-      // Throw the error code
-      ThrowShutdownException(_pClient.clientSocket, errorCode);
+  if (shutdownResult == SOCKET_ERROR) {
+    try {
+      ThrowShutdownException(client.clientSocket, shutdownError);
+    } catch (const Networking::NetworkException &ex) {
+      Logger::getInstance().log(
+          LogLevel::ERROR, "Error during DisconnectClient for " +
+                               GetClientIPAddress(client) + ": " + ex.what());
     }
-  } catch (Networking::NetworkException &ex) {
-    Logger::getInstance().log(LogLevel::ERROR,
-                              "Error during DisconnectClient for " +
-                                  GetClientIPAddress(_pClient) + ": " +
-                                  std::string(ex.what()));
   }
   Logger::getInstance().log(
-      LogLevel::INFO, "Disconnecting client " + GetClientIPAddress(_pClient) +
-                          " socket " + std::to_string(_pClient.clientSocket));
-  // Close the socket
-  if (_pClient.ssl) {
-    SSL_shutdown(_pClient.ssl);
-    SSL_free(_pClient.ssl);
-  }
-  CLOSESOCKET(_pClient.clientSocket);
-
-  // Remove the client from the list of clients
-  std::lock_guard<std::mutex> lock(clients_mutex_);
-  clients.erase(std::remove(clients.begin(), clients.end(), _pClient),
-                clients.end());
+      LogLevel::INFO, "Disconnecting client " + GetClientIPAddress(client) +
+                          " socket " + std::to_string(client.clientSocket));
 }
 
 // Shut down the server

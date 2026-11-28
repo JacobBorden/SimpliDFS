@@ -2460,3 +2460,56 @@ TEST_F(NetworkingTest, IsClientConnectedTracksClients) {
     client.Disconnect();
     server.Shutdown();
 }
+
+TEST_F(NetworkingTest, StaleDisconnectPreservesCurrentConnection) {
+  const int testPort = 12413;
+  Networking::Server server(testPort);
+  ASSERT_TRUE(server.startListening());
+
+  Networking::Client first("127.0.0.1", testPort);
+  auto oldConnection = server.Accept();
+  server.DisconnectClient(oldConnection);
+
+  Networking::Client second("127.0.0.1", testPort);
+  const auto currentConnection = server.Accept();
+  // Model descriptor reuse independently of the operating system allocator.
+  oldConnection.clientSocket = currentConnection.clientSocket;
+  EXPECT_FALSE(server.isClientConnected(oldConnection));
+  server.DisconnectClient(oldConnection);
+  EXPECT_TRUE(server.isClientConnected(currentConnection));
+  if (server.isClientConnected(currentConnection)) {
+    server.Send("still connected", currentConnection);
+    const auto response = second.Receive();
+    EXPECT_EQ(std::string(response.begin(), response.end()), "still connected");
+  }
+
+  server.Shutdown();
+}
+
+TEST_F(NetworkingTest, BinaryFileRequestAndRawReply) {
+  Networking::Server server(12397);
+  ASSERT_TRUE(server.startListening());
+  Networking::Client client("127.0.0.1", 12397);
+  ASSERT_TRUE(client.IsConnected());
+  const auto connection = server.Accept();
+
+  Message write{};
+  write._Type = MessageType::WriteFile;
+  write._Path = "/extent|test";
+  write._Offset = 4095;
+  write._Data = std::string("\0|%", 3);
+  write._Size = write._Data.size();
+  const auto wire = Message::Serialize(write);
+  ASSERT_EQ(client.Send(wire.c_str()), wire.size());
+  const auto bytes = server.Receive(connection);
+  const auto decoded =
+      Message::Deserialize(std::string(bytes.begin(), bytes.end()));
+  ASSERT_EQ(decoded._Path, write._Path);
+  ASSERT_EQ(decoded._Offset, write._Offset);
+  ASSERT_EQ(decoded._Size, write._Size);
+  ASSERT_EQ(decoded._Data, write._Data);
+
+  ASSERT_EQ(server.Send(decoded._Data, connection), decoded._Data.size());
+  const auto reply = client.Receive();
+  EXPECT_EQ(std::string(reply.begin(), reply.end()), write._Data);
+}

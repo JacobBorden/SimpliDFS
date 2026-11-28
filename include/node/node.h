@@ -22,6 +22,7 @@
 #include <chrono> // Required for std::chrono
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -165,7 +166,10 @@ public:
            BlockIO::CipherAlgorithm::XCHACHA20_POLY1305)
       : nodeName(name), server(port),
         fileSystem(compression_level, cipher_algo) {
-    rbacPolicy.loadFromFile("rbac_policy.yaml");
+    const bool policyLoaded = rbacPolicy.loadFromFile("rbac_policy.yaml");
+    std::cerr << "Node " << nodeName
+              << " RBAC policy path=rbac_policy.yaml loaded=" << policyLoaded
+              << std::endl;
   }
 
   /**
@@ -303,6 +307,17 @@ public:
    * included.
    */
   void handleClient(Networking::ClientConnection client) {
+    auto disconnect = [this](Networking::ClientConnection *connection) {
+      try {
+        server.DisconnectClient(*connection);
+      } catch (const std::exception &e) {
+        std::cerr << "Error disconnecting client: " << e.what() << std::endl;
+      }
+    };
+    // The server also disconnects on transport errors, so cleanup must be
+    // safe for an already closed connection.
+    std::unique_ptr<Networking::ClientConnection, decltype(disconnect)>
+        closeOnExit(&client, disconnect);
     try {
       std::vector<char> request_vector = server.Receive(client);
       if (request_vector.empty()) {
@@ -315,6 +330,9 @@ public:
 
       auto allowed = [&](const std::string &op) {
         if (!rbacPolicy.isAllowed(message._Uid, op)) {
+          std::cerr << "Node " << nodeName
+                    << " RBAC denied uid=" << message._Uid
+                    << " operation=" << op << std::endl;
           server.Send("Access denied", client);
           return false;
         }
@@ -394,7 +412,7 @@ public:
           break;
         std::string content = fileSystem.readFile(message._Filename);
         if (!content.empty()) {
-          server.Send(content.c_str(), client);
+          server.Send(content, client);
         } else {
           server.Send("Error: File not found.", client);
         }

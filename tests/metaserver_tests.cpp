@@ -5,6 +5,9 @@
 #include "utilities/blockio.hpp"
 #include "utilities/metrics.h"
 #include "utilities/server.h"
+#include <cstdio>
+#include <fstream>
+#include <limits>
 #include <thread>
 #include "utilities/message.h"
 #include <thread>
@@ -192,6 +195,51 @@ TEST_F(MetadataManagerTest, SaveLoadMetadataWithModesAndSizes) {
     std::remove(nr_path.c_str());
 
     s1.stop(); s2.stop(); s3.stop();
+}
+
+TEST_F(MetadataManagerTest, LoadNodeRegistrySkipsOutOfRangeTimestamps) {
+  struct SnapshotFiles {
+    const char *metadata = "range_test_metadata.dat";
+    const char *registry = "range_test_registry.dat";
+
+    ~SnapshotFiles() {
+      std::remove(metadata);
+      std::remove(registry);
+    }
+  } files;
+
+  {
+    std::ofstream metadata(files.metadata);
+    ASSERT_TRUE(metadata);
+    std::ofstream registry(files.registry);
+    ASSERT_TRUE(registry);
+    const std::string aboveMax =
+        std::to_string(std::numeric_limits<long>::max()) + "0";
+    const std::string belowMin =
+        std::to_string(std::numeric_limits<long>::min()) + "0";
+    const auto writeRecord = [&](const char *id, const std::string &registered,
+                                 const std::string &heartbeat) {
+      registry << id << METADATA_SEPARATOR << "127.0.0.1:1234"
+               << METADATA_SEPARATOR << registered << METADATA_SEPARATOR
+               << heartbeat << METADATA_SEPARATOR << "1\n";
+    };
+    writeRecord("Before", "1", "2");
+    writeRecord("InvalidRegistration", aboveMax, "2");
+    writeRecord("InvalidHeartbeat", "1", belowMin);
+    writeRecord("After", "3", "4");
+    registry.close();
+    ASSERT_TRUE(registry);
+  }
+
+  ASSERT_NO_THROW(metadataManager.loadMetadata(files.metadata, files.registry));
+  EXPECT_TRUE(metadataManager.isNodeRegistered("Before"));
+  EXPECT_FALSE(metadataManager.isNodeRegistered("InvalidRegistration"));
+  EXPECT_FALSE(metadataManager.isNodeRegistered("InvalidHeartbeat"));
+  ASSERT_TRUE(metadataManager.isNodeRegistered("After"));
+  const auto last = metadataManager.getNodeInfo("After");
+  EXPECT_EQ(last.registrationTime, 3);
+  EXPECT_EQ(last.lastHeartbeat, 4);
+  EXPECT_TRUE(last.isAlive);
 }
 
 TEST_F(MetadataManagerTest, InsufficientNodesAddFileFails) {

@@ -36,3 +36,52 @@ TEST(MessageTests, DeserializeMessage)
     ASSERT_EQ(msg._Path, "");
     ASSERT_EQ(msg._NewPath, "");
 }
+
+TEST(MessageTests, BinaryStringFieldsRoundTrip) {
+  std::string bytes;
+  for (unsigned int value = 0; value < 256; ++value)
+    bytes.push_back(static_cast<char>(value));
+
+  Message request{};
+  request._Type = MessageType::WriteFile;
+  request._Filename = "file|name";
+  request._Content = bytes;
+  request._NodeAddress = "host%00";
+  request._Offset = 4095;
+  request._Size = bytes.size();
+  request._Data = std::string(1, '\0');
+  request._Path = "/file|name";
+  request._NewPath = "/new\nname";
+
+  const auto wire = Message::Serialize(request);
+  EXPECT_EQ(wire.size(), std::char_traits<char>::length(wire.c_str()));
+  const auto decoded = Message::Deserialize(wire);
+  EXPECT_EQ(decoded._Type, request._Type);
+  EXPECT_EQ(decoded._Filename, request._Filename);
+  EXPECT_EQ(decoded._Content, request._Content);
+  EXPECT_EQ(decoded._NodeAddress, request._NodeAddress);
+  EXPECT_EQ(decoded._Offset, request._Offset);
+  EXPECT_EQ(decoded._Size, request._Size);
+  EXPECT_EQ(decoded._Data, request._Data);
+  EXPECT_EQ(decoded._Path, request._Path);
+  EXPECT_EQ(decoded._NewPath, request._NewPath);
+}
+
+TEST(MessageTests, PreserveLegacyPercentAndMultilineData) {
+  const std::string legacy = "1|||localhost|0|0|0|0|0|3|6|%00\nxy|/test|";
+  const auto decoded = Message::Deserialize(legacy);
+  EXPECT_EQ(decoded._Data, "%00\nxy");
+  EXPECT_EQ(Message::Serialize(decoded), legacy);
+}
+
+TEST(MessageTests, RejectMalformedEscapedFields) {
+  EXPECT_THROW(Message::Deserialize("escaped1|1||||0|0|0|0|0|0|%0|/test|"),
+               std::runtime_error);
+  EXPECT_THROW(Message::Deserialize("escaped1|1||||0|0|0|0|0|0|%GG|/test|"),
+               std::runtime_error);
+  EXPECT_THROW(Message::Deserialize("escaped1|1||||0|0|0|0|0|0||/test"),
+               std::runtime_error);
+  EXPECT_THROW(Message::Deserialize("escaped1|1||||0|0|0|0|0|0|x|y|/test|"),
+               std::runtime_error);
+  EXPECT_THROW(Message::Deserialize(""), std::runtime_error);
+}

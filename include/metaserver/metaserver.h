@@ -767,6 +767,10 @@ public:
             std::cerr << "Error parsing numeric value for node " << nodeID
                       << ": " << ia.what() << std::endl;
             continue; // Skip this record
+          } catch (const std::out_of_range &) {
+            std::cerr << "Timestamp out of range for node " << nodeID
+                      << std::endl;
+            continue;
           }
           registeredNodes[nodeID] = info;
         }
